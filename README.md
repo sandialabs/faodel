@@ -9,3 +9,6 @@ release. We expect this to be completed by mid **March 2018**.
 Until then, please look at the faodel-pubs repo for papers and presentations
 related to this work.
 
+- Update: 3/12 Cleared first round of reviews
+- Update: 3/15 Finished copyright paperwork and submitted
+- Update: 3/20 Cleared another review
