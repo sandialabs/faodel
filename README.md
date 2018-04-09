@@ -12,3 +12,5 @@ related to this work.
 - Update: 3/12 Cleared first round of reviews
 - Update: 3/15 Finished copyright paperwork and submitted
 - Update: 3/20 Cleared another review
+- Update: 3/27 Paperwork submitted to DOE
+- Update: 4/05 DOE granted permission to assert copyright, software deemed to be Publicly Available
