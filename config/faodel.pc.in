@@ -1,0 +1,14 @@
+prefix=@CMAKE_INSTALL_PREFIX@
+exec_prefix=${prefix}
+libdir=${exec_prefix}/lib
+includedir=${prefix}/include
+
+Name: Faodel
+Description:
+Version: 0.2
+Requires: @PKGCONFIG_REQUIRES@
+Libs: -L${libdir} -lkelpie -lopbox -llunasa @PKGCONFIG_NNTI@ -lwebhook -lcommon -lsbl
+Libs.private: @PKGCONFIG_LIBS_PRIVATE@
+Cflags: -I${includedir} -I${includedir}/faodel @PKGCONFIG_CFLAGS@
+
+

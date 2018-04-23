@@ -1,0 +1,116 @@
+#define NNTI_VERSION_MAJOR @PROJECT_VERSION_MAJOR@
+#define NNTI_VERSION_MINOR @PROJECT_VERSION_MINOR@
+#define NNTI_VERSION_PATCH @PROJECT_VERSION_PATCH@
+#define NNTI_VERSION       @PROJECT_VERSION@
+
+/* ************************************************
+ * Network configuration
+ * ************************************************ */
+
+/* Network Transports */
+#cmakedefine NNTI_BUILD_IBVERBS 1
+#cmakedefine NNTI_BUILD_UGNI 1
+#cmakedefine NNTI_BUILD_MPI 1
+
+/* Headers */
+#cmakedefine NNTI_HAVE_MALLOC_H 1
+#cmakedefine NNTI_HAVE_SYS_TYPES_H 1
+#cmakedefine NNTI_HAVE_SYS_PARAM_H 1
+#cmakedefine NNTI_HAVE_SYS_IOCTL_H 1
+#cmakedefine NNTI_HAVE_SYS_SOCKET_H 1
+#cmakedefine NNTI_HAVE_SYS_SOCKIO_H 1
+#cmakedefine NNTI_HAVE_NETDB_H 1
+#cmakedefine NNTI_HAVE_NET_IF_H 1
+#cmakedefine NNTI_HAVE_NET_IF_DL_H 1
+#cmakedefine NNTI_HAVE_NET_IF_ARP_H 1
+#cmakedefine NNTI_HAVE_NETINET_IN_H 1
+#cmakedefine NNTI_HAVE_ARPA_INET_H 1
+#cmakedefine NNTI_HAVE_IFADDRS_H 1
+#cmakedefine NNTI_HAVE_STRUCT_SOCKADDR_IN 1
+
+#cmakedefine NNTI_HAVE_VERBS_EXP_H                       1
+#cmakedefine NNTI_HAVE_IBV_EXP_CREATE_QP                 1
+#cmakedefine NNTI_HAVE_IBV_EXP_QUERY_DEVICE              1
+#cmakedefine NNTI_HAVE_IBV_EXP_QP_INIT_ATTR_ATOMICS_ARG  1
+#cmakedefine NNTI_HAVE_IBV_EXP_QP_CREATE_ATOMIC_BE_REPLY 1
+#cmakedefine NNTI_HAVE_IBV_EXP_ATOMIC_HCA_REPLY_BE       1
+
+#cmakedefine NNTI_HAVE_ENDIAN_H                          1
+#cmakedefine NNTI_HAVE_BE64TOH                           1
+
+/* ************************************************
+ * Misc Config
+ * ************************************************ */
+#cmakedefine NNTI_HAVE_GETIFADDRS 1
+
+/* ************************************************
+ * Linux thread ID configuration
+ * ************************************************ */
+#cmakedefine NNTI_HAVE_UNISTD_H 1
+#cmakedefine NNTI_HAVE_SYSCALL_H 1
+#cmakedefine NNTI_HAVE_GETTID 1
+
+/* ************************************************
+ * Pthread configuration
+ * ************************************************ */
+#cmakedefine NNTI_HAVE_PTHREAD_H 1
+#cmakedefine NNTI_HAVE_PTHREAD_MUTEX_T 1
+#cmakedefine NNTI_HAVE_PTHREAD_MUTEX_INIT 1
+#cmakedefine NNTI_HAVE_PTHREAD_MUTEX_LOCK 1
+#cmakedefine NNTI_HAVE_PTHREAD_MUTEX_UNLOCK 1
+#cmakedefine NNTI_HAVE_PTHREAD_MUTEX_DESTROY 1
+#cmakedefine NNTI_HAVE_PTHREAD_COND_T 1
+#cmakedefine NNTI_HAVE_PTHREAD_COND_INIT 1
+#cmakedefine NNTI_HAVE_PTHREAD_COND_WAIT 1
+#cmakedefine NNTI_HAVE_PTHREAD_COND_TIMEDWAIT 1
+#cmakedefine NNTI_HAVE_PTHREAD_COND_SIGNAL 1
+#cmakedefine NNTI_HAVE_PTHREAD_COND_BROADCAST 1
+#cmakedefine NNTI_HAVE_PTHREAD_COND_DESTROY 1
+
+/* ************************************************
+ * Timer configuration
+ * ************************************************ */
+#cmakedefine NNTI_HAVE_SYS_TIME_H 1
+#cmakedefine NNTI_HAVE_CLOCK_GETTIME 1
+#cmakedefine NNTI_HAVE_TIME_H 1
+#cmakedefine NNTI_HAVE_GETTIMEOFDAY 1
+#cmakedefine NNTI_HAVE_PAPI_H 1
+#cmakedefine NNTI_HAVE_PAPI 1
+#cmakedefine NNTI_HAVE_MACH_TIME_H 1
+#cmakedefine NNTI_HAVE_MACH_ABSOLUTE_TIME 1
+#cmakedefine NNTI_HAVE_MACH_MACH_H 1
+#cmakedefine NNTI_HAVE_MACH_CLOCK_H 1
+#cmakedefine NNTI_HAVE_CLOCK_GET_TIME 1
+
+/* ************************************************
+ * Tracing configuration
+ * ************************************************ */
+#cmakedefine NNTI_ENABLE_TRACING 1
+#cmakedefine NNTI_ENABLE_PAPI @NNTI_ENABLE_PAPI@
+#cmakedefine NNTI_HAVE_PABLO 1
+
+/* ************************************************
+ * Statistics configuration
+ * ************************************************ */
+#cmakedefine NNTI_ENABLE_STATS      1
+#cmakedefine NNTI_ENABLE_FAST_STATS 1
+#cmakedefine NNTI_ENABLE_SLOW_STATS 1
+
+/* ************************************************
+ * HPCToolkit configuration
+ * ************************************************ */
+#cmakedefine NNTI_HAVE_HPCTOOLKIT 1
+
+/* ************************************************
+ * XDR configuration
+ * ************************************************ */
+#cmakedefine NNTI_HAVE_XDR_U_INT16_T 1
+#cmakedefine NNTI_HAVE_XDR_U_INT32_T 1
+#cmakedefine NNTI_HAVE_XDR_U_INT64_T 1
+#cmakedefine NNTI_HAVE_XDR_SIZEOF 1
+
+/* ************************************************
+ * Logging configuration
+ * ************************************************ */
+#cmakedefine NNTI_ENABLE_DEBUG_LOGGING 1
+

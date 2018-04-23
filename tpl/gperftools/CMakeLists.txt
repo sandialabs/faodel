@@ -1,0 +1,207 @@
+INCLUDE (CheckIncludeFiles)
+INCLUDE (CheckSymbolExists)
+INCLUDE (CheckFunctionExists)
+INCLUDE (CheckCXXSourceCompiles)
+
+# CHECK_SYMBOL_EXISTS ("backtrace" HAVE_DECL_BACKTRACE)
+
+CHECK_INCLUDE_FILES ("conflict-signal.h" HAVE_CONFLICT_SIGNAL_H)
+CHECK_INCLUDE_FILES ("cygwin/signal.h" HAVE_CYGWIN_SIGNAL_H)
+CHECK_INCLUDE_FILES ("dlfcn.h" HAVE_DLFCN_H)
+CHECK_INCLUDE_FILES ("execinfo.h" HAVE_EXECINFO_H)
+CHECK_INCLUDE_FILES ("fcntl.h" HAVE_FCNTL_H)
+CHECK_INCLUDE_FILES ("features.h" HAVE_FEATURES_H)
+CHECK_INCLUDE_FILES ("glob.h" HAVE_GLOB_H)
+CHECK_INCLUDE_FILES ("grp.h" HAVE_GRP_H)
+CHECK_INCLUDE_FILES ("inttypes.h" HAVE_INTTYPES_H)
+CHECK_INCLUDE_FILES ("libunwind.h" HAVE_LIBUNWIND_H)
+CHECK_INCLUDE_FILES ("linux/ptrace.h" HAVE_LINUX_PTRACE_H)
+CHECK_INCLUDE_FILES ("malloc.h" HAVE_MALLOC_H)
+CHECK_INCLUDE_FILES ("malloc/malloc.h" HAVE_MALLOC_MALLOC_H)
+CHECK_INCLUDE_FILES ("memory.h" HAVE_MEMORY_H)
+CHECK_INCLUDE_FILES ("poll.h" HAVE_POLL_H)
+CHECK_INCLUDE_FILES ("pthread.h" HAVE_PTHREAD)
+CHECK_INCLUDE_FILES ("pwd.h" HAVE_PWD_H)
+CHECK_INCLUDE_FILES ("sched.h" HAVE_SCHED_H)
+CHECK_INCLUDE_FILES ("stdint.h" HAVE_STDINT_H)
+CHECK_INCLUDE_FILES ("stdlib.h" HAVE_STDLIB_H)
+CHECK_INCLUDE_FILES ("strings.h" HAVE_STRINGS_H)
+CHECK_INCLUDE_FILES ("string.h" HAVE_STRING_H)
+CHECK_INCLUDE_FILES ("sys/cdefs.h" HAVE_SYS_CDEFS_H)
+CHECK_INCLUDE_FILES ("sys/malloc.h" HAVE_SYS_MALLOC_H)
+CHECK_INCLUDE_FILES ("sys/param.h" HAVE_SYS_PARAM_H)
+CHECK_INCLUDE_FILES ("sys/prctl.h" HAVE_SYS_PRCTL_H)
+CHECK_INCLUDE_FILES ("sys/resource.h" HAVE_SYS_RESOURCE_H)
+CHECK_INCLUDE_FILES ("sys/socket.h" HAVE_SYS_SOCKET_H)
+CHECK_INCLUDE_FILES ("sys/stat.h" HAVE_SYS_STAT_H)
+CHECK_INCLUDE_FILES ("sys/syscall.h" HAVE_SYS_SYSCALL_H)
+CHECK_INCLUDE_FILES ("sys/types.h" HAVE_SYS_TYPES_H)
+CHECK_INCLUDE_FILES ("sys/ucontext.h" HAVE_SYS_CONTEXT_H)
+CHECK_INCLUDE_FILES ("sys/wait.h" HAVE_SYS_WAIT_H)
+CHECK_INCLUDE_FILES ("ucontext.h" HAVE_UCONTEXT_H)
+CHECK_INCLUDE_FILES ("unistd.h" HAVE_UNISTD_H)
+CHECK_INCLUDE_FILES ("unwind.h" HAVE_UNWIND_H)
+CHECK_INCLUDE_FILES ("valgrind.h" HAVE_VALGRIND_H)
+
+CHECK_FUNCTION_EXISTS ("sbrk" HAVE_SBRK)
+CHECK_FUNCTION_EXISTS ("mmap" HAVE_MMAP)
+CHECK_FUNCTION_EXISTS ("posix_memalign" HAVE_MEMALIGN)
+
+CHECK_CXX_SOURCE_COMPILES(
+  "#include <malloc.h>
+   void* (* volatile __malloc_hook)(size_t, const void*) = 0;
+   int main(int argc, char **argv)
+   {
+       return 0;
+   }"
+  malloc_hook_volatile)
+
+IF (malloc_hook_volatile)
+  SET(MALLOC_HOOK_MAYBE_VOLATILE "volatile" CACHE string "does malloc hook need volatile")
+ELSE ()
+  SET(MALLOC_HOOK_MAYBE_VOLATILE "" CACHE string "does malloc hook need volatile")
+ENDIF ()
+
+CHECK_CXX_SOURCE_COMPILES(
+  "#include <malloc.h>
+   int main(int argc, char **argv)
+   {
+       struct mallinfo m = mallinfo();
+       return 0;
+   }"
+  malloc_mallinfo)
+
+IF (malloc_mallinfo)
+  SET(HAVE_STRUCT_MALLINFO 1 CACHE string "support for mallinfo")
+ENDIF ()
+
+set(PERFTOOLS_DLL_DECL "" CACHE string "On windows, should be __declspec(dllexport)")
+set(STL_NAMESPACE "std" CACHE string "namespace where STL code like vector<> is defined")
+option(TCMALLOC_32K_PAGES "32K of internal page size" OFF)
+option(TCMALLOC_64K_PAGES "64K of internal page size" OFF)
+option(TCMALLOC_ALIGN_8BYTES "8 bytes of allocation alignment" OFF)
+# option(HAVE_MMAP "System has MMAP" ON)
+# option(NO_HEAP_CHECK "Don't check the heap" ON)
+set(VERSION "lunasa" CACHE string "version string for the config")
+
+set(PACKAGE_VERSION  "2.5" CACHE string "version of this package")
+execute_process(COMMAND expr "${PACKAGE_VERSION}" : "\\([[0-9]]*\\)" OUTPUT_VARIABLE MAJOR)
+execute_process(COMMAND expr "${PACKAGE_VERSION}" : "[[0-9]]*\\.\\([[0-9]]*\\)" OUTPUT_VARIABLE MINOR)
+execute_process(COMMAND expr "${PACKAGE_VERSION}" : "[[0-9]]*\\.[[0-9]]*\\(.*\\)$" OUTPUT_VARIABLE PATCH)
+
+# In some cases, the assignment of these variables includes a newline which 
+# is problematic for their subsequent use.  This should solve that problem
+# where it exists
+string(STRIP "${MAJOR}" MAJOR)
+string(STRIP "${MINOR}" MINOR)
+string(STRIP "${PATCH}" PATCH)
+
+set(TC_VERSION_MAJOR "${MAJOR}" CACHE string "major version of this package")
+set(TC_VERSION_MINOR "${MINOR}" CACHE string "minor version of this package")
+set(TC_VERSION_PATCH "${PATCH}" CACHE string "patch version of this package")
+
+set(PRIdS "%d" CACHE string "printf format code for printing size_t and ssize_t")
+set(PRIuS "%u" CACHE string "printf format code for printing size_t and ssize_t")
+set(PRIxS "%x" CACHE string "printf format code for printing size_t and ssize_t")
+
+configure_file(src/config.h.in "${CMAKE_CURRENT_SOURCE_DIR}/src/config.h")
+configure_file(src/gperftools/tcmalloc.h.in "${CMAKE_CURRENT_SOURCE_DIR}/src/gperftools/tcmalloc.h")
+
+set(LOGGING_INCLUDES
+  src/base/logging.h
+  src/base/commandlineflags.h
+  src/base/basictypes.h
+  src/base/dynamic_annotations.h)
+
+set(LOGGING_SOURCES
+  src/base/logging.cc
+  src/base/dynamic_annotations.c)
+
+set(SYSINFO_INCLUDES
+  src/base/sysinfo.h
+  src/getenv_safe.h
+  src/base/logging.h
+  src/base/commandlineflags.h
+  src/base/arm_instruction_set_select.h
+  src/base/basictypes.h)
+
+set(SYSINFO_SOURCES
+  src/base/sysinfo.cc)
+
+set(SPINLOCK_INCLUDES
+  src/base/spinlock.h
+  src/base/spinlock_internal.h
+  src/base/atomicops.h 
+  src/base/atomicops-internals-macosx.h
+  src/base/atomicops-internals-linuxppc.h
+  src/base/atomicops-internals-windows.h
+  src/base/atomicops-internals-x86.h)
+
+set(SPINLOCK_SOURCES
+  src/base/spinlock.cc
+  src/base/spinlock_internal.cc
+  src/base/atomicops-internals-x86.cc)
+
+set(spinlock_lib_target spinlock)
+add_library(spinlock STATIC src/config.h.in
+  ${SPINLOCK_INCLUDES} 
+  ${SYSINFO_INCLUDES} 
+  ${LOGGING_INCLUDES} 
+  ${SPINLOCK_SOURCES} 
+  ${SYSINFO_SOURCES}
+  ${LOGGING_SOURCES})
+
+target_include_directories( spinlock
+  PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
+  INTERFACE $<INSTALL_INTERFACE:include/faodel> $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
+  )
+      
+
+set(GPERF_HEADERS
+  src/gperftools/tcmalloc.h
+  src/gperftools/heap-checker.h
+  src/gperftools/heap-profiler.h
+  src/gperftools/malloc_extension.h
+  src/gperftools/malloc_extension_c.h
+  src/gperftools/malloc_hook.h
+  src/gperftools/malloc_hook_c.h
+  src/gperftools/profiler.h
+  src/gperftools/stacktrace.h)
+
+set(TCMALLOC_MINIMAL_SOURCES
+  src/tcmalloc.cc
+  src/system-alloc.cc
+  src/common.cc
+  src/internal_logging.cc
+  src/memfs_malloc.cc
+  src/central_freelist.cc
+  src/page_heap.cc
+  src/sampler.cc
+  src/span.cc
+  src/stacktrace.cc
+  src/stack_trace_table.cc
+  src/static_vars.cc
+  src/symbolize.cc
+  src/maybe_threads.cc
+  src/thread_cache.cc
+  src/malloc_hook.cc
+  src/malloc_extension.cc)
+
+add_library( tcmalloc STATIC src/config.h.in ${GPERF_HEADERS} ${TCMALLOC_MINIMAL_SOURCES} )
+target_link_libraries( tcmalloc spinlock Threads::Threads )
+set_target_properties( tcmalloc PROPERTIES LINKER_LANGUAGE  CXX )
+target_include_directories( tcmalloc
+  PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
+  INTERFACE $<INSTALL_INTERFACE:include/faodel> $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
+  )
+
+install(TARGETS tcmalloc spinlock
+  EXPORT        FaodelTargets
+  RUNTIME       DESTINATION "${BINARY_INSTALL_DIR}" COMPONENT bin
+  ARCHIVE       DESTINATION "${LIBRARY_INSTALL_DIR}" COMPONENT lib
+  PUBLIC_HEADER DESTINATION "${INCLUDE_INSTALL_DIR}/faodel"
+  COMPONENT dev
+  INCLUDES      DESTINATION "${INCLUDE_INSTALL_DIR}"
+  )
+
+

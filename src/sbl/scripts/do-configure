@@ -1,0 +1,8 @@
+#!/bin/sh
+
+rm -r CMake*
+
+export BOOST_ROOT=${HOME}/local
+
+cmake -DCMAKE_BUILD_TYPE=DEBUG -DCMAKE_INSTALL_PREFIX=${HOME}/projects/atdm/install ..
+

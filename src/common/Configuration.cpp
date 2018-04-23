@@ -1,0 +1,847 @@
+// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
+// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
+// the U.S. Government retains certain rights in this software. 
+
+
+#include <vector>
+#include <map>
+#include <algorithm>
+#include <sstream>
+#include <iostream>
+#include <fstream>
+#include <iomanip>
+
+#include "common/Debug.hh"
+#include "common/Configuration.hh"
+#include "common/StringHelpers.hh"
+
+using namespace std;
+
+
+namespace faodel {
+namespace configlog {
+namespace internal {
+map<string, array<string,2>> config_values;
+} //internal
+void AppendRequestedGet(string field, string option_type, string default_value) {
+  std::array<string,2> vals;
+  vals[0]=option_type;
+  vals[1]=default_value;
+  internal::config_values[field] = vals;
+}
+std::map<std::string, array<std::string,2>> GetConfigOptions() {
+  return internal::config_values;
+}
+string str() {
+  stringstream ss;
+  map<string, array<string,2>> vals =  configlog::GetConfigOptions();
+  for(auto &name_vals : vals) {
+    ss <<name_vals.first <<" "<<name_vals.second[0] <<" " <<name_vals.second[1]<<endl;
+  }
+  return ss.str();
+}
+
+} //configlog
+} //faodel
+
+
+
+namespace faodel {
+
+/**
+ * @brief Create a new configuration. Load from env var "CONFIG_FILE" if specified
+ */
+Configuration::Configuration() {
+
+  node_role = "default";
+
+  //See if config filename passed in as env
+  char *penv = getenv("CONFIG_FILE");
+  if(penv) AppendFromFile(string(penv));
+}
+
+/**
+ * @brief Parse a user-supplied Configuration (does NOT load from env var "CONFIG_FILE")
+ */
+Configuration::Configuration(const string &configuration) {
+  node_role = "default";
+  int rc = Append(configuration);
+  kassert(rc==0, "Configuration string had problems");
+}
+
+Configuration::~Configuration() = default;
+
+/**
+ * @brief Parse a multi-line string and append configuration data
+ * @param[in] config_str One or more lines of configuration data (separated by \n)
+ * @retval 0 Always works
+ */
+int Configuration::Append(const string &config_str) {
+  addConfigToMap(config_str);
+  return 0;
+}
+/**
+ * @brief Set a field in the configuration to a string value
+ * @param[in] name Name of the field
+ * @param[in] val String value to set
+ * @retval 0 Always works
+ */
+int Configuration::Append(const string &name, const string &val) {
+  return Set(name,val);
+}
+
+/**
+ * @brief Parse one or more files and load in their configuration data
+ * @param[in] file_name One or more ";" separated file names to load
+ * @retval 0 Always works
+ */
+rc_t Configuration::AppendFromFile(const string &file_name) {
+
+  stringstream ssout;
+
+  string segment;
+  stringstream ss(file_name);
+  while(getline(ss, segment, ';')) {
+    ifstream src(segment.c_str());
+    ssout << src.rdbuf();
+  }
+  Append(ssout.str());
+  return 0;
+}
+
+/**
+ * @brief Load additional settings from files, including those defined by
+ *        environment variable
+ * @retval 0 Always works, unless file pointed to by env variable is not available
+ *
+ * This function is used to pull in additional config files specified in the
+ * configuration file or by environment variables. The intent is to provide an
+ * easy way to pass in platform-specific details without having to modify an
+ * application. Users can supply multiple options here:
+ *
+ * - **config.additional_files abc;def;ghi**:
+ *   Append the data from files abc, def, and ghi to Configuration
+ *
+ * - **config.additional_files.env_name ABC;DEF**:
+ *   Read file names from environment variables ABC and DEF and append the data
+ *   from the files specified by ABC and DEF to Configuration. Exit if these
+ *   environment variables are not defined.
+ *
+ * - **config.additional_files.env_name.if_defined ABC;DEF**:
+ *   Do the same as config.additional_files.env_name, but do not exit if the
+ *   environment variables don't exist.
+ *
+ * @note The config.additional_files markers are removed from Configuration
+ *       once AppendFromReferences() is run in order to avoid endless loops.
+ *       However, Bootstrap only runs this function once. Thus, any additional
+ *       file references added during this call will **not** be resolved.
+ */
+rc_t Configuration::AppendFromReferences() {
+
+  //Get the additional list of configs to use
+  string additional_filenames;
+  string env_name1,env_name2;
+  GetString(&additional_filenames, "config.additional_files","");
+  GetString(&env_name1,            "config.additional_files.env_name","");
+  GetString(&env_name2,            "config.additional_files.env_name.if_defined","");
+
+  //Remove these references so we don't hit them again
+  config_map.erase("config.additional_files");
+  config_map.erase("config.additional_files.env_name");
+  config_map.erase("config.additional_files.env_name.if_defined");
+
+
+  //Check for environment var telling us of others to load
+  if(env_name1!="") {
+    char *config_file = getenv(env_name1.c_str());
+    if(config_file== nullptr) {
+      cerr <<"Configuration error: config.additional_files.env set to "<<env_name1
+           <<" but that environment variable is not defined.\n";
+      exit(0);
+      //TODO: exception
+    }
+    //Add env setting to back of the list
+    if(additional_filenames!="") {
+      additional_filenames +=";"+string(config_file);
+    } else {
+      additional_filenames = string(config_file);
+    }
+  }
+
+  //Check for optional environment var telling us of others to load
+  if(env_name2!="") {
+    char *config_file = getenv(env_name2.c_str());
+    if(config_file!= nullptr) {
+      //Add env setting to back of the list
+      if(additional_filenames!="") {
+        additional_filenames +=";"+string(config_file);
+      } else {
+        additional_filenames = string(config_file);
+      }
+    }
+  }
+  AppendFromFile(additional_filenames);
+
+  return 0;
+}
+
+
+/**
+ * @brief Set a field in the configuration to a string value
+ * @param[in] name Name of the field
+ * @param[in] val String value to set
+ * @retval 0 Always works
+ */
+rc_t Configuration::Set(const string &name, const string &val) {
+
+  string target_name = ToLowercase(name);
+  string target_val  = val;
+
+  //See if this is an item appended to our list
+  if(((target_name.size()>2) &&
+      (target_name.compare(target_name.size()-2, target_name.size(), "<>"))==0)) {
+    //Ended with <>, so append
+    target_name = target_name.substr(0, target_name.size()-2);
+    auto ii = config_map.find(target_name);
+    if(ii != config_map.end()) //Only have to revise if we append
+      target_val = ii->second + ";"+val;
+  }
+  config_map[target_name]=target_val;
+  if(name == "node_role")
+    node_role = val;
+  return 0;
+}
+
+/**
+ * @brief Set a field in the configuration to a char array value
+ * @param[in] name Name of the field
+ * @param[in] val char array value to set
+ * @retval 0 Always works
+ */
+rc_t Configuration::Set(const string &name, const char *val) {
+  return Set(name, string(val));
+}
+
+/**
+ * @brief Set a field in the configuration to an integer value
+ * @param[in] name Name of the field
+ * @param[in] val Integer value to set
+ * @retval 0 Always works
+ */
+rc_t Configuration::Set(const string &name, int val) {
+  return Set(name, std::to_string(val));
+}
+
+  /**
+ * @brief Set a field in the configuration to an integer value
+ * @param[in] name Name of the field
+ * @param[in] val Integer value to set
+ * @retval 0 Always works
+ */
+  rc_t Configuration::Set(const string& name, unsigned int val) {
+    return Set(name, std::to_string(val));
+  }
+
+/**
+ * @brief Set a field in the configuration to a pointer value
+ * @param[in] name Name of the field
+ * @param[in] val Pointer value to set
+ * @retval 0 Always works
+ */
+rc_t Configuration::Set(const string &name, void *val) {
+  stringstream ss;
+  ss << showbase
+     << std::internal
+     << setfill('0');
+  ss << hex << setw(18) << (uint64_t)val;
+  return Set(name, ss.str());
+}
+
+/**
+ * @brief Set a field in the configuration to a pointer value
+ * @param[in] name Name of the field
+ * @param[in] val Boolean value to set
+ * @retval 0 Always works
+ */
+rc_t Configuration::Set(const string &name, bool val) {
+  return Set(name, (val)?"true":"false");
+}
+
+
+/**
+ * @brief Search configuration data and return string of value, or default if not found
+ * @param[out] val Value that was found, or default value
+ * @param[in] name Keyword in configuration to look for
+ * @param[in] default_value Default string to return if not found
+ * @retval 0 If Found value in configuration
+ * @retval ENOENT Data wasn't found, result is default value
+ */
+rc_t Configuration::GetString(string *val, const string &name,
+                              const string &default_value) const {
+
+  //Convert to lowercase
+  string lname=ToLowercase(name);
+
+  configlog::AppendRequestedGet(name, "string", default_value);
+
+  map<string,string>::const_iterator it;
+
+  //First, look for something defined for our specific node_role
+  string name2 = node_role + "." + lname;
+  it = config_map.find(name2);
+  if(it==config_map.end()) {
+
+    //Node role not here, try default.name
+    string name3 = "default."+lname;
+    it = config_map.find(name3);
+    if(it==config_map.end()) {
+
+      //default not here, try bare name
+      it = config_map.find(lname);
+      if(it==config_map.end()) {
+        //Not here either, bail out with default val
+        if(val) *val=default_value;
+        return ENOENT;
+      }
+    }
+  }
+  //Pass back to the user
+  *val = it->second;
+
+  return 0;
+}
+/**
+ * @brief Search configuration data and return lowercase string of value, or default if not found
+ * @param[out] val Lowercase version of value that was found, or default value
+ * @param[in] name Keyword in configuration to look for
+ * @param[in] default_value Default string to use if not found
+ * @retval 0 If Found value in configuration
+ * @retval ENOENT Data wasn't found, result is default value
+ */
+rc_t Configuration::GetLowercaseString(string *val, const string &name, const string &default_value) const {
+
+  string tmp;
+  int rc = GetString(&tmp, name, default_value);
+  if(val) *val = ToLowercase(tmp);
+  return rc;
+}
+
+
+/**
+ * @brief Search through configuration and return value if found. Otherwise
+          return default value
+ * @param[in] name Keyword in configuration to look for
+ * @param[out] val Value that was found
+ * @param[in] default_value A default value string to return if not found (parsed)
+ * @retval 0 If Found value in configuration
+ * @retval ENOENT Data wasn't found, using default value
+ * @retval EINVAL Data or default value could not be parsed to Int
+ */
+rc_t Configuration::GetInt(int64_t *val, const string &name,
+                           const string &default_value) const {
+  configlog::AppendRequestedGet(name, "int", default_value);
+
+  string result = default_value;
+  int rc=ENOENT;
+
+  //Convert to lowercase
+  string lname = ToLowercase(name);
+
+  map<string,string>::const_iterator it;
+
+  //See if our node_role has something specified
+  string name2 = node_role + "."+lname;
+  it = config_map.find(name2);
+  if(it==config_map.end()) {
+
+    //Nope. Try default.name
+    string name3 = "default."+lname;
+    it = config_map.find(name3);
+    if(it==config_map.end()) {
+      //Nope. Try original name
+      it = config_map.find(lname);
+    }
+  }
+
+  //If hit on something, get the result
+  if(it!=config_map.end()) {
+    result = it->second;
+    rc=0;
+  }
+  int rc2 = StringToInt64(val, result);
+  if(rc2 != 0) return rc2;
+  return rc;
+}
+
+/**
+ * @brief Search through configuration and return value if found. Otherwise
+          return default value
+ * @param[out] uval Value that was found
+ * @param[in] name Keyword in configuration to look for
+ * @param[in] default_value A default value string to return if not found (parsed)
+ * @retval 0 If Found value in configuration
+ * @retval ENOENT Data wasn't found, using default value
+ * @retval EINVAL Data or default value could not be parsed to UInt
+ */
+rc_t Configuration::GetUInt(uint64_t *uval, const string &name,
+                            const string &default_value) const {
+
+  configlog::AppendRequestedGet(name, "int", default_value);
+
+  string result = default_value;
+  int rc=ENOENT;
+
+  //Convert to lowercase
+  string lname = ToLowercase(name);
+
+  map<string,string>::const_iterator it;
+
+  //See if our node_role has something specified
+  string name2 = node_role + "."+lname;
+  it = config_map.find(name2);
+  if(it==config_map.end()) {
+
+    //Nope. Try default.name
+    string name3 = "default."+lname;
+    it = config_map.find(name3);
+    if(it==config_map.end()) {
+      //Nope. Try original name
+      it = config_map.find(lname);
+    }
+  }
+
+  //If hit on something, get the result
+  if(it!=config_map.end()) {
+    result = it->second;
+    rc=0;
+  }
+  //Convert to signed integer to see if this is a negative number which is an error
+  int64_t ival;
+  int rc2 = StringToInt64(&ival, result);
+  if(rc2 != 0) return rc2;
+  if (ival < 0) {
+    if(uval) *uval = 0;
+    return EINVAL;
+  }
+  //Number is positive, go ahead and do uint64 conversion
+  int rc3 = StringToUInt64(uval, result);
+  if(rc3 != 0) return rc3;
+  return rc;
+}
+
+/**
+ * @brief Search through configuration and return value if found. Otherwise return default value
+ * @param[in] name Keyword in configuration to look for
+ * @param[out] val Value that was found
+ * @param[in] default_value A default value to use if not found (parsed)
+ * @retval 0 If Found value in configuration
+ * @retval ENOENT Data wasn't found, using default value
+ * @retval EINVAL Data or default value could not be parsed to Int
+ */
+rc_t Configuration::GetBool(bool *val, const string &name,
+                            const string &default_value) const {
+
+  configlog::AppendRequestedGet(name, "bool", default_value);
+
+  string result = default_value;
+  rc_t rc=ENOENT;
+
+  //Convert to lowercase
+  string lname = ToLowercase(name);
+
+  map<string,string>::const_iterator it;
+
+  //See if our node_role has something specified
+  string name2 = node_role + "."+lname;
+  it = config_map.find(name2);
+  if(it==config_map.end()) {
+
+    //Nope. try default.name
+    string name3 = "default."+lname;
+    it = config_map.find(name3);
+    if(it==config_map.end()) {
+      //Nope. Try original name
+      it = config_map.find(lname);
+    }
+  }
+
+  //If hit on something, get the result
+  if(it!=config_map.end()) {
+    result = it->second;
+    rc=0;
+  } else {
+    result = default_value;
+  }
+
+  ToLowercaseInPlace(result);
+  if((result == "true") || (result == "t") || (result == "1")) {
+    if(val) *val = true;
+  } else if((result == "false") || (result == "f") || (result == "0")) {
+    if(val) *val = false;
+  } else {
+    //Didn't parse.
+    rc=EINVAL;
+  }
+  return rc;
+}
+
+/**
+ * @brief Search through configuration and return value if found. Otherwise
+          return default value
+ * @param[in] name Keyword in configuration to look for
+ * @param[out] val Value that was found
+ * @param[in] default_value A default value string to return if not found (parsed)
+ * @retval 0 If Found value in configuration
+ * @retval ENOENT Data wasn't found, using default value
+ * @retval EINVAL Data or default value could not be parsed to Int
+ * @note This function is **NOT** used by most people.
+ */
+rc_t Configuration::GetPtr(void **val, const string &name,
+                           void *default_value) const {
+
+  configlog::AppendRequestedGet(name, "ptr", "(todo)");
+
+  string result;
+  int rc=ENOENT;
+
+  //Convert to lowercase
+  string lname = ToLowercase(name);
+
+  map<string,string>::const_iterator it;
+
+  // If we don't find "name", fallback to "default_value".
+  if(val) *val = default_value;
+
+  //See if our node_role has something specified
+  string name2 = node_role + "."+lname;
+  it = config_map.find(name2);
+  if(it==config_map.end()) {
+
+    //Nope. Try default.name
+    string name3 = "default."+lname;
+    it = config_map.find(name3);
+    if(it==config_map.end()) {
+      //Nope. Try original name
+      it = config_map.find(lname);
+    }
+  }
+
+  //If hit on something, get the result
+  if(it!=config_map.end()) {
+    result = it->second;
+    rc=0;
+    int rc2 = StringToPtr(val, result);
+    if(rc2 != 0) return rc2;
+  }
+
+  return rc;
+}
+
+/**
+ * @brief Retrieve a filename from Config (or the environment)
+ * @param[out] fname The resulting file name
+ * @param[in]  name The item to look up (name+".file")
+ * @param[in]  default_value The default filename to use if not found
+ * @retval 0 If filename was resolved
+ *
+ * This function attempts to retrieve a filename from the config or
+ * the environment. The name supplied to this function will be appended
+ * with ".file" to signify this variable is for a file, and the
+ * user may supply two other extensions to signify that the data should
+ * be pulled from the environemnt variables. Thus, a user may speciy
+ * one of three variable names in config when dealing with filenames:
+ *
+ * - myfile.file xyz:
+ *   The user is supplying the filename of myfile
+ *   in Configuration. The file is "xyz"
+ *
+ * - myfile.file.env_name XYZ:  The user is passing the filename
+ *   through the environment variable XYZ. Exit if XYZ isn't defined.
+ *
+ * - myfile.file.env_name.if_defined XYZ: The user wants to check
+ *   the environment variable XYZ for the filename. If that variable
+ *   doesn't exist, use myfile.file from Configuration
+ */
+rc_t Configuration::GetFilename(string *fname, const string &name,
+                                const string &default_value) const {
+
+  string ename;
+  char *penv;
+
+  //Look for an optional env var
+  GetString(&ename, name+".file.env_name.if_defined","");
+  if(!ename.empty()) {
+    //They asked to check for an env var and use if exists
+    penv = getenv(ename.c_str());
+    if(penv) {
+      //Env var exists, use it
+      *fname = string(penv);
+      return 0;
+    }
+    //Didn't exist. Can continue because it was optional
+  }
+
+  //Look for a mandatory env var
+  GetString(&ename, name+".file.env_name", "");
+  if(!ename.empty()) {
+    //They asked to use a mandatory env var
+    penv = getenv(ename.c_str());
+    if(penv) {
+      *fname = string(penv);
+      return 0;
+    }
+    cerr <<"Configuration requested "
+         <<name<<".file.env_name "<<ename<<" but it was not set.\n";
+    exit(-1);
+  }
+
+  return GetString(fname, name+".file", default_value);
+}
+
+/**
+ * @brief Pull out all key/values that begin with a particular name
+ *
+ * @param[out] results A map updated with k/vs for this entity
+ * @param[in] component_name The prefix of the component to be found
+ * @retval 0
+ *
+ * @note Result keys have component name removed from them
+ * @note Component name are appended with '.' if not provided
+ * @note This does NOT do anything with node_role (just absolute names)
+ *
+ * Sometimes we need a way to pull out a chunk of values for a particular
+ * component (eg IOMs). This function will extract all the k/vs that have
+ * a name that begins with the supplied component_name. It strips out
+ * all the component_names in the returned keys (eg, my.thing1.type would
+ * become type if component_name was "my_thing1").
+ */
+rc_t Configuration::GetComponentSettings(map<string,string> *results, const string &component_name) const {
+
+  //Only work on lowercase and don't split tokens (ie, chop at a '.')
+  string lprefix = ToLowercase(component_name);
+  if( (lprefix.back() != '.') && (!lprefix.empty()))
+    lprefix=lprefix+".";
+
+  for(auto &name_val : config_map) {
+    if(StringBeginsWith(name_val.first, lprefix)) {
+      string new_name = name_val.first.substr(lprefix.size());
+      if(results) {
+        (*results)[new_name] = name_val.second;
+      }
+    }
+  }
+  return 0;
+}
+
+/**
+ * @brief Pull out all key/values that begin with a particular name
+ *
+ * @param[in] component_name The prefix of the component to be found
+ * @returns Map of just the k/vs for this component
+ *
+ * @note Result keys have component name removed from them
+ * @note Component name are appended with '.' if not provided
+ * @note This does NOT do anything with node_role (just absolute names)
+ *
+ * Sometimes we need a way to pull out a chunk of values for a particular
+ * component (eg IOMs). This function will extract all the k/vs that have
+ * a name that begins with the supplied component_name. It strips out
+ * all the component_names in the returned keys (eg, my.thing1.type would
+ * become type if component_name was "my_thing1").
+ */
+map<string,string> Configuration::GetComponentSettings(const string &component_name) const {
+  map<string,string> results;
+  GetComponentSettings(&results, component_name);
+  return results;
+}
+
+/**
+ * @brief Get entire list of configuration settings as a string table for debug
+ * @param[out] results A vector of k/v pairs
+ * @returns 0
+ */
+rc_t Configuration::GetAllSettings(vector<pair<string,string>> *results) const {
+
+   results->push_back(pair<string,string>("node_role", GetRole()));
+   if(results){
+     for(auto &it : config_map) {
+       results->push_back(pair<string,string>(it.first, it.second));
+     }
+   }
+   return 0;
+}
+
+/**
+ * @brief Parse a single line and generate a vector of strings, stripping
+          out comments (#)
+ * @param[in] str Line to parse
+ * @returns vector of string tokens
+ */
+vector<string> Configuration::tokenizeLine(const string &str) {
+
+  vector<string> tokens;
+  size_t p0 = 0, p1 = string::npos;
+  size_t endpos;
+  endpos = str.find_first_of('#');
+
+  while(p0 != endpos) {
+    p1 = str.find_first_of(" \t", p0);
+    if(p1 != p0) {
+      string token = str.substr(p0, p1 - p0);
+      tokens.push_back(token);
+    }
+    p0 = str.find_first_not_of(" \t", p1);
+ }
+  return tokens;
+
+}
+
+/**
+ * @brief Convert a (multi-line) configuration string to the map of config vals
+ * @param[in] config Input string to parse
+ * @returns number of items found
+ */
+int Configuration::addConfigToMap(string config) {
+
+  stringstream ss(config);
+  int items_found=0;
+  string item;
+
+  while(getline(ss, item, '\n')) {
+    vector<string> res = tokenizeLine(item);
+    if(res.size()>1) {
+
+      //always convert the name to lowercase
+      string lname = ToLowercase(res[0]);
+
+      //Kind of dumb, but join the string back together with uniform spacing
+      stringstream sl;
+      for(unsigned int i=1; i<res.size(); i++) {
+        items_found++;
+        sl << res[i];
+        if(i+1<res.size())
+          sl <<" ";
+      }
+      Append(lname, sl.str());
+    }
+  }
+
+  return items_found;
+}
+
+/**
+ * @brief Lookup the node's role in the configuration. If none specified, use "default"
+ * @retval role The role name for the node
+ * @retval "default" If node_role was not set
+ */
+string Configuration::GetRole() const {
+  return node_role;
+}
+
+/**
+ * @brief Look for this node's default bucket (as string).
+          Checks node_role.security_bucket, then security_bucket
+ * @param[out] bucket_name - The string version of the default bucket
+ * @retval 0 Found the item we were looking for
+ * @retval ENOENT Couldn't find the bucket
+ */
+rc_t Configuration::GetDefaultSecurityBucket(string *bucket_name) const {
+
+  string bucket_string = "default-bucket-name";
+  string names[] = {
+    node_role+".security_bucket",
+    "security_bucket",
+    ""
+  };
+
+  for(int i=0; !names[i].empty(); i++) {
+    map<string,string>::const_iterator jj;
+    //cout <<"Searching for "<<*ii<<endl;
+    jj = config_map.find(names[i]);
+    if(jj!=config_map.end()) {
+      bucket_string = jj->second;
+      break;
+    }
+  }
+  //cout << "found bucket name: '"<<bucket_string<<"'\n";
+  if(bucket_name) *bucket_name = bucket_string;
+  if(bucket_string.empty()) return ENOENT;
+  return 0;
+}
+
+/**
+ * @brief Look for this node's default bucket (as string). Checks
+          node_role.security_bucket, then security_bucket
+ * @param[out] bucket -  The numerical version of the default bucket
+ * @retval 0 Found the value
+ * @retval ENOENT Couldn't find the bucket
+ */
+rc_t Configuration::GetDefaultSecurityBucket(bucket_t *bucket) const {
+  string bucket_name;
+
+  rc_t rc = GetDefaultSecurityBucket(&bucket_name);
+  if(rc!=0) return rc;
+
+  if(bucket) *bucket = bucket_t(bucket_name);
+
+  return 0;
+}
+
+/**
+ * @brief Return a label describing what the default threading model is
+ * @param[out] threading_model The value for threading_model
+ * retval 0 Found the value
+ **/
+rc_t Configuration::GetDefaultThreadingModel(string *threading_model) const {
+  if(!threading_model) return 0;
+  return GetString(threading_model, "threading_model", "default");
+}
+
+/**
+ * @brief Determine the mutex type to be used in a specific component
+ * @param[in] component_name The component name (.mutex_type is appended)
+ * @param[in] default_mutex_type The mutex type to use if the entry isn't in the Config
+ * retval MutexWrapperTypeID An identifier for the threading model/mutex type
+ **/
+MutexWrapperTypeID Configuration::GetComponentMutexTypeID(string component_name,
+                                                          string default_mutex_type) const {
+  string threading_model;
+  string mutex_type;
+  GetDefaultThreadingModel(&threading_model);
+
+  if(component_name.empty()) {
+    mutex_type = default_mutex_type;
+  } else {
+    //Look this up to see if there is an override in config
+    GetString(&mutex_type, component_name+".mutex_type", default_mutex_type);
+  }
+
+  return faodel::GetMutexTypeID(threading_model, mutex_type);
+}
+
+/**
+ * @brief Generate an actual mutex for a component based on user's specifications
+ * @param[in] component_name The item to lookup (.mutex_type is appended)
+ * @param[in] default_mutex_type The mutex type to use if the entry isn't in the Config
+ * @retval MutexWrapper The mutex for the named component
+ */
+MutexWrapper * Configuration::GenerateComponentMutex(string component_name, string default_mutex_type) const {
+  MutexWrapperTypeID id = GetComponentMutexTypeID(component_name, default_mutex_type);
+  return GenerateMutexByTypeID(id);
+}
+
+/**
+ * @brief Write debug info into a stream stream
+ * @param[in] ss String Stream to append info into
+ * @param[in] depth How many more steps in hierarchy to go down (default=0)
+ * @param[in] indent How many spaces to put in front of this line (default=0)
+ */
+void Configuration::sstr(stringstream &ss, int depth, int indent) const {
+  if(depth<0) return;
+
+  ss << string(indent,' ') << "[Configuration]" <<endl;
+  for(auto &k_v : config_map)
+    ss << string(indent+2,' ') << k_v.first << " " << k_v.second << endl;
+}
+
+} // namespace kelpie
