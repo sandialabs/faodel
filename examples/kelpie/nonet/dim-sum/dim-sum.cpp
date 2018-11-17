@@ -19,10 +19,6 @@
 //The configuration used in this example
 std::string default_config_string = R"EOF(
 
-# Note: node_role is defined when we determine if this is a client or a server
-nnti.transport.name   mpi
-config.additional_files.env_name.if_defined   FAODEL_CONFIG
-
 # For local testing, tell kelpie to use the nonet implementation
 kelpie.type nonet
 

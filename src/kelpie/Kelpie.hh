@@ -8,8 +8,8 @@
 #include <iostream>
 #include <string>
 
-#include "common/Configuration.hh"
-#include "common/ResourceURL.hh"
+#include "faodel-common/Configuration.hh"
+#include "faodel-common/ResourceURL.hh"
 
 #include "kelpie/common/Types.hh"
 

@@ -86,9 +86,20 @@ public:
 
         return;
     }
-    virtual ~nnti_peer()
+
+    ~nnti_peer() override
     {
         return;
+    }
+
+    bool operator==(const nnti_peer &rhs)
+    {
+        return (this->packable_.pid == rhs.packable_.pid);
+    }
+
+    bool operator!=(const nnti_peer &rhs)
+    {
+        return !(*this == rhs);
     }
 
     nnti::core::nnti_url&

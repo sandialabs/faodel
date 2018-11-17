@@ -7,12 +7,12 @@
 #include <unistd.h> //for sleep
 
 #include "opbox/net/net.hh"
-#include "opbox/services/dirman/core/DirManCoreBase.hh"
+#include "dirman/core/DirManCoreBase.hh"
 
 using namespace std;
 using namespace faodel;
 
-namespace opbox {
+
 namespace dirman {
 namespace internal {
 
@@ -22,46 +22,96 @@ namespace internal {
  * @return DirManCoreBase
  */
 DirManCoreBase::DirManCoreBase(faodel::internal_use_only_t called_by_unconfigured)
-  : LoggingInterface("Dirman","Unconfigured") {
+  : LoggingInterface("dirman","Unconfigured"),
+    dc_others("dirman.cache.others"),
+    dc_mine("dirman.cache.mine"),
+    doc("dirman.cache.owners"){
 }
 
 /**
  * @brief Do a one-time configure of the DirManCore before it is used.
  * @param[in] config The faodel::Configuration object, which stores the list of settings
+ * @param[in] component_type Which type of DirManCore this is (Centralized, Distributed), for logging purposes
  */
-DirManCoreBase::DirManCoreBase(const faodel::Configuration &config, string component_type)
+DirManCoreBase::DirManCoreBase(const faodel::Configuration &config, const string &component_type)
   : LoggingInterface("dirman", component_type),
+    dc_others("dirman.cache.others"),
+    dc_mine("dirman.cache.mine"),
+    doc("dirman.cache.owners"),
     my_node(NODE_UNSPECIFIED), 
     debug(false), 
     strict_checking(false)  {
 
+  ConfigureLogging(config);
 
   //Get the threading model and mutex type, then init the DirectoryCache
   string threading_model, mutex_type , s;
+  bool am_root;
+  vector<string> predefined_resources;
 
-  config.GetLowercaseString(&threading_model,"threading_model",        "pthreads");
-  config.GetBool(&debug,                     "dirman.debug",           "false");
-  config.GetBool(&strict_checking,           "dirman.strict",          "strict");
-  config.GetLowercaseString(&threading_model,"dirman.threading_model", threading_model);
-  config.GetLowercaseString(&mutex_type,     "dirman.mutex_type",      "rwlock");
+  config.GetLowercaseString(&threading_model,  "threading_model",        "pthreads");
+  config.GetBool(&debug,                       "dirman.debug",           "false");
+  config.GetBool(&am_root,                     "dirman.host_root",       "false");
+  config.GetBool(&strict_checking,             "dirman.strict",          "strict");
+  config.GetLowercaseString(&threading_model,  "dirman.threading_model", threading_model);
+  config.GetLowercaseString(&mutex_type,       "dirman.mutex_type",      "rwlock");
+  config.GetStringVector(&predefined_resources,"dirman.resources");
   config.GetDefaultSecurityBucket(&default_bucket);
 
   //TODO: init these with one mutex
-  dc_others.Init(config, "others", threading_model, mutex_type);
-  dc_mine.Init(config, "mine", threading_model, mutex_type);
+  dc_others.Init(config, threading_model, mutex_type);
+  dc_mine.Init(config, threading_model, mutex_type);
   doc.Init(config, threading_model, mutex_type);
 
-  bool am_root;
-  config.GetBool(&am_root, "dirman.host_root", "false");
-
-  string fname;
-  string ename;
+  string fname, ename;
   config.GetString(&ename, "dirman.root_node.file.env_name","");
   if(!ename.empty()){
     char *penv = getenv(ename.c_str());
     fname = string(penv);
   }
   config.GetString(&fname, "dirman.root_node.file",fname);
+
+
+  //Load any references into our database
+  if(!predefined_resources.empty()) {
+    //A user can append several things in the url list. The assumption is
+    //the last entry is the one to keep. Walk backwards through the list
+    //and add to a map if the path/name doesn't already exist.
+    dbg("predefined resource size is "+std::to_string(predefined_resources.size()));
+    map<std::string, ResourceURL> urls;
+    for(int i=predefined_resources.size()-1; i>=0; i--){
+      dbg("Considering "+predefined_resources[i]);
+      ResourceURL url(predefined_resources[i]);
+      if(url.resource_type=="ref") continue; //Never add pure references
+      if(url.bucket == BUCKET_UNSPECIFIED) url.bucket = default_bucket;
+      string path_name = url.GetPathName();
+      if( urls.find(path_name) == urls.end() ){
+        urls[path_name] = url;
+      }
+    }
+    //Now throw all the entries into the other cache
+    for(auto &key_url : urls) {
+      DirectoryInfo di(key_url.second);
+
+
+      //Any non-local resource defined here that doesn't have nodes in it
+      //should be removed because it doesn't provide any actionable info.
+      //If you don't do this, non-root nodes get stale info at init don't
+      //bother to update from root.
+      // Example: if we use mpisyncstart to create a dht, the root node
+      //          gets a url with all the children, but the non-root nodes
+      //          get zero children because mpisyncstart doesn't globally
+      //          sync everything.
+      if((di.url.resource_type!="local") && (di.children.size()==0)) {
+        dbg("Not adding predefined resource "+key_url.first+" because it is not local and does not have any members");
+        throw runtime_error("Abort on adding "+key_url.first);
+        continue;
+      }
+      dbg("adding predefined resource "+key_url.first+" --> "+di.url.GetFullURL()+" Num Children="+std::to_string(di.children.size()));
+      dc_others.Create(di); //Note: this does not link parents
+
+    }
+  }
 
 
 #if 0
@@ -183,6 +233,14 @@ bool DirManCoreBase::JoinDirWithoutName(const faodel::ResourceURL &url, Director
 
 }
 
+/**
+ * @brief Get a list of all the named resources that this node currently knows about
+ * @param[out] resource_names A vector to append with all the node's known resources
+ */
+void DirManCoreBase::GetCachedNames(std::vector<std::string> *resource_names) {
+  dc_others.GetAllNames(resource_names);
+  dc_mine.GetAllNames(resource_names);
+}
 
 
 /**
@@ -423,11 +481,12 @@ bool DirManCoreBase::GetDirectoryInfo(const faodel::ResourceURL &search_url, boo
 
 void DirManCoreBase::HandleWebhookStatus(const std::map<std::string,std::string> &args, std::stringstream &results){
 
-  webhook::ReplyStream rs(args, "Directory Manager", &results);
+  faodel::ReplyStream rs(args, "Directory Manager", &results);
   rs.tableBegin("Directory Manager");
   rs.tableTop({"Parameter","Setting"});
   rs.tableRow({"Type:", GetType()});
   rs.tableRow({"Default Bucket:", default_bucket.GetHex()});
+  appendWebhookParameterTable(&rs);
   rs.tableEnd();
 
   dc_mine.webhookInfo(rs);
@@ -437,7 +496,7 @@ void DirManCoreBase::HandleWebhookStatus(const std::map<std::string,std::string>
   rs.Finish();
 }
 void DirManCoreBase::HandleWebhookEntry(const std::map<std::string,std::string> &args, std::stringstream &results){
-  webhook::ReplyStream rs(args, "Directory Manager", &results);
+  faodel::ReplyStream rs(args, "Directory Manager", &results);
   auto it = args.find("name");
   if(it==args.end()){
     //Error
@@ -452,6 +511,14 @@ void DirManCoreBase::HandleWebhookEntry(const std::map<std::string,std::string> 
   rs.Finish();
 }
 
+/**
+ * @brief Generate any derived-class info to put into parameter list for DirMan webhook
+ * @param rs The reply stream to update. This is already in the middle of a table
+ */
+void DirManCoreBase::appendWebhookParameterTable(faodel::ReplyStream *rs){
+  // ex.. rs->tableRow({"My Param", "My Value"});
+}
+
 void DirManCoreBase::sstr(std::stringstream &ss, int depth, int indent) const {
   ss<<string(indent,' ') <<"[DirMan] MyNode: "<<my_node.GetHex()<<" DefBucket: "<<default_bucket.GetHex()<<" Debug: "<<debug<<endl;
   if(depth>0){
@@ -464,4 +531,4 @@ void DirManCoreBase::sstr(std::stringstream &ss, int depth, int indent) const {
 
 } // namespace internal
 } // namespace dirman
-} // namespace opbox
+

@@ -8,7 +8,7 @@
 #include <atomic>
 #include <future>
 
-#include "common/LoggingInterface.hh"
+#include "faodel-common/LoggingInterface.hh"
 
 #include "opbox/OpBox.hh"
 #include "lunasa/Lunasa.hh"

@@ -13,10 +13,10 @@
 
 #include "gtest/gtest.h"
 
-#include "common/Common.hh"
+#include "faodel-common/Common.hh"
 #include "lunasa/Lunasa.hh"
 #include "opbox/OpBox.hh"
-#include "opbox/services/dirman/DirectoryManager.hh"
+#include "dirman/DirMan.hh"
 #include "kelpie/Kelpie.hh"
 
 #include "webhook/Server.hh"
@@ -31,18 +31,13 @@ using namespace opbox;
 Globals G;
 
 
+//Note: Additional info will automatically be pulled from FAODEL_CONFIG
 string default_config_string = R"EOF(
-# Note: node_role is defined when we determine if this is a client or a server
-# default to using mpi, but allow override in config file pointed to by FAODEL_CONFIG
-nnti.transport.name                           mpi
-config.additional_files.env_name.if_defined   FAODEL_CONFIG
 
 dirman.root_role rooter
 dirman.type centralized
 
 target.dirman.host_root
-
-
 
 # MPI tests will need to have a standard networking base
 kelpie.type standard
@@ -59,7 +54,8 @@ kelpie.type standard
 class MPISimplePeerTest : public testing::Test {
 protected:
   virtual void SetUp(){}
-  virtual void TearDown(){}
+
+  void TearDown() override {}
   int rc;
 };
 
@@ -246,6 +242,7 @@ void targetLoop(){
 
 int main(int argc, char **argv){
 
+  int rc=0;
   ::testing::InitGoogleTest(&argc, argv);
 
   //Insert any Op registrations here
@@ -257,19 +254,20 @@ int main(int argc, char **argv){
 
   if(G.mpi_rank==0){
     //Register the dht
-    opbox::DirectoryInfo dir_info("dht:/mydht","This is My DHT");
+    DirectoryInfo dir_info("dht:/mydht","This is My DHT");
     for(int i=1; i<G.mpi_size; i++){
       dir_info.Join(G.nodes[i]);
     }
-    opbox::dirman::HostNewDir(dir_info);
+    dirman::HostNewDir(dir_info);
 
     faodel::nodeid_t n2 = net::GetMyID();
 
-    int rc = RUN_ALL_TESTS();
+    rc = RUN_ALL_TESTS();
     sleep(1);
   } else {
     targetLoop();
     sleep(1);
   }
   G.StopAll();
+  return rc;
 }

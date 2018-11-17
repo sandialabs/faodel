@@ -2,12 +2,12 @@
 // LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
 // the U.S. Government retains certain rights in this software. 
 
-#ifndef OPBOX_MSG_DIRMAN_HH
-#define OPBOX_MSG_DIRMAN_HH
+#ifndef DIRMAN_MSG_DIRMAN_HH
+#define DIRMAN_MSG_DIRMAN_HH
 
-#include "opbox/services/dirman/ops/OpDirManCentralized.hh"
+#include "dirman/ops/OpDirManCentralized.hh"
 
-namespace opbox {
+namespace dirman {
 
 /**
  * @brief A message data structure used by dirman ops
@@ -21,6 +21,7 @@ namespace opbox {
  */
 typedef struct msg_dirman {
   opbox::message_t hdr;
+
   //Body: The body section following hdr contains either:
   //        - a url string
   //        - a boost-packed DirInfo
@@ -30,7 +31,7 @@ typedef struct msg_dirman {
 
   bool hasDirInfo();
   bool hasURL();
-  DirectoryInfo ExtractDirInfo() { return msg_dirman::ExtractDirInfo(&hdr); }
+  faodel::DirectoryInfo ExtractDirInfo() { return msg_dirman::ExtractDirInfo(&hdr); }
 
 
   //For URL messages. They're only used in requests, so no need to reply
@@ -50,21 +51,21 @@ typedef struct msg_dirman {
                     const OpDirManCentralized::RequestType &req_type,
                     const faodel::nodeid_t &dst_node,
                     const mailbox_t &src_mailbox,
-                    const DirectoryInfo &dir_info);
+                    const faodel::DirectoryInfo &dir_info);
 
   static bool AllocateReply(
                     lunasa::DataObject &new_ldo,
                     const OpDirManCentralized::RequestType &req_type,
                     const message_t *request_msg,
-                    const DirectoryInfo &dir_info);
+                    const faodel::DirectoryInfo &dir_info);
 
-  static DirectoryInfo ExtractDirInfo(message_t *hdr);
+  static faodel::DirectoryInfo ExtractDirInfo(message_t *hdr);
 
 
 
 } msg_dirman_t;
 
-} // namespace opbox
+} // namespace dirman
 
 
-#endif // OPBOX_MSG_DIRMAN_HH
+#endif // DIRMAN_MSG_DIRMAN_HH

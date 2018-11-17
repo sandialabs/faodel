@@ -94,8 +94,8 @@ public:
 
         return;
     }
-    virtual ~ibverbs_peer()
-    {
+
+  ~ibverbs_peer() override {
         return;
     }
 };

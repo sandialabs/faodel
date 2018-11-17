@@ -3,10 +3,10 @@
 // the U.S. Government retains certain rights in this software. 
 
 
-#include "opbox/services/dirman/core/DirManCoreBase.hh"
-#include "opbox/services/dirman/core/DirManCoreUnconfigured.hh"
-#include "opbox/services/dirman/core/DirManCoreCentralized.hh"
-#include "opbox/services/dirman/core/DirManCoreDistributed.hh"
+#include "dirman/core/DirManCoreBase.hh"
+#include "dirman/core/DirManCoreUnconfigured.hh"
+#include "dirman/core/DirManCoreCentralized.hh"
+
 
 
 #include "webhook/Server.hh"
@@ -14,7 +14,7 @@
 using namespace std;
 using namespace faodel;
 
-namespace opbox {
+
 namespace dirman {
 namespace internal {
 
@@ -49,7 +49,7 @@ bool DirManCoreUnconfigured::Panic(string fname) const {
   if(dirman_service_none){
     cerr << "Error: Attemped to use DirMan command "<<fname<<"(), but the DirMan was not\n"
          << "       configured to run. The DirMan can be enabled by setting dirman.type in Configuration\n"
-         << "       to a functional implementation (eg, 'centralized' or 'distributed')\n";
+         << "       to a functional implementation (eg, 'centralized' or 'static')\n";
     exit(-1);
   } else {
 
@@ -67,5 +67,5 @@ void DirManCoreUnconfigured::sstr(stringstream &ss, int depth, int indent) const
 
 } // namespace internal
 } // namespace dirman
-} // namespace opbox
+
 

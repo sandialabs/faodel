@@ -27,6 +27,9 @@ function( make_nnti_cpp_example   item  extra_cxx_flags extra_linker_flags )
     set_target_properties(${target} PROPERTIES LINK_FLAGS    "${extra_linker_flags}")
     set_target_properties(${target} PROPERTIES OUTPUT_NAME   "${target}")
 
+    install(TARGETS ${target}
+            EXPORT faodelExampleTargets
+            RUNTIME DESTINATION "${BINARY_INSTALL_DIR}" COMPONENT bin)
 endfunction()
 
 
@@ -37,7 +40,7 @@ endfunction()
 
     
 set(cppexampleutils_target cppexampleutils)
-add_library(${cppexampleutils_target} STATIC cpp/example_utils.hpp cpp/example_utils.cpp)
+add_library(${cppexampleutils_target} cpp/example_utils.hpp cpp/example_utils.cpp)
 
 target_link_libraries(${cppexampleutils_target} Faodel::nnti )
 set_target_properties(${cppexampleutils_target} PROPERTIES LINKER_LANGUAGE  CXX )

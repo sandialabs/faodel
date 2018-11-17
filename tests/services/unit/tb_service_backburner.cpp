@@ -11,8 +11,8 @@
 #include "gtest/gtest.h"
 
 
-#include "common/Common.hh"
-
+#include "faodel-common/Common.hh"
+#include "faodel-services/BackBurner.hh"
 
 using namespace std;
 using namespace faodel;
@@ -21,9 +21,8 @@ void sleepUS(int microseconds) {
   std::this_thread::sleep_for(std::chrono::microseconds(microseconds));
 }
 
-
+//Note: Additional configuration settings will be loaded the file specified by FAODEL_CONFIG
 string default_config = R"EOF(
-config.additional_files.env_name.if_defined   FAODEL_CONFIG
 #backburner.debug true
 #backburnerWorker.debug true
 node_role server
@@ -33,14 +32,15 @@ backburner.threads 4
 
 class FaodelBackBurnerService : public testing::Test {
 protected:
-  virtual void SetUp() {
+  void SetUp() override {
     Configuration config(default_config);
     config.AppendFromReferences();
     bootstrap::Init(config, backburner::bootstrap);
     bootstrap::Start();
 
   }
-  virtual void TearDown() {
+
+  void TearDown() override {
     bootstrap::Finish();
   }
 

@@ -12,11 +12,11 @@
 
 #include <gtest/gtest.h>
 
-#include "common/Common.hh"
+#include "faodel-common/Common.hh"
 
 #include "webhook/Server.hh"
 #include "webhook/client/Client.hh"
-#include "webhook/common/QuickHTML.hh"
+#include "faodel-common/QuickHTML.hh"
 
 using namespace std;
 using namespace faodel;
@@ -48,7 +48,7 @@ protected:
     }
 
 
-  virtual void SetUp(){
+  void SetUp() override {
     MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank);
     MPI_Comm_size(MPI_COMM_WORLD, &mpi_size);
 
@@ -68,7 +68,8 @@ protected:
 
     MPI_Barrier(MPI_COMM_WORLD);
   }
-  virtual void TearDown(){
+
+  void TearDown() override {
     //TODO: ideally we'd put a stop here, but when the count goes to zero, the
     //      global webhook will stop all threads and close in a way that eats
     //      the port. For now, handle
@@ -135,33 +136,33 @@ TEST_F(ClientServer, Simple){
 
 int main(int argc, char **argv){
 
-    ::testing::InitGoogleTest(&argc, argv);
+  ::testing::InitGoogleTest(&argc, argv);
 
-    int mpi_rank,mpi_size;
-    MPI_Init(&argc, &argv);
-    MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank);
-    MPI_Comm_size(MPI_COMM_WORLD, &mpi_size);
+  int mpi_rank,mpi_size;
+  MPI_Init(&argc, &argv);
+  MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank);
+  MPI_Comm_size(MPI_COMM_WORLD, &mpi_size);
 
-    Configuration conf(default_config_string);
-    if(argc>1){
-        if(string(argv[1])=="-v"){         conf.Append("loglevel all");
-        } else if(string(argv[1])=="-V"){  conf.Append("loglevel all\nnssi_rpc.loglevel all");
-        }
+  Configuration conf(default_config_string);
+  if(argc>1){
+    if(string(argv[1])=="-v"){         conf.Append("loglevel all");
+    } else if(string(argv[1])=="-V"){  conf.Append("loglevel all\nnssi_rpc.loglevel all");
     }
-    conf.Append("node_role", (mpi_rank==0) ? "tester" : "target");
-    bootstrap::Start(conf, webhook::bootstrap);
+  }
+  conf.Append("node_role", (mpi_rank==0) ? "tester" : "target");
+  bootstrap::Start(conf, webhook::bootstrap);
 
-    int rc = RUN_ALL_TESTS();
-    cout <<"Tester completed all tests.\n";
+  int rc = RUN_ALL_TESTS();
+  cout <<"Tester completed all tests.\n";
 
-    for(int i=0; i<num_tests; i++){
-      //webhook::stop(); //stop kills it for everyone
-    }
+  for(int i=0; i<num_tests; i++){
+    //webhook::stop(); //stop kills it for everyone
+  }
 
-    MPI_Barrier(MPI_COMM_WORLD);
-    bootstrap::Finish();
+  MPI_Barrier(MPI_COMM_WORLD);
+  bootstrap::Finish();
 
-    MPI_Finalize();
+  MPI_Finalize();
 
   return rc;
 }

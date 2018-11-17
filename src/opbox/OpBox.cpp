@@ -4,7 +4,7 @@
 
 #include <iostream>
 
-#include "common/NodeID.hh"
+#include "faodel-common/NodeID.hh"
 #include "lunasa/DataObject.hh"
 #include "opbox/OpBox.hh"
 
@@ -25,7 +25,7 @@ namespace internal {
  * @param[in] incoming_message A pointer to the actual message
  */
 void HandleIncomingMessage(net::peer_ptr_t peer, message_t *incoming_message) {
-  Singleton::impl_ob.core->HandleIncomingMessage(peer, incoming_message); }
+  Singleton::impl.core->HandleIncomingMessage(peer, incoming_message); }
 
 /**
  * @brief Internal function for updating an Op
@@ -38,7 +38,7 @@ void HandleIncomingMessage(net::peer_ptr_t peer, message_t *incoming_message) {
  * @deprecated User should use trigger op for safety
  */
 int UpdateOp(Op *op, OpArgs *args) {
-  return Singleton::impl_ob.core->UpdateOp(op, args);
+  return Singleton::impl.core->UpdateOp(op, args);
 }
 
 /**
@@ -48,11 +48,11 @@ int UpdateOp(Op *op, OpArgs *args) {
  * @return A pointer to the new target Op
  */
 Op * CreateNewTargetOp(unsigned int op_id) {
-  return Singleton::impl_ob.registry.CreateOp(op_id);
+  return Singleton::impl.registry.CreateOp(op_id);
 }
 
 bool IsUnconfigured(){
-  return Singleton::impl_ob.IsUnconfigured();
+  return Singleton::impl.IsUnconfigured();
 }
 
 } // namespace internal
@@ -68,7 +68,7 @@ bool IsUnconfigured(){
  * @note Most Op registrations should use the RegisterOp() template instead
  */
 void RegisterOp(int id, std::string name, fn_OpCreate_t func)  {
-  return opbox::internal::Singleton::impl_ob.registry.RegisterOp(id, name, func);
+  return opbox::internal::Singleton::impl.registry.RegisterOp(id, name, func);
 }
 
 /**
@@ -78,7 +78,7 @@ void RegisterOp(int id, std::string name, fn_OpCreate_t func)  {
  * @param[in] ignore_lock_warning When true, ignore locks and remove (necessary for forced shutdowns)
  */
 void DeregisterOp(int id, bool ignore_lock_warning)                 {
-  return opbox::internal::Singleton::impl_ob.registry.DeregisterOp(id, ignore_lock_warning);
+  return opbox::internal::Singleton::impl.registry.DeregisterOp(id, ignore_lock_warning);
 }
 
 /**
@@ -91,12 +91,12 @@ void DeregisterOp(int id, bool ignore_lock_warning)                 {
  *       pointer after calling LaunchOp
  */
 int LaunchOp(Op *op, mailbox_t *mailbox) {
-  return opbox::internal::Singleton::impl_ob.core->LaunchOp(op, mailbox);
+  return opbox::internal::Singleton::impl.core->LaunchOp(op, mailbox);
 }
 
 
 int TriggerOp(mailbox_t mailbox, shared_ptr<OpArgs> args) {
-  return opbox::internal::Singleton::impl_ob.core->TriggerOp(mailbox, args);
+  return opbox::internal::Singleton::impl.core->TriggerOp(mailbox, args);
 }
 
 /**

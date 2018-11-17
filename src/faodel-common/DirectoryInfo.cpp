@@ -7,13 +7,50 @@
 #include <vector>
 #include <algorithm>
 
-#include "opbox/services/dirman/DirectoryInfo.hh"
+#include "faodel-common/StringHelpers.hh"
+#include "faodel-common/DirectoryInfo.hh"
 
 using namespace std;
 using namespace faodel;
 
-namespace opbox {
+namespace faodel {
 
+
+/**
+ * @brief Configuration sometimes holds all info about a dirinfo in a url. Unpack it and turn into a direntry
+ * @param new_url In addition to normal resources, contains "num=" (childredn) and "ag0=0x123" for child 0's
+ */
+DirectoryInfo::DirectoryInfo(faodel::ResourceURL new_url) {
+  info = ExpandPunycode(new_url.GetOption("info"));
+  new_url.RemoveOption("info");
+
+  string s = new_url.GetOption("num");
+  if(s!="") {
+    new_url.RemoveOption("num");
+    int64_t num_children;
+    int rc = faodel::StringToInt64(&num_children, s);
+    if(rc==0) {
+      for(int64_t i=0; i<num_children; i++) {
+        string name="ag"+std::to_string(i);
+        string s_node=new_url.GetOption(name);
+        if(s_node!=""){
+          children.push_back( NameAndNode(name, nodeid_t(s_node)));
+          new_url.RemoveOption(name);
+        }
+      }
+    }
+  }
+  url=new_url; //Stripped of all imported details
+}
+
+/**
+ * @brief True when DirectoryInfo does not contain any fields that are set (eg when "no info available" is returned)
+ * @retval TRUE When url is empty, info is "", and no children
+ * @retval FALSE When any field is set to a value
+ */
+bool DirectoryInfo::IsEmpty() const {
+  return (url.IsEmpty()) && (info.empty()) && (children.size()==0);
+}
 
 bool DirectoryInfo::GetChildReferenceNode(const std::string &child_name, nodeid_t *reference_node) const {
 
@@ -60,7 +97,7 @@ bool DirectoryInfo::Join(nodeid_t node, const std::string &reference_name){
       //Make a new guess for a name
       bad_name=false;
       stringstream ss;
-      ss<<"AG"<<hex<<i++;
+      ss<<"ag"<<hex<<i++;
       new_name=ss.str();
 
       //See if any other nodes are using this name
@@ -121,28 +158,44 @@ bool DirectoryInfo::LeaveByName(const std::string &name){
   return false;
 }
 
+/**
+ * @brief Determine if a node is in this entry's list of children
+ * @param[in] node The node to look for
+ * @retval TRUE Node was found
+ * @retval FALSE Node was not found
+ */
+bool DirectoryInfo::ContainsNode(faodel::nodeid_t node) const {
+  for(size_t i=0; i<children.size(); i++) {
+    if(children[i].node == node) return true;
+  }
+  return false;
+}
+
 //Provide concise one-liner for the dir.
 //NOTE: This is NOT for serialization
 std::string DirectoryInfo::to_string() const {
   stringstream ss;
   ss<<url.GetFullURL()
     <<"&info="<<info
-    <<"&num_children="<<children.size();
+    <<"&num="<<children.size();
   for(auto &name_node : children){
     ss<<"&"<<name_node.name
       <<"="<<name_node.node.GetHex();
   }
   return ss.str();
 }
-void DirectoryInfo::webhookInfo(webhook::ReplyStream &rs){
+void DirectoryInfo::webhookInfo(faodel::ReplyStream &rs){
 
   rs.mkSection("DirectoryInfo: "+url.GetBucketPathName());
 
   rs.tableBegin("Info");
   rs.tableTop({"Parameter","Setting"});
+  rs.tableRow({"Path/Name:", url.GetPathName()});
+  rs.tableRow({"Type:", url.resource_type});
   rs.tableRow({"Info:",info});
   rs.tableRow({"Reference Node:",url.reference_node.GetHtmlLink()});
   rs.tableRow({"Children:", std::to_string(children.size())});
+  rs.tableRow({"URL:", url.GetFullURL()});
   rs.tableEnd();
 
   rs.tableBegin("Children");

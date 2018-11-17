@@ -14,7 +14,7 @@
 #include <map>
 #include <vector>
 
-#include "common/Configuration.hh"
+#include "faodel-common/Configuration.hh"
 
 #include "nnti/nntiConfig.h"
 
@@ -75,6 +75,8 @@ ugni_transport::ugni_transport(
     faodel::rc_t rc = 0;
     uint64_t uint_value = 0;
 
+    nthread_lock_init(&new_connection_lock_);
+
     me_ = nnti::datatype::ugni_peer(this, url_);
 
     rc = config.GetUInt(&uint_value, "nnti.freelist.size", "128");
@@ -101,6 +103,8 @@ ugni_transport::ugni_transport(
  */
 ugni_transport::~ugni_transport()
 {
+    nthread_lock_fini(&new_connection_lock_);
+
     return;
 }
 
@@ -112,6 +116,10 @@ ugni_transport::start(void)
 
     uint32_t nic_addr  =0;
     uint32_t gni_cpu_id=0;
+
+    faodel::nodeid_t nodeid;
+    std::string addr;
+    std::string port;
 
     log_debug("ugni_transport", "enter");
 
@@ -252,6 +260,13 @@ ugni_transport::start(void)
         goto cleanup;
     }
 
+    nodeid = webhook::Server::GetNodeID();
+    addr = nodeid.GetIP();
+    port = nodeid.GetPort();
+    url_ = nnti::core::nnti_url(addr, port);
+    me_ = nnti::datatype::ugni_peer(this, url_);
+    log_debug_stream("ugni_transport") << "me_ = " << me_.url().url();
+
     cmd_msg_size_  = 2048;
     cmd_msg_count_ = 64;
 
@@ -296,12 +311,21 @@ NNTI_result_t
 ugni_transport::stop(void)
 {
     NNTI_result_t rc=NNTI_OK;;
+    nnti::core::nnti_connection_map_iter_t iter;
 
     log_debug("ugni_transport", "enter");
 
     started_ = false;
 
-//    close_all_conn();
+    // purge any remaining connections from the map
+    // FIX: this will leak memory and IB resources - do it better
+    nthread_lock(&new_connection_lock_);
+    for (iter = conn_map_.begin() ; iter != conn_map_.end() ; ) {
+        nnti::core::nnti_connection *conn = *iter;
+        ++iter;
+        conn_map_.remove(conn);
+    }
+    nthread_unlock(&new_connection_lock_);
 
     unregister_webhook_cb();
 
@@ -407,36 +431,51 @@ ugni_transport::connect(
 {
     nnti::core::nnti_url         peer_url(url);
     nnti::datatype::nnti_peer   *peer = new nnti::datatype::ugni_peer(this, peer_url);
-    nnti::core::ugni_connection *conn = new nnti::core::ugni_connection(this, cmd_msg_size_, cmd_msg_count_);
-    std::string                  reply;
+    nnti::core::ugni_connection *conn;
 
     log_debug("connect", "url=%s", url);
+
+    nthread_lock(&new_connection_lock_);
+
+    // look for an existing connection to reuse
+    log_debug("ugni_transport", "Looking for connection with pid=%016lx", peer->pid());
+    conn = (nnti::core::ugni_connection*)conn_map_.get(peer->pid());
+    if (conn != nullptr) {
+        log_debug("ugni_transport", "Found connection with pid=%016lx", peer->pid());
+        // reuse an existing connection
+        *peer_hdl = (NNTI_peer_t)conn->peer();
+        nthread_unlock(&new_connection_lock_);
+        return NNTI_OK;
+    }
+    log_debug("ugni_transport", "Couldn't find connection with pid=%016lx", peer->pid());
+
+    conn = new nnti::core::ugni_connection(this, cmd_msg_size_, cmd_msg_count_);
 
     peer->conn(conn);
     conn->peer(peer);
 
     conn->index = conn_vector_.add(conn);
+    conn_map_.insert(conn);
 
+    nthread_unlock(&new_connection_lock_);
+
+    std::string reply;
     std::string wh_path = build_webhook_connect_path(conn);
-
-    log_debug_stream("connect")
-              << "  peer_url.hostname=" << peer_url.hostname()
-              << "  peer_url.port=" << peer_url.port()
-              << "  wh_path=" << wh_path;
-
     int wh_rc = 0;
     int retries = 5;
-    do {
+    wh_rc = webhook::retrieveData(peer_url.hostname(), peer_url.port(), wh_path, &reply);
+    while (wh_rc != 0 && --retries) {
+        sleep(1);
         wh_rc = webhook::retrieveData(peer_url.hostname(), peer_url.port(), wh_path, &reply);
-    } while (wh_rc != 0 && --retries);
+    }
     if (wh_rc != 0) {
+        log_debug("ugni_transport", "connect() timed out");
         return(NNTI_ETIMEDOUT);
     }
 
     log_debug_stream("connect") << "reply=" << reply;
 
     conn->peer_params(reply);
-    conn_map_.insert(conn);
 
     conn->transition_to_ready();
 
@@ -460,19 +499,30 @@ ugni_transport::disconnect(
     std::string                  reply;
     nnti::core::nnti_connection *conn     = peer->conn();
 
+    log_debug("ugni_transport", "disconnecting from %s", peer_url.url().c_str());
+
+    nthread_lock(&new_connection_lock_);
+
+    conn = (nnti::core::ugni_connection*)conn_map_.get(peer->pid());
     if (conn==nullptr) {
-        log_warn("ugni_transport", "disconnect failed.  peer conn (%x) is nullptr", peer->pid());
+        log_debug("ugni_transport", "disconnect couldn't find connection to %s. Already disconnected?", peer_url.url().c_str());
+        nthread_unlock(&new_connection_lock_);
         return NNTI_EINVAL;
     }
 
-    std::string wh_path = build_webhook_disconnect_path(conn);
+    conn_map_.remove(conn);
 
-    int wh_rc = webhook::retrieveData(peer_url.hostname(), peer_url.port(), wh_path, &reply);
-    if (wh_rc != 0) {
-        return(NNTI_ETIMEDOUT);
+    nthread_unlock(&new_connection_lock_);
+
+    if (*peer != me_) {
+        std::string wh_path = build_webhook_disconnect_path(conn);
+        int wh_rc = webhook::retrieveData(peer_url.hostname(), peer_url.port(), wh_path, &reply);
+        if (wh_rc != 0) {
+            return(NNTI_ETIMEDOUT);
+        }
     }
 
-    conn_map_.remove(conn);
+    log_debug("ugni_transport", "disconnect from %s (pid=%x) succeeded", peer->url(), peer->pid());
 
     delete conn;
     delete peer;
@@ -1792,12 +1842,29 @@ ugni_transport::stop_progress_thread(void)
 void
 ugni_transport::connect_cb(const std::map<std::string,std::string> &args, std::stringstream &results)
 {
-    log_debug("ugni_transport", "connect_cb() - enter");
+    nnti::core::ugni_connection *conn;
 
-    nnti::core::ugni_connection *conn = new nnti::core::ugni_connection(this, cmd_msg_size_, cmd_msg_count_, args);
+    log_debug("ugni_transport", "inbound connection from %s", std::string(args.at("hostname")+":"+args.at("port")).c_str());
 
-    conn->index = conn_vector_.add(conn);
-    conn_map_.insert(conn);
+    nthread_lock(&new_connection_lock_);
+
+    nnti::core::nnti_url peer_url = nnti::core::nnti_url(args.at("hostname"), args.at("port"));
+
+    log_debug("ugni_transport", "Looking for connection with pid=%016lx", peer_url.pid());
+    conn = (nnti::core::ugni_connection*)conn_map_.get(peer_url.pid());
+    if (conn != nullptr) {
+        log_debug("ugni_transport", "Found connection with pid=%016lx", peer_url.pid());
+    } else {
+        log_debug("ugni_transport", "Couldn't find connection with pid=%016lx", peer_url.pid());
+
+        conn = new nnti::core::ugni_connection(this, cmd_msg_size_, cmd_msg_count_, args);
+        conn->index = conn_vector_.add(conn);
+        conn_map_.insert(conn);
+
+        conn->transition_to_ready();
+    }
+
+    nthread_unlock(&new_connection_lock_);
 
     results << "hostname="   << url_.hostname()      << std::endl;
     results << "addr="       << url_.addr()          << std::endl;
@@ -1805,8 +1872,6 @@ ugni_transport::connect_cb(const std::map<std::string,std::string> &args, std::s
     results << "local_addr=" << drc_info_.local_addr << std::endl;
     results << "instance="   << instance_            << std::endl;
     results << conn->reply_string();
-
-    conn->transition_to_ready();
 
     log_debug("ugni_transport", "connect_cb() - exit");
 }
@@ -1819,13 +1884,18 @@ ugni_transport::disconnect_cb(const std::map<std::string,std::string> &args, std
     nnti::core::nnti_connection *conn = nullptr;
     nnti::core::nnti_url         peer_url(args.at("hostname"), args.at("port"));
 
+    nthread_lock(&new_connection_lock_);
+
     log_debug("ugni_transport", "%s is disconnecting", peer_url.url().c_str());
     conn = conn_map_.get(peer_url.pid());
     log_debug("ugni_transport", "connection map says %s => conn(%p)", peer_url.url().c_str(), conn);
 
-    conn_map_.remove(conn);
+    if (conn != nullptr) {
+        conn_map_.remove(conn);
+        delete conn;
+    }
 
-    delete conn;
+    nthread_unlock(&new_connection_lock_);
 
     log_debug("ugni_transport", "disconnect_cb() - exit");
 }
@@ -1864,7 +1934,6 @@ ugni_transport::peers_cb(const std::map<std::string,std::string> &args, std::str
     nnti::core::nnti_connection_map_iter_t iter;
     for (iter = conn_map_.begin() ; iter != conn_map_.end() ; iter++) {
         std::string p((*iter)->peer()->url().url());
-        p.replace(0,2,"http");
         links.push_back(html::mkLink(p, p));
     }
     html::mkList(results, links);

@@ -7,7 +7,7 @@
 #include <iostream>
 #include <fstream>
 
-#include "common/Common.hh"
+#include "faodel-common/Common.hh"
 #include "opbox/OpBox.hh"
 
 #include "Globals.hh"
@@ -27,8 +27,7 @@ Globals G;
 //info to get a better idea of where things are breaking
 
 std::string default_config_string = R"EOF(
-config.additional_files.env_name.if_defined   FAODEL_CONFIG
-
+# insert your own settings here or place in a file pointed to by env var FAODEL_CONFIG
 )EOF";
 
 using namespace std;

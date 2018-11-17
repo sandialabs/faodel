@@ -15,8 +15,9 @@
 #include "nnti/nnti_pch.hpp"
 
 #include <string>
+#include <stdexcept>
 
-#include "common/Configuration.hh"
+#include "faodel-common/Configuration.hh"
 
 #include "nnti/nnti_transport.hpp"
 #include "nnti/transports/null/null_transport.hpp"

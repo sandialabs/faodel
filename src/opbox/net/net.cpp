@@ -33,9 +33,6 @@ int opbox::net::GetRdmaPtr(
     opbox::net::NetBufferLocal  **nbl,           // out
     opbox::net::NetBufferRemote  *nbr)           // out
 {
-    if (remote_offset_adjust < 0) {
-        return -1;
-    }
     uint32_t offset=0;
     int rc = ldo->GetBaseRdmaHandle((void**)nbl, offset);
     if (rc == 0) {

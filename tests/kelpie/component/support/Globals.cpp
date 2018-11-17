@@ -4,8 +4,8 @@
 
 
 
-#include "common/Common.hh"
-#include "support/Globals.hh"
+#include "faodel-common/Common.hh"
+#include "Globals.hh"
 
 using namespace std;
 using namespace faodel;
@@ -34,6 +34,11 @@ void Globals::StartAll(int &argc, char **argv, faodel::Configuration &config){
   MPI_Init_thread(&argc, &argv, MPI_THREAD_MULTIPLE, &provided);
   MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank);
   MPI_Comm_size(MPI_COMM_WORLD, &mpi_size);
+
+  if(mpi_size<=1) {
+    cerr<<"This test needs to be run with multiple ranks via MPI\n";
+    exit(-1);
+  }
 
   //Determine role based on our rank
   int mpi_dirroot_rank=(mpi_size-1);

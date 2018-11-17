@@ -8,8 +8,9 @@
 #include <sstream>
 #include <iostream>
 #include <thread>
+#include <stdexcept>
 
-#include "common/Common.hh"
+#include "faodel-common/Common.hh"
 
 #include "kelpie/Kelpie.hh"
 #include "kelpie/core/Singleton.hh"
@@ -26,16 +27,24 @@ LocalPool::LocalPool(const ResourceURL &pool_url)
 
   //We're a new local pool that has a label the pool registry hasn't seen
   //before. See if we're associated with an iom.
-  
-  if(pool_url.path=="/local/iom") {
-    iom = kelpie::internal::Singleton::impl.core->FindIOM(pool_url.name);
+
+  //Pull out iom info in order to associate the iom with this local pool. While iom option was
+  //parsed in base, it didn't save the name (just the hash)
+  string iom_option = "";
+  if (pool_url.path == "/local/iom") {
+    iom_option = pool_url.name;
+  } else {
+    iom_option = pool_url.GetOption("iom");
+  }
+  if(!iom_option.empty()) {
+    iom = kelpie::internal::Singleton::impl.core->FindIOM(iom_option);
     if(iom==nullptr) {
-      throw std::runtime_error("Could not find iom '"+pool_url.name+"' for local pool with url: "+pool_url.str());
+      throw std::runtime_error("Could not find iom '"+iom_option+"' for local pool with url: "+pool_url.str());
     }
   }
-  
-  //TODO: Extract and use options in url?
-  //note: not doing this now, because only option would be iom_name
+
+  //Set debug info
+  SetSubcomponentName("-Local-"+pool_url.bucket.GetHex());
   
 }
 
@@ -54,6 +63,8 @@ rc_t LocalPool::Publish(const Key &key, fn_publish_callback_t callback){
   kv_col_info_t col_info;
   kv_row_info_t row_info;
   lunasa::DataObject ldo;
+
+  dbg("Publish (from lkv) bucket "+default_bucket.GetHex()+" key "+key.str());
 
   //Get the ldo
   rc_t rc = lkv->get(default_bucket, key, &ldo, &row_info, &col_info );
@@ -82,11 +93,15 @@ rc_t LocalPool::Publish(const Key &key,
 
   kv_col_info_t col_info;
   kv_row_info_t row_info;
+  rc_t rc = KELPIE_OK;
 
-  rc_t rc = lkv->put(default_bucket, key, user_ldo, &row_info, &col_info);
+  dbg("Publish ldo for bucket "+default_bucket.GetHex()+" key "+key.str());
+
+  //Default to putting in the lkv
+  rc = lkv->put(default_bucket, key, user_ldo, behavior_flags, &row_info, &col_info);
 
   //Write out if we have an iom
-  if(iom!=nullptr) {
+  if((iom!=nullptr) && (behavior_flags & PoolBehavior::WriteToIOM)){
     iom->WriteObject(default_bucket, key, user_ldo);
   }
  
@@ -105,6 +120,8 @@ rc_t LocalPool::Publish(const Key &key,
  */
 rc_t LocalPool::Want(const Key &key, size_t expected_ldo_user_bytes, fn_want_callback_t callback) {
 
+  dbg("Want (size="+to_string(expected_ldo_user_bytes)+") key "+key.str());
+
   int rc = lkv->want(default_bucket, key, NODE_LOCALHOST, false, callback);
 
   //See if we can load it from disk
@@ -113,7 +130,7 @@ rc_t LocalPool::Want(const Key &key, size_t expected_ldo_user_bytes, fn_want_cal
     rc = iom->ReadObject(default_bucket, key, &ldo);
     if(rc==KELPIE_OK){
       //We got it. Push it into lkv in order to trigger waiting callbacks
-      lkv->put(default_bucket, key, ldo, nullptr, nullptr);
+      lkv->put(default_bucket, key, ldo, behavior_flags, nullptr, nullptr);
     }
   }
   
@@ -132,6 +149,8 @@ rc_t LocalPool::Need(const Key &key, size_t expected_ldo_user_bytes, lunasa::Dat
 
   kassert(returned_ldo!=nullptr, "User must provide an LDO");
   kassert(returned_ldo->internal_use_only.GetRefCount()==0, "Refuse to overwrite an LDO");
+
+  dbg("Need (size="+to_string(expected_ldo_user_bytes)+") key "+key.str());
 
   //TODO: Redo and use depends to wakeup
   //Hack: keep polling until someone notifies us
@@ -175,6 +194,10 @@ rc_t LocalPool::Need(const Key &key, size_t expected_ldo_user_bytes, lunasa::Dat
  * @note This currently does NOT query the IOM for info, but will in the future
  */
 rc_t LocalPool::Info(const Key &key, kv_col_info_t *col_info) {
+
+  dbg("Info for key "+key.str());
+
+
   rc_t rc = lkv->getColInfo(default_bucket, key, col_info);
 
   //Go out to disk if not here 
@@ -194,6 +217,9 @@ rc_t LocalPool::Info(const Key &key, kv_col_info_t *col_info) {
  * @note This currently does NOT query the IOM for info, but will in the future
  */
 rc_t LocalPool::RowInfo(const Key &key, kv_row_info_t *row_info) {
+
+  dbg("RowInfo for key "+key.str());
+
   //TODO: add disk check for row info
   return lkv->getRowInfo(default_bucket, key, row_info);
 }
@@ -205,6 +231,8 @@ rc_t LocalPool::RowInfo(const Key &key, kv_row_info_t *row_info) {
  * @note This does not affect the IOM
  */
 rc_t LocalPool::Drop(const Key &key){
+  dbg("Drop key "+key.str());
+
   //Don't delete from disk
   return lkv->drop(default_bucket, key);
 }

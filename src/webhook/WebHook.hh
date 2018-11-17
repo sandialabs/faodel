@@ -6,6 +6,8 @@
 #define WEBHOOK_WEBHOOK_HH
 
 #include "webhook/client/Client.hh"
-#include "webhook/common/QuickHTML.hh"
+
+#include "faodel-common/QuickHTML.hh"
+#include "faodel-common/ReplyStream.hh"
 
 #endif // WEBHOOK_WEBHOOK_HH

@@ -9,7 +9,7 @@
 #include <stdexcept>
 #include <sstream>
 
-#include "common/Debug.hh"
+#include "faodel-common/Debug.hh"
 
 using namespace std;
 

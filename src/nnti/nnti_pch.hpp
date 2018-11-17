@@ -11,6 +11,6 @@
 
 #include <boost/lexical_cast.hpp>
 
-#include <sbl/sbl_logger.hpp>
+#include <sbl/sbl_logger.hh>
 
 #endif /* NNTI_PCH_HPP_ */

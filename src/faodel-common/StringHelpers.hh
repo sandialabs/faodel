@@ -6,10 +6,11 @@
 #define FAODEL_COMMON_STRINGHELPERS_HH
 
 #include <vector>
+#include <set>
 #include <string>
 
-#include "common/FaodelTypes.hh"
-#include "common/Bucket.hh"
+#include "faodel-common/FaodelTypes.hh"
+#include "faodel-common/Bucket.hh"
 
 namespace faodel {
 
@@ -34,6 +35,12 @@ void ToLowercaseInPlace(std::string &s);
 
 std::vector<std::string> SplitPath(std::string const &s);
 std::string              JoinPath(std::vector<std::string> const &vv, int num_items);
+std::string              ExpandPath(std::string const &s, int flags);
+std::string              ExpandPath(std::string const &s);
+std::string              ExpandPathSafely(std::string const &s);
+
+
+std::set<int>  ExtractIDs(const std::string line, int num_nodes);
 
 void ConvertToHexDump(const char *x, ssize_t len, int chars_per_line, int grouping_size,
                       std::string even_prefix, std::string even_suffix,
@@ -48,7 +55,21 @@ uint32_t hash_dbj2(const std::string &s);
 uint32_t hash_dbj2(const bucket_t &bucket, const std::string &s);
 uint32_t hash32(const std::string &s); //Maps to hash_dbj2
 
+uint32_t UnpackHash32(const std::string &s); //Either extract 0x1234 or generate a hash for a string
 
+// This is a weak, compile time hash of a string.
+// From http://stackoverflow.com/questions/2111667/compile-time-string-hashing
+// note: This hashes in reverse order, compared to the hash_dbj2 function
+unsigned constexpr const_hash32(char const *input) {
+  return *input ?
+         static_cast<unsigned int>(*input) + 33 * const_hash32(input + 1) :
+         5381;
+}
+
+//Generate a 16b hash by xoring top and bottom halves of 32b hash together
+uint16_t constexpr const_hash16(char const *input) {
+  return (const_hash32(input)>>16) ^ (const_hash32(input) & 0x0FFFF);
+}
 
 } // namespace faodel
 

@@ -15,13 +15,13 @@
 #include <string>
 #include <functional>
 
-#include "common/Common.hh"
+#include "faodel-common/Common.hh"
 
 #include "webhook/server/boost/mime_types.hpp"
 #include "webhook/server/boost/reply.hpp"
 #include "webhook/server/boost/request.hpp"
 
-#include "webhook/common/QuickHTML.hh"
+#include "faodel-common/QuickHTML.hh"
 
 using namespace std;
 
@@ -41,13 +41,7 @@ request_handler::request_handler() {
   registerHook("/about", [this] (const map<string, string> &args, stringstream &results) {
       dumpAbout(results);
     });
-  
-  registerHook("/bootstraps", [this] (const map<string, string> &args, stringstream &results) {
-      dumpBootstraps(results);
-    });
-  
 
-  
 }
 
 void request_handler::handle_request(const request& req, reply& rep) {
@@ -93,7 +87,9 @@ void request_handler::handle_request(const request& req, reply& rep) {
   cbs_mutex.lock();
   auto name_func = cbs.find(tag);
   if(name_func==cbs.end()){
-    //TODO: Send error message
+    cbs_mutex.unlock();
+    rep.status = reply::not_found;
+    return;
   } else {
     stringstream ss;
     name_func->second(arg_map, ss);
@@ -195,15 +191,7 @@ for debugging and basic restful api operations.)");
   html::mkFooter(results);
   
 }
-void request_handler::dumpBootstraps(stringstream &results){
-  html::mkHeader(results,"Bootstraps");
-  html::mkText(results,"Bootstraps",1);
-  html::mkText(results,"The bootstrap list for this node is:");
-  vector<string> bss = faodel::bootstrap::GetStartupOrder();
-  html::mkList(results, bss);
-  html::mkFooter(results);
-  
-}
+// note: not safe to insert hooks here? random crashes observed
 
 pair<string,string> request_handler::splitString(const string &item, char delim){
   size_t p1 = item.find(delim);

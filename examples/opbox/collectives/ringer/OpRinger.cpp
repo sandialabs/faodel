@@ -128,6 +128,8 @@ WaitingType OpRinger::UpdateTarget(OpArgs *args) {
     cout <<"Done waiting: "<<GetMyID().GetHex()<<endl;
     return WaitingType::done_and_destroy;
   }
+  KHALT("Missing state");
+  return WaitingType::done_and_destroy;
 }
 
 string OpRinger::GetStateName() const {
@@ -137,4 +139,5 @@ string OpRinger::GetStateName() const {
   case State::done:               return "Done";
   }
   KFAIL();
+  return "Unknown";
 }

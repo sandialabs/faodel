@@ -8,7 +8,7 @@
 #include <sstream>
 #include <map>
 
-#include "common/Debug.hh"
+#include "faodel-common/Debug.hh"
 
 #include "opbox/ops/Op.hh"
 #include "opbox/ops/OpCount.hh"

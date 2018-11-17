@@ -4,9 +4,6 @@ set(HEADERS
   Server.hh
 
   client/Client.hh
-  common/QuickHTML.hh
-  common/ReplyStream.hh
-  
   server/boost/connection.hpp
   server/boost/connection_manager.hpp
   server/boost/header.hpp
@@ -21,15 +18,10 @@ set(HEADERS_PUBLIC
   WebHook.hh
   Server.hh
   client/Client.hh
-  common/QuickHTML.hh
-  common/ReplyStream.hh  
 )
 
 set(SOURCES
   client/Client.cpp
-  common/QuickHTML.cpp
-  common/ReplyStream.cpp
-
   server/boost/connection.cpp
   server/boost/connection_manager.cpp
   server/boost/mime_types.cpp
@@ -41,22 +33,15 @@ set(SOURCES
 )
 
 # Everything now goes in webhook
-add_library( webhook STATIC ${HEADERS} ${SOURCES} )
+add_library( webhook ${HEADERS} ${SOURCES} )
 target_link_libraries( webhook Boost::boost )
 
-
-# Standalone tool for grabbing data
-add_executable(wh_grabData tools/grabData.cpp client/Client.cpp)
-target_link_libraries(wh_grabData PUBLIC common )
-install(TARGETS wh_grabData
-        EXPORT webhookTargets
-        RUNTIME DESTINATION "${BINARY_INSTALL_DIR}" COMPONENT bin
-)
 
 install(TARGETS webhook
   EXPORT        FaodelTargets
   RUNTIME       DESTINATION "${BINARY_INSTALL_DIR}" COMPONENT bin
   ARCHIVE       DESTINATION "${LIBRARY_INSTALL_DIR}" COMPONENT lib
+  LIBRARY       DESTINATION "${LIBRARY_INSTALL_DIR}" COMPONENT lib
   INCLUDES      DESTINATION "${INCLUDE_INSTALL_DIR};${INCLUDE_INSTALL_DIR}/faodel"
   )
 

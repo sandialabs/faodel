@@ -5,8 +5,8 @@
 #ifndef OPBOX_SINGLETON_HH
 #define OPBOX_SINGLETON_HH
 
-#include "common/Common.hh"
-#include "common/LoggingInterface.hh"
+#include "faodel-common/Common.hh"
+#include "faodel-common/LoggingInterface.hh"
 
 #include "opbox/common/Types.hh"
 
@@ -19,14 +19,6 @@
 
 
 namespace opbox {
-
-//Forward ref
-namespace dirman {
-namespace internal {
-class SingletonImpl;
-}
-}
-
 namespace internal {
 
 
@@ -53,7 +45,7 @@ public:
                        std::vector<std::string> &requires,
                        std::vector<std::string> &optional) const override;
 
-  void webhookInfoRegistry(webhook::ReplyStream &rs) { return registry.webhookInfo(rs); }
+  void webhookInfoRegistry(faodel::ReplyStream &rs) { return registry.webhookInfo(rs); }
 
   OpRegistry registry;
   OpBoxCoreBase *core;
@@ -66,16 +58,13 @@ private:
 
 
 /**
- * @brief A static placeholder for opbox's singletons (OpBoxCore and DirMan)
+ * @brief A static placeholder for opbox's singleton
  */
 class Singleton {
 public:
-  static opbox::internal::SingletonImpl         impl_ob;
-  static opbox::dirman::internal::SingletonImpl impl_dm;
+  static opbox::internal::SingletonImpl         impl;
+
 };
-
-
-
 
 } // namespace internal
 } // namespace opbox

@@ -2,8 +2,28 @@
 // LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
 // the U.S. Government retains certain rights in this software. 
 
+// Singleton Example
+//
+// Bootstrap was originally designed so you could define a bunch
+// of different singletons and some static trickery would automatically
+// register them all with bootstrap. This example shows three techniques
+// for registering the singleton services:
+//
+//  ServiceA: A hidden global variable for a class that registers itself
+//  ServiceB: A static private member holds a class that registers itself
+//  ServiceC: Singleton is created the first time a function is called
+//
+// Note: We NO LONGER RECOMMEND using this automatic service registration
+//       for singleton services. Linkers often discard the singleton code
+//       during optimization unless you wrap the link objects with
+//       some -Wl,--whole-archive flags.
+//
+// Instead: We recommend doing dependency injection and manually register
+//          each service.
+
+
 #include <iostream>
-#include "common/Common.hh"
+#include "faodel-common/Common.hh"
 
 #include "ServiceA.hh"
 #include "ServiceB.hh"

@@ -6,7 +6,7 @@
 #include <string.h>
 #include <iostream>
 
-#include "common/Debug.hh"
+#include "faodel-common/Debug.hh"
 #include "kelpie/localkv/LocalKV.hh"
 
 using namespace std;
@@ -19,18 +19,13 @@ LocalKV::LocalKV()
     row_mutex_type_id(faodel::MutexWrapperTypeID::DEFAULT),
     configured(false), table_mutex(nullptr) {
 
-  webhook::Server::updateHook("/kelpie/lkv", [this] (const map<string,string> &args, stringstream &results) {
-      return HandleWebhookStatus(args, results);
-    });
-  webhook::Server::updateHook("/kelpie/lkv/row", [this] (const map<string,string> &args, stringstream &results) {
-      return HandleWebhookRow(args, results);
-    });
-  webhook::Server::updateHook("/kelpie/lkv/cell", [this] (const map<string,string> &args, stringstream &results) {
-      return HandleWebhookCell(args, results);
-    });
+  //Real work handled in Init when we have a real config
 }
+
 LocalKV::~LocalKV(){
 
+  //Caution: assumes lkv lives inside something like kelpieCore, which uses bootstrap to preserve shutdown
+  //         standalone tests of lkv must perform the same kind of order-preserving shutdown
   webhook::Server::deregisterHook("/kelpie/lkv/cell");
   webhook::Server::deregisterHook("/kelpie/lkv/row");
   webhook::Server::deregisterHook("/kelpie/lkv");
@@ -49,10 +44,7 @@ LocalKV::~LocalKV(){
  */
 rc_t LocalKV::Init(const Configuration &config){
 
-  if(configured) {
-    cerr << "Error: Attempted to reconfigure the LocalKV. Configuration can only take place once.\n";
-    return KELPIE_EEXIST;
-  }
+  kassert(!configured, "Attempted to call LocalKV Init more than once");
 
   //Enable our configuration
   ConfigureLogging(config);
@@ -61,24 +53,30 @@ rc_t LocalKV::Init(const Configuration &config){
   //Set our max capacity
   config.GetInt(&max_capacity, "kelpie.lkv.max_capacity","1M");
 
-
   //Create our mutex
   table_mutex = config.GenerateComponentMutex("kelpie.lkv", "rwlock");
   configured=true;
 
-
-
+  //Register webhooks
   webhook::Server::updateHook("/kelpie/lkv", [this] (const map<string,string> &args, stringstream &results) {
-        return HandleWebhookStatus(args, results);
-    });
+      return HandleWebhookStatus(args, results);
+  });
+  webhook::Server::updateHook("/kelpie/lkv/row", [this] (const map<string,string> &args, stringstream &results) {
+      return HandleWebhookRow(args, results);
+  });
+  webhook::Server::updateHook("/kelpie/lkv/cell", [this] (const map<string,string> &args, stringstream &results) {
+      return HandleWebhookCell(args, results);
+  });
+
   return KELPIE_OK;
 }
 
 /**
  * @brief Put a lunasa data object reference into the LocalKV
  * @param[in] bucket The user id that is marked as the bucket of this data
- * @param[in] new_ldo The Lunasa Data Object that the lkv will use to reference an object
  * @param[in] key The key used to reference this data
+ * @param[in] new_ldo The Lunasa Data Object that the lkv will use to reference an object
+ * @param[in] behavior_flags Infor about how the lkv should handle new data
  * @param[out] row_info Information about the row, after update
  * @param[out] col_info Information about the column, after update
  * @retval KELPIE_OK Success with no triggers
@@ -89,23 +87,27 @@ rc_t LocalKV::Init(const Configuration &config){
  */
 rc_t LocalKV::put(bucket_t bucket, const Key &key,
                     lunasa::DataObject const &new_ldo,
+                    pool_behavior_t behavior_flags,
                     kv_row_info_t *row_info,
                     kv_col_info_t *col_info){
 
   kassert(key.valid(), "Put given invalid key");
 
-  dbg("Put "+bucket.GetHex()+"|"+key.str()+" length "+to_string(new_ldo.GetTotalSize()));
+  dbg("Put "+bucket.GetHex()+"|"+key.str()+" length "+to_string(new_ldo.GetUserSize()));
+
+  bool create_if_missing = (behavior_flags & PoolBehavior::WriteToLocal); //Some pools just need to notify others
+  bool trigger_dependency_check = true;
 
 
-
-  rc_t rc = doColOp(bucket, key, true, true, row_info, col_info, //Pub creates if missing and triggers deps
+  rc_t rc = doColOp(bucket, key, create_if_missing, trigger_dependency_check, row_info, col_info, //Pub creates if missing and triggers deps
                     [&new_ldo, key] (LocalKVRow &row, LocalKVCell &col, bool previously_existed) {
 
+                      //TODO: update to truely use new behaviors. Currently, this ignores a WriteToLocal=0 if dependencies or entry exist
                       if(col.availability==Availability::InLocalMemory){
                         //Existing version? ignore?
                         return KELPIE_EEXIST;
                       }
-                      //Fill in the data
+                      //New item. Entry created, we just need to fill in the data
                       col.availability = Availability::InLocalMemory;
                       col.ldo = new_ldo;  //todo: deep copy?
                       col.time_posted = col.getTime();
@@ -131,7 +133,7 @@ rc_t LocalKV::put(bucket_t bucket, const Key &key,
  * @note This version passes back an ldo reference to the data. Modifying the data could have side effects.
  * @todo Put some logic here to disable wait lists?
  */
-rc_t LocalKV::get(bucket_t bucket, const Key &key,
+rc_t LocalKV::get(faodel::bucket_t bucket, const Key &key,
                     lunasa::DataObject *ext_ldo,
                     kv_row_info_t *row_info,
                     kv_col_info_t *col_info) {
@@ -216,7 +218,7 @@ rc_t LocalKV::get(bucket_t bucket, const Key &key,
  * @note This version passes back an ldo reference to the data. Modifying the data could have side effects.
  * @todo Put some logic here to disable wait lists?
  */
-rc_t LocalKV::get(bucket_t bucket, const Key &key,
+rc_t LocalKV::get(faodel::bucket_t bucket, const Key &key,
                     opbox::mailbox_t mailbox_if_missing,
                     lunasa::DataObject *ext_ldo,
                     kv_row_info_t *row_info,
@@ -603,7 +605,7 @@ void LocalKV::wipeAll(faodel::internal_use_only_t iuo){
  */
 void LocalKV::HandleWebhookStatus(const std::map<std::string,std::string> &args, std::stringstream &results){
 
-  webhook::ReplyStream rs(args, "Kelpie LocalKV Status", &results);
+  faodel::ReplyStream rs(args, "Kelpie LocalKV Status", &results);
   auto it = args.find("detail");
   bool detailed = (it != args.end());
   webhookInfo(rs,detailed);
@@ -616,7 +618,7 @@ void LocalKV::HandleWebhookStatus(const std::map<std::string,std::string> &args,
  * @param[in] rs The ReplyStream to be written to
  * @param[in] detailed Whether to include detailed information or not
  */
-void LocalKV::webhookInfo(webhook::ReplyStream &rs, bool detailed){
+void LocalKV::webhookInfo(faodel::ReplyStream &rs, bool detailed){
 
   rs.tableBegin("LocalKV");
   rs.tableTop({"Parameter","Setting"});
@@ -707,7 +709,7 @@ void LocalKV::webhookInfo(webhook::ReplyStream &rs, bool detailed){
  */
 void LocalKV::HandleWebhookRow(const std::map<std::string,std::string> &args, std::stringstream &results){
 
-  webhook::ReplyStream rs(args, "Kelpie LocalKV Row", &results);
+  faodel::ReplyStream rs(args, "Kelpie LocalKV Row", &results);
   string rname="";
   auto ritr = args.find("row");
   if(ritr != args.end()) rname=ritr->second;
@@ -767,9 +769,7 @@ void LocalKV::HandleWebhookRow(const std::map<std::string,std::string> &args, st
  */
 void LocalKV::HandleWebhookCell(const std::map<std::string,std::string> &args, std::stringstream &results){
 
-  const int chars_per_line=32;
-
-  webhook::ReplyStream rs(args, "Kelpie LocalKV Cell", &results);
+  faodel::ReplyStream rs(args, "Kelpie LocalKV Cell", &results);
   string rname="";
   string cname="";
   auto ritr = args.find("row");
@@ -795,76 +795,32 @@ void LocalKV::HandleWebhookCell(const std::map<std::string,std::string> &args, s
       ssize_t msize = col->ldo.GetMetaSize();
       ssize_t dsize = col->ldo.GetDataSize();
 
-      rs.tableBegin("Column Entry "+rname_txt+" "+cname_txt);
+      rs.tableBegin("Column Entry " + rname_txt + " " + cname_txt);
       rs.tableTop({"Parameter", "Setting"});
       //rs.tableRow({"Row Name", row->rowname});
-      rs.tableRow({"Row Name", html::mkLink(row->rowname, "/kelpie/lkv/row&row="+rname)});
+      rs.tableRow({"Row Name", html::mkLink(row->rowname, "/kelpie/lkv/row&row=" + rname)});
       rs.tableRow({"Column Name", cname_txt});
       rs.tableRow({"Availability:", availability_to_string(col->availability)});
 
-      rs.tableRow({"Object Meta Size", to_string(msize) });
-      rs.tableRow({"Object Data Size", to_string(dsize) });
-      rs.tableRow({"Total Allocation", to_string(col->ldo.GetTotalSize()) });
-      rs.tableRow({"Local RefCount",   to_string(col->ldo.internal_use_only.GetRefCount()) });
+      rs.tableRow({"Object Meta Size", to_string(msize)});
+      rs.tableRow({"Object Data Size", to_string(dsize)});
+      rs.tableRow({"Object User Capacity", to_string(col->ldo.GetUserCapacity())});
+      rs.tableRow({"Total Allocation", to_string(col->ldo.GetRawAllocationSize())});
+      rs.tableRow({"Local RefCount", to_string(col->ldo.internal_use_only.GetRefCount())});
 
-      #if 1
+#if 0
       {
         net::NetBufferLocal  *nbl = nullptr;
         net::NetBufferRemote  nbr;
         net::GetRdmaPtr(&col->ldo, &nbl, &nbr);
         rs.tableRow({"RDMA Pointer", nbr.str()});
       }
-      #endif
-      
+#endif
       rs.tableEnd();
 
-      rs.mkSection("Data Object Dump");
-
-      if(msize > 0) {
-        vector<string> offset_lines, hex_lines, txt_lines;
-
-        ssize_t size = (msize < 256) ? msize : 256;
-        faodel::ConvertToHexDump(col->ldo.GetMetaPtr<char *>(), size,
-                                  chars_per_line, 8,
-                                  "<span class=\"HEXE\">", "</span>",
-                                  "<span class=\"HEXO\">", "</span>",
-                                  &offset_lines, &hex_lines, &txt_lines);
-
-        vector<vector<string>> rows;
-        rows.push_back({"Offset","Hex Data","Text"});
-        for(int i=0; i<offset_lines.size(); i++){
-          vector<string> row;
-          row.push_back(offset_lines[i]);
-          row.push_back(hex_lines[i]);
-          row.push_back(txt_lines[i]);
-          rows.push_back(row);
-        }
-        rs.mkTable(rows, "Meta Section");
-      }
-
-      if(dsize > 0) {
-        vector<string> offset_lines, hex_lines, txt_lines;
-
-        ssize_t size = (dsize < 2048) ? dsize : 2048;
-        faodel::ConvertToHexDump(col->ldo.GetDataPtr<char *>(), size,
-                                  chars_per_line, 8,
-                                  "<span class=\"HEXE\">", "</span>",
-                                  "<span class=\"HEXO\">", "</span>",
-                                  &offset_lines, &hex_lines, &txt_lines);
-
-        vector<vector<string>> rows;
-        rows.push_back({"Offset","Hex Data","Text"});
-        for(int i=0; i<offset_lines.size(); i++){
-          vector<string> row;
-          row.push_back(offset_lines[i]);
-          row.push_back(hex_lines[i]);
-          row.push_back(txt_lines[i]);
-          rows.push_back(row);
-        }
-        rs.mkTable(rows, "Data Section");
-
-      }
+      lunasa::DumpDataObject(col->ldo, rs);
     }
+
 
   }
   table_mutex->Unlock();

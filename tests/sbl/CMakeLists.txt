@@ -13,7 +13,7 @@ set( SERIAL_TEST_LIBS
   )
 
 # add_serial_test( test-name, directory, autorun-flag )
-add_serial_test( SblLoggerClassTest unit true )
-add_serial_test( SblSourceClassTest unit true )
-add_serial_test( SblCompileSpeedTest unit true )
+add_serial_test( tb_sbl_logger_class unit true )
+add_serial_test( tb_sbl_source_class unit true )
+add_serial_test( tb_sbl_compile_speed unit true )
 

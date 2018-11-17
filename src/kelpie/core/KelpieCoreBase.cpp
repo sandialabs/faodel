@@ -17,10 +17,10 @@ namespace internal {
 
 extern KelpieCoreUnconfigured kelpie_core_unconfigured;  //For resource registration
 
-KelpieCoreBase::KelpieCoreBase() : LoggingInterface("kelpie") {
+KelpieCoreBase::KelpieCoreBase()
+        : LoggingInterface("kelpie") {
 }
-KelpieCoreBase::~KelpieCoreBase(){
-}
+KelpieCoreBase::~KelpieCoreBase() = default;
 
 #if 0
 void KelpieCoreBase::registerPoolConstructor(string pool_name, fn_PoolCreate_t function_pointer) {

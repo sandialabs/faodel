@@ -11,6 +11,8 @@
 #include "kelpie/pools/UnconfiguredPool/UnconfiguredPool.hh"
 
 #include "opbox/OpBox.hh"
+#include "dirman/DirMan.hh"
+#include "faodel-services/BackBurner.hh"
 
 using namespace std;
 
@@ -24,7 +26,6 @@ namespace internal {
 SingletonImpl::SingletonImpl()
   : LoggingInterface("kelpie") {
 
-  //faodel::bootstrap::RegisterComponent(this);
   core = &unconfigured;  //Start in unconfigured state
   unconfigured_pool = make_shared<UnconfiguredPool>(); //Create a default pool
 }
@@ -53,7 +54,7 @@ void SingletonImpl::GetBootstrapDependencies(
                        vector<string> &requires,
                        vector<string> &optional) const {
   name = "kelpie";
-  requires = {"opbox"};
+  requires = {"opbox","dirman"};
   optional = {"webhook"};
 }
 
@@ -83,7 +84,7 @@ void SingletonImpl::Init(const faodel::Configuration &config){
     core = new KelpieCoreNoNet();
 
   } else {
-    error("Unknown kelpie.type '"+kelpie_type+"' in configuration. Choices: standard");
+    error("Unknown kelpie.type '"+kelpie_type+"' in configuration. Choices: standard, nonet");
     exit(-1);
   }
 
@@ -135,8 +136,9 @@ void SingletonImpl::Finish() {
  */
 std::string bootstrap(){
 
-  //register dependencies. Should only need to do opbox and backburner
+  //register dependencies. Should only need to do opbox, dirman, and backburner
   opbox::bootstrap();
+  dirman::bootstrap();
   faodel::backburner::bootstrap();
 
   //register ourselves

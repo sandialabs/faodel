@@ -9,8 +9,8 @@
 #include <map>
 #include <string>
 
-#include "common/FaodelTypes.hh"
-#include "common/ResourceURL.hh"
+#include "faodel-common/FaodelTypes.hh"
+#include "faodel-common/ResourceURL.hh"
 
 #include "kelpie/common/Types.hh"
 
@@ -33,7 +33,7 @@ class PoolRegistry {
   PoolRegistry();
   ~PoolRegistry();
 
-  void init(faodel::bucket_t default_bucket);
+  void init(const faodel::Configuration &config);
   void start();
   void finish();
 
@@ -43,11 +43,12 @@ class PoolRegistry {
  private:
   faodel::MutexWrapper *mutex;
   faodel::bucket_t default_bucket;
+  int default_pool_logging_level;
   std::map<std::string, fn_PoolCreate_t> pool_create_fns;  // ctors for pools
   std::map<std::string, std::shared_ptr<PoolBase>> known_pools;
 
   std::string makeKnownPoolKey(const faodel::ResourceURL &url) const {
-    return url.bucket.GetHex()+url.path+"/"+url.name;
+    return url.bucket.GetHex()+url.path+"/"+url.name+"&"+url.GetSortedOptions();
   }
   void HandleWebhookStatus(const std::map<std::string, std::string> &args, std::stringstream &results);
 };

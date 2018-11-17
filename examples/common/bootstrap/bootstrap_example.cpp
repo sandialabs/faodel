@@ -4,87 +4,128 @@
 
 // Boostrap Example
 //
-// Bootstrap is a way to establish the order in which different components
-// are initialized and shutdown. Each component must register itself using
-// the RegisterComponent function. This registration has six fields:
+// Bootstrap is a way to establish the order in which different services
+// are initialized, started up, and shutdown in FAODEL. The most direct way to
+// create a bootstrap service is to create a singleton class with a
+// BootstrapInterface. This interface has 5 functions:
 //
-//  1. The name of the component
-//  2. A list of all the components that must come before this one
-//  3. A list of any optional components that must come before this one
-//  4. The configuration function
-//  5. The start function
-//  6. The finish function
-//
+//  1.  Init(const configuration): Most services just need to parse a config
+//      in order to do their initialization. This function handles all the
+//      initialization work
+//  2*. InitAndModifyConfiguration(*config): Some services need to modify the
+//      configuration in order to pass info to higher-level services. This
+//      is not common. Internally, bootstrap calls InitAndModifyConfiguration(),
+//      which defaults to calling Init().
+//  3.  Start: Start triggers the services to begin any work it needs to perform,
+//      such as launching threads.
+//  4.  Finish: Shut the service down.
+//  5.  GetBootstrapDependencies: This function is used to pass along this
+//      service's list of dependencies to bootstrap
+
+
+// In this example, we're creating two singleton services: A and B. We define
+// a registration function for each which can be supplied to Init.
 
 #include <iostream>
 
-#include "common/Common.hh"
-#include "common/Bootstrap.hh"
+#include "faodel-common/Common.hh"
+#include "faodel-common/Bootstrap.hh"
+#include "faodel-common/BootstrapInterface.hh"
 
 using namespace std;
 using namespace faodel;
 
-int global_num_tested=0;
 
-class A {
+namespace serviceA {
+class A
+  : public faodel::bootstrap::BootstrapInterface {
+
 public:
-  A() {
-    cout <<"A()\n";
-    bootstrap::RegisterComponent("a", {}, {},
-                                 [this] (const Configuration &config) { this->increaseCount(); },
-                                 [this] () { this->increaseCount(); },
-                                 [this] () { this->decreaseCount(); this->decreaseCount(); }
-                                 );
-  }
+  A()  { cout << "A()\n"; }
   ~A() { cout << "~A()\n"; }
 
-private:
-  void increaseCount() { global_num_tested++;}
-  void decreaseCount() { global_num_tested--;}
-
-};
-
-class B {
-public:
-  B() {
-    cout <<"B()\n";
-    bootstrap::RegisterComponent("b", {"a"}, {},
-                                 [this] (const Configuration &config) { this->increaseCount(); },
-                                 [this] () { this->increaseCount(); },
-                                 [this] () { this->decreaseCount(); this->decreaseCount(); }
-                                 );
+  //Bootstrap API
+  void Init(const faodel::Configuration &config) override { cout <<"A: Init\n";}
+  void Start() override { cout <<"A: Start\n"; }
+  void Finish() override { cout <<"A: Finish\n"; }
+  void GetBootstrapDependencies(std::string &name,
+                       std::vector<std::string> &requires,
+                       std::vector<std::string> &optional) const override {
+    name="A";
+    requires={};
+    optional={};
   }
-  ~B() { cout << "~B()\n"; }
-
-private:
-  void increaseCount() { global_num_tested++;}
-  void decreaseCount() { global_num_tested--;}
 };
 
-std::string fn_no_components() {
-  return "";
+//We need to register this component with bootstrap. The easiest way to do this
+//is by making a singleton and registering it as well as any dependencies
+string bootstrap() {
+  static A singleton_a;
+  cout <<"Register A\n";
+  faodel::bootstrap::RegisterComponent(&singleton_a);
+  return "A"; //<--Note: You MUST return the name of the last component
 }
 
-//These are the actual instances
-B b;
-A a;
+} // namespace serviceA
+
+
+namespace serviceB {
+class B
+  : public faodel::bootstrap::BootstrapInterface {
+
+public:
+  B()  { cout << "B()\n"; }
+  ~B() { cout << "~B()\n"; }
+
+  //Bootstrap API
+  void Init(const faodel::Configuration &config) override { cout <<"B: Init\n";}
+  void Start() override { cout <<"B: Start\n"; }
+  void Finish() override { cout <<"B: Finish\n"; }
+  void GetBootstrapDependencies(std::string &name,
+                                std::vector<std::string> &requires,
+                                std::vector<std::string> &optional) const override {
+    name="B";
+    requires={"A"};
+    optional={};
+  }
+};
+//We need to register this component with bootstrap. The easiest way to do this
+//is by making a singleton and registering it as well as any dependencies
+string bootstrap() {
+
+  //Register everything that A requires
+  serviceA::bootstrap();
+
+  //Register our singleton
+  static B singleton_b;
+  cout <<"Register B\n";
+  faodel::bootstrap::RegisterComponent(&singleton_b);
+  return "B"; //<--Note: You MUST return the name of the last component
+}
+} // namespace serviceB
 
 
 
+int main(int argc, char **argv) {
 
-int main() {
-
-  if(global_num_tested!=0) { cerr <<"Didn't have right pre-init value\n"; return -1; }
-
-  bootstrap::Init(Configuration(""), fn_no_components);
-  if(global_num_tested!=2) { cerr <<"Didn't have right post-init value\n"; return -1; }
-
-  bootstrap::Start();
-  if(global_num_tested!=4) { cerr <<"Didn't have right post-start value\n"; return -1; }
+  Configuration config;
+  if((argc>1) && (string(argv[1]) == "-d"))
+    config.Set("bootstrap.debug", "true");
 
 
-  bootstrap::Finish();
-  if(global_num_tested!=0) { cerr <<"Didn't have right post-final value\n"; return -1; }
+  cout <<"====================================\n";
+  cout <<"Launching with just service A\n";
+  cout <<"Calling Init\n";    bootstrap::Init(config, serviceA::bootstrap );
+  cout <<"Calling Start\n";   bootstrap::Start();
+  cout <<"Calling Finish\n";  bootstrap::Finish();
+
+  cout <<"====================================\n";
+  cout <<"Launching with both A and B services\n";
+  cout <<"Calling Init\n";    bootstrap::Init(config, serviceB::bootstrap );
+  cout <<"Calling Start\n";   bootstrap::Start();
+  cout <<"Calling Finish\n";  bootstrap::Finish();
+
+  //bootstrap::Init(config, mpisyncstart::bootstrap);
 
   return 0;
 }

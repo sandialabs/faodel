@@ -5,11 +5,19 @@
 #ifndef FAODEL_TESTS_OPBOX_GLOBALS_HH
 #define FAODEL_TESTS_OPBOX_GLOBALS_HH
 
+// Globals: A support lib for running distributed tests in opbox
+//
+// OpBox by itself doesn't provide any mechanisms for distributing info about
+// what nodes are running in the system. Normally we use faodel's mpisyncstart
+// service to pass info around, but that's not available at the opbox level. This
+// support library uses mpi to manually setup our experiments
+
 #include <mpi.h>
 
-#include "common/Common.hh"
+#include "faodel-common/Common.hh"
 #include "opbox/OpBox.hh"
 #include "webhook/Server.hh"
+
 
 
 typedef struct {

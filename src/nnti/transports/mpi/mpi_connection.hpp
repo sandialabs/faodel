@@ -105,8 +105,8 @@ public:
         log_debug("mpi_connection param_str", "port     = %d",  peer_params_.port);
         log_debug("mpi_connection param_str", "rank     = %d",  peer_params_.rank);
     }
-    virtual ~mpi_connection()
-    {
+
+  ~mpi_connection() override {
         return;
     }
 
@@ -119,7 +119,10 @@ public:
         peer_params_ = connection_params(params);
 
         nnti::core::nnti_url url = nnti::core::nnti_url(peer_params_.hostname, peer_params_.port);
+
         peer_pid_ = url.pid();
+        nnti::datatype::mpi_peer *mp = (nnti::datatype::mpi_peer*)peer_;
+        mp->rank(peer_params_.rank);
 
         log_debug("peer_params", "hostname = %s",  peer_params_.hostname.c_str());
         log_debug("peer_params", "addr     = %lu", peer_params_.addr);
@@ -145,6 +148,8 @@ public:
 
         nnti::core::nnti_url url = nnti::core::nnti_url(peer_params_.hostname, peer_params_.port);
         peer_pid_ = url.pid();
+        nnti::datatype::mpi_peer *mp = (nnti::datatype::mpi_peer*)peer_;
+        mp->rank(peer_params_.rank);
 
         log_debug("peer_params", "hostname = %s",  peer_params_.hostname.c_str());
         log_debug("peer_params", "addr     = %lu", peer_params_.addr);

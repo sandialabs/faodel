@@ -2,6 +2,9 @@
 // LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
 // the U.S. Government retains certain rights in this software. 
 
+// Test:    mpi_opbox_opargs
+// Purpose: Test passing arg objects around (verify types and recast)
+// Note:    needs mpi for node id to be initialized
 
 #include <mpi.h>
 
@@ -12,7 +15,7 @@
 #include <atomic>
 #include <future>
 
-#include "common/Common.hh"
+#include "faodel-common/Common.hh"
 #include "lunasa/Lunasa.hh"
 #include "opbox/OpBox.hh"
 
@@ -20,22 +23,20 @@ using namespace std;
 using namespace faodel;
 using namespace opbox;
 
-string default_config_string = R"EOF(
-# for finishSoft
-lunasa.lazy_memory_manager malloc
-lunasa.eager_memory_manager malloc
-)EOF";
+#include "support/default_config_string.hh"
 
 class OpBoxOpArgsTest : public testing::Test {
 protected:
-  virtual void SetUp(){
-    faodel::Configuration config(default_config_string);
+  void SetUp() override {
+    faodel::Configuration config(multitest_config_string);
     bootstrap::Start(config, opbox::bootstrap);
-    header.op_id=0x1234;
+    header.op_id = 0x1234;
   }
-  virtual void TearDown(){
+
+  void TearDown() override {
     bootstrap::FinishSoft();
   }
+
   message_t header;
 
   internal_use_only_t iuo; //Shortcut to getting at node_t ctor
@@ -44,28 +45,23 @@ protected:
 };
 
 
-TEST_F(OpBoxOpArgsTest, TypeChecks){
+TEST_F(OpBoxOpArgsTest, TypeChecks) {
 
   OpArgs args_start(UpdateType::start);
   OpArgs args_success(UpdateType::send_success);
   OpArgs args_msg(0, &header);
 
-  try { args_start.VerifyTypeOrDie(UpdateType::start, "tst"); EXPECT_TRUE(true);
-  } catch(exception e){ EXPECT_FALSE(true); }
-
-  try { args_success.VerifyTypeOrDie(UpdateType::send_success, "tst"); EXPECT_TRUE(true);
-  } catch(exception e){ EXPECT_FALSE(true); }
-
-  try { args_start.VerifyTypeOrDie(UpdateType::send_success, "tst"); EXPECT_FALSE(true);
-  } catch(exception e){ EXPECT_TRUE(true); }
+  EXPECT_NO_THROW(args_start.VerifyTypeOrDie(UpdateType::start, "tst"));
+  EXPECT_NO_THROW(args_success.VerifyTypeOrDie(UpdateType::send_success, "tst"));
+  EXPECT_ANY_THROW(args_start.VerifyTypeOrDie(UpdateType::send_success, "tst"));
 
 }
 
-TEST_F(OpBoxOpArgsTest, Recasts){
+TEST_F(OpBoxOpArgsTest, Recasts) {
 
   OpArgs args_start(UpdateType::start);
   OpArgs args_success(UpdateType::send_success);
-  OpArgs  args_msg(0, &header);
+  OpArgs args_msg(0, &header);
   OpArgs *args_msg_ptr = &args_msg;
 
   OpArgs *args;
@@ -75,7 +71,7 @@ TEST_F(OpBoxOpArgsTest, Recasts){
 }
 
 
-int main(int argc, char **argv){
+int main(int argc, char **argv) {
   ::testing::InitGoogleTest(&argc, argv);
   int provided;
   MPI_Init_thread(&argc, &argv, MPI_THREAD_MULTIPLE, &provided);
@@ -84,4 +80,5 @@ int main(int argc, char **argv){
 
   MPI_Barrier(MPI_COMM_WORLD);
   MPI_Finalize();
+  return rc;
 }

@@ -3,6 +3,7 @@
 // the U.S. Government retains certain rights in this software. 
 
 #include <iostream>
+#include <stdexcept>
 
 #include "opbox/net/net.hh"
 #include "opbox/common/Message.hh"

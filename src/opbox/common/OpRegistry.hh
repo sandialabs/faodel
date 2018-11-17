@@ -5,7 +5,7 @@
 #ifndef OPBOX_OPREGISTRY_HH
 #define OPBOX_OPREGISTRY_HH
 
-#include "common/Common.hh"
+#include "faodel-common/Common.hh"
 
 #include "webhook/WebHook.hh"
 #include "webhook/Server.hh"
@@ -46,10 +46,10 @@ public:
   Op * CreateOp(unsigned int op_id);
 
   void HandleWebhookStatus(const std::map<std::string,std::string> &args, std::stringstream &results);
-  void webhookInfo(webhook::ReplyStream &rs);
+  void webhookInfo(faodel::ReplyStream &rs);
 
   //InfoInterface
-  void sstr(std::stringstream &ss, int depth=0, int indent=0) const;
+  void sstr(std::stringstream &ss, int depth=0, int indent=0) const override;
 
 private:
 

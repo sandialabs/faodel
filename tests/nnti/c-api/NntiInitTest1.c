@@ -20,7 +20,7 @@ main(int argc, char *argv[])
     char *req_url = NULL;
     char *my_url = (char *)calloc(NNTI_URL_LEN+1,1);
 
-    test_bootstrap();
+    test_bootstrap_start();
 
     rc = NNTI_init(transport_id, req_url, &transport);
     assert(rc==NNTI_OK);
@@ -39,6 +39,7 @@ main(int argc, char *argv[])
     log_debug("NntiInitTest1", "my_url=%s", my_url);
 
     NNTI_fini(transport);
+    test_bootstrap_finish();
 
     return 0;
 }

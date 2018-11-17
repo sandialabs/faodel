@@ -7,7 +7,7 @@
 
 #include <sstream>
 
-#include "common/FaodelTypes.hh"
+#include "faodel-common/FaodelTypes.hh"
 
 
 namespace faodel {
@@ -52,7 +52,8 @@ private:
 public:
   BucketParseError() : msg("") {}
   BucketParseError(std::string s) : msg(s) {}
-  virtual const char* what() const throw() {
+
+  const char* what() const throw() override {
     std::stringstream ss;
     ss << "Format problem while parsing Bucket string: " << msg << std::endl;
     return ss.str().c_str();

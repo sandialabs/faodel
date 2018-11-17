@@ -6,9 +6,10 @@
 #define OPBOX_MESSAGE_HELPERS_HH
 
 #include <cstdint>
+#include <stdexcept>
 
-#include "common/NodeID.hh"
-#include "common/SerializationHelpers.hh"
+#include "faodel-common/NodeID.hh"
+#include "faodel-common/SerializationHelpers.hh"
 #include "lunasa/DataObject.hh"
 
 #include "opbox/common/Message.hh"

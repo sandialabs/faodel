@@ -5,9 +5,10 @@
 #include <iostream>
 #include <vector>
 #include <algorithm>
+#include <stdexcept>
 
-#include "common/ResourceURL.hh"
-#include "common/StringHelpers.hh"
+#include "faodel-common/ResourceURL.hh"
+#include "faodel-common/StringHelpers.hh"
 
 // Format: resource_type:<node>[bucket]/my/path/name&option1=x&option2=y
 
@@ -49,8 +50,8 @@ ResourceURL::ResourceURL(string url)
   ParseURL(url, &resource_type, &tmp_bucket, &tmp_nodeid, &path, &name, &options);
 
   //Convert bucket and node strings into real values
-  if(tmp_bucket!="") bucket = bucket_t(tmp_bucket);
-  if(tmp_nodeid!="") reference_node = nodeid_t(tmp_nodeid);
+  if(!tmp_bucket.empty()) bucket = bucket_t(tmp_bucket);
+  if(!tmp_nodeid.empty()) reference_node = nodeid_t(tmp_nodeid);
 
 }
 
@@ -98,8 +99,19 @@ string ResourceURL::GetURL(bool include_type, bool include_node, bool include_bu
   if(path!="/")            ss<<path;
   if(true)                 ss<<"/"<<name;
   if((include_options) &&
-     (options!=""))        ss<<"&"<<options;
+     (!options.empty()))   ss<<"&"<<options;
   return ss.str();
+}
+
+/**
+ * @brief Determine if this URL has any fields that have been set to anything
+ * @return TRUE If reference_node, bucker, path, name, or options are non-default values
+ * @return FALSE if any value has been set
+ */
+bool ResourceURL::IsEmpty() const {
+  return (reference_node==NODE_UNSPECIFIED) &&
+         (bucket ==BUCKET_UNSPECIFIED) &&
+         (path.empty()) && (name.empty()) && (options.empty());
 }
 
 /**
@@ -108,7 +120,7 @@ string ResourceURL::GetURL(bool include_type, bool include_node, bool include_bu
  * @param[in] next_dir The directory to append to the back of the path
  */
 void ResourceURL::PushDir(string next_dir) {
-  if(next_dir=="") return;
+  if(next_dir.empty()) return;
 
   stringstream ss;
   if(path!="/") ss<<path;
@@ -209,13 +221,12 @@ int ResourceURL::GetPathDepth() const {
  * @param[out] name -  The name of the resource (exclusing its path)
  * @param[out] options -  Additional options, sorted by name
  * @retval 0 - Parsed fine
- * @retval EINVAL - todo- other error codes
+ * @throw invalid_argument On anything that cannot be parsed correctly
  */
 rc_t ResourceURL::ParseURL(const string url,
                            string *resource_type, string *bucket,
                            string *nodeid, string *path, string *name, string *options) {
 
-  rc_t rc=0;
   size_t j,i=0;
   string tmp_type, tmp_bucket, tmp_nodeid, tmp_path_and_name, tmp_options;
 
@@ -227,7 +238,7 @@ rc_t ResourceURL::ParseURL(const string url,
       {
         j = url.find_first_of("[]<>/:&",i+1); //Scan for delims
         if((j==string::npos)||(url.at(j)!=']')) //but only accept the closing id for bucket
-          throw ResourceURLParseError("Problem with bucket in url '"+url+"'");
+          throw std::invalid_argument("ResourceURL parse problem with bucket in url '"+url+"'");
 
         tmp_bucket = url.substr(i+1,j-i-1);
         i=j+1;
@@ -238,7 +249,7 @@ rc_t ResourceURL::ParseURL(const string url,
         //j = url.find_first_of("[]<>/:",i+1);
         j = url.find_first_of(">",i+1); //allow some other delims, in case nodeid is its own url, like mpi://1
         if((j==string::npos)||(url.at(j)!='>'))
-          throw ResourceURLParseError("Problem with node id in url '"+url+"'");
+          throw std::invalid_argument("ResourceURL parse problem with node id in url '"+url+"'");
 
         tmp_nodeid = url.substr(i+1,j-i-1);
         i=j+1;
@@ -263,7 +274,7 @@ rc_t ResourceURL::ParseURL(const string url,
       //Not a delimiter? That's fine, so long as we're at the beginning, working on ref type
       //We must be starting at offset 0 though to get the name
       if(i!=0)
-        throw ResourceURLParseError("Parse error (missing delimiter?) in middle of url '"+url+"'");
+        throw std::invalid_argument("ResourceURL parse problem (missing delimiter?) in middle of url '"+url+"'");
 
       //Grab the type from the front of the url
       if(url.at(0)==':') {
@@ -275,7 +286,7 @@ rc_t ResourceURL::ParseURL(const string url,
         //this point and the next : in file.
         j=url.find_first_of("[]<>/:&",i);
         if((j==string::npos)||(url.at(j) != ':'))
-          throw ResourceURLParseError("Parse error (missing delimiter?) in url '"+url+"'");
+          throw std::invalid_argument("ResourceURL parse problem (missing delimiter?) in url '"+url+"'");
 
         //Convert the type to lowercase to avoid problems
         tmp_type = url.substr(i,j);
@@ -297,7 +308,7 @@ rc_t ResourceURL::ParseURL(const string url,
 
 
   //Split the path and name
-  if(tmp_path_and_name.size()>0) {
+  if(!tmp_path_and_name.empty()) {
 
     //Chop off last char
     if(tmp_path_and_name.back() == '/') {
@@ -318,24 +329,24 @@ rc_t ResourceURL::ParseURL(const string url,
 
     //Validate. Should be /x/y  and z
     if(tmp_path.at(0)!='/')
-      throw ResourceURLParseError("Path did not start with '/' in url '"+url+"'");
+      throw std::invalid_argument("ResourceURL parse problem: Path did not start with '/' in url '"+url+"'");
 
     //Some resource names are special and permit no path
-    else if((tmp_name.size()==0) && (tmp_type!="local") && (tmp_type!="unconfigured"))
-      throw ResourceURLParseError("Had zero-length name in url '"+url+"'");
+    else if((tmp_name.empty()) && (tmp_type!="local") && (tmp_type!="unconfigured"))
+      throw std::invalid_argument("ResourceURL parse problem: Had zero-length name in url '"+url+"'");
 
 
   } else {
 
     //Didn't get a path/name. Only time this is ok is when we do local ops
     if(tmp_type!="local")
-      throw ResourceURLParseError("Pathname missing '/' in url '"+url+"'");
+      throw std::invalid_argument("ResourceURL parse problem: Pathname missing '/' in url '"+url+"'");
 
   }
 
   //Patch local references. If we are given a reference and the path starts
   //with local, the type gets set to local.
-  if(tmp_type=="") {
+  if(tmp_type.empty()) {
 
     if((tmp_path=="/local") ||
        ((tmp_path=="/") && (tmp_name=="local")) ||
@@ -351,7 +362,7 @@ rc_t ResourceURL::ParseURL(const string url,
   if(bucket)        *bucket = tmp_bucket;
   if(nodeid)        *nodeid = tmp_nodeid;
   if(options)       *options = tmp_options;
-  return rc;
+  return 0;
 }
 
 
@@ -380,7 +391,7 @@ bool ResourceURL::operator!=(const ResourceURL &x) const {
 void ResourceURL::SetOption(string option_name, string value) {
   string new_option = option_name+"="+value;
   //Look for the easy way first
-  if(options=="") {
+  if(options.empty()) {
     options=new_option;
     return;
   }
@@ -439,7 +450,7 @@ string ResourceURL::GetSortedOptions() const {
  *
  * @note This version allows user to pass same option in multiple times
  */
-vector<std::pair<std::string,std::string>> ResourceURL::GetOptions() {
+vector<std::pair<std::string,std::string>> ResourceURL::GetOptions() const {
 
   vector<pair<string,string>> op_pairs;
 

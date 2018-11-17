@@ -7,7 +7,7 @@
 
 #include <string>
 
-#include "common/Common.hh"
+#include "faodel-common/Common.hh"
 
 namespace webhook {
 

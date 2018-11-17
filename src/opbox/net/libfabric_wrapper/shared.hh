@@ -87,6 +87,7 @@ struct fab_op_context {
     fab_peer   *remote_peer;
     fab_buf    *msg;
     DataObject  ldo;
+    uint64_t    loffset;
     std::function< WaitingType(OpArgs *args) > user_cb;
 };
 

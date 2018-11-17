@@ -6,30 +6,34 @@
 #include <fstream>
 #include <algorithm>
 
-#include "common/Debug.hh"
+#include "faodel-common/Debug.hh"
 
-#include "opbox/services/dirman/common/DirectoryOwnerCache.hh"
+#include "dirman/common/DirectoryOwnerCache.hh"
 
 
 using namespace std;
 using namespace faodel;
 
-namespace opbox {
+namespace dirman {
+
+DirectoryOwnerCache::DirectoryOwnerCache(const string &full_name)
+        : LoggingInterface(full_name), mutex(nullptr) {
+}
 
 DirectoryOwnerCache::~DirectoryOwnerCache(){
   if(mutex){
     delete mutex;
   }
 }
-void DirectoryOwnerCache::Init(const faodel::Configuration &conf, string threading_model, string mutex_type){
+void DirectoryOwnerCache::Init(const faodel::Configuration &config, string threading_model, string mutex_type){
   kassert(mutex== nullptr, "Initialized more than once");
+  ConfigureLogging(config);
   mutex = GenerateMutex(threading_model, mutex_type);
-  conf.GetBool(&debug, "directory.ownercache.debug","false");
 }
 
 bool DirectoryOwnerCache::Register(const faodel::ResourceURL &resource_url){
   bool ok;
-  log("Register URL "+resource_url.GetFullURL()+" Valid: "+to_string(resource_url.Valid()));
+  dbg("Register URL "+resource_url.GetFullURL()+" Valid: "+to_string(resource_url.Valid()));
   if(!resource_url.Valid()) return false;
   mutex->WriterLock();
   ok = _Register(resource_url);
@@ -42,7 +46,7 @@ bool DirectoryOwnerCache::Register(const std::vector<faodel::ResourceURL> &resou
 
   bool ok=true;
 
-  log("Register URL "+to_string(resource_urls.size())+" URLs");
+  dbg("Register URL "+to_string(resource_urls.size())+" URLs");
 
   //Only accept valid urls
   for(auto &url : resource_urls){
@@ -51,7 +55,7 @@ bool DirectoryOwnerCache::Register(const std::vector<faodel::ResourceURL> &resou
 
   mutex->WriterLock();
   for(auto &url: resource_urls){
-    log("Register URL "+url.GetURL()+" Valid: "+to_string(url.Valid()));
+    dbg("Register URL "+url.GetURL()+" Valid: "+to_string(url.Valid()));
     ok = ok && _Register(url);
   }
   mutex->Unlock();
@@ -77,7 +81,7 @@ bool DirectoryOwnerCache::Lookup(const faodel::ResourceURL &search_url, faodel::
   found = _Lookup(search_url, &node);
   if(reference_node) *reference_node = node; //_Lookup sets node to UNSPECIFIED if not found
   mutex->Unlock();
-  log("Lookup URL "+search_url.GetURL()+" found: "+to_string(found)+" node: "+node.GetHex());
+  dbg("Lookup URL "+search_url.GetURL()+" found: "+to_string(found)+" node: "+node.GetHex());
 
   return found;
 }
@@ -95,7 +99,7 @@ bool DirectoryOwnerCache::Lookup(const vector<faodel::ResourceURL> &search_urls,
     all_found = all_found && found;
   }
   mutex->Unlock();
-  log("Lookup "+to_string(search_urls.size())+" URLs, found_all: "+to_string(all_found));
+  dbg("Lookup "+to_string(search_urls.size())+" URLs, found_all: "+to_string(all_found));
   return all_found;
 }
 
@@ -120,7 +124,7 @@ bool DirectoryOwnerCache::Lookup(const vector<faodel::ResourceURL> &search_urls,
 //   return found;
 // }
 
-void DirectoryOwnerCache::webhookInfo(webhook::ReplyStream &rs){
+void DirectoryOwnerCache::webhookInfo(faodel::ReplyStream &rs){
 
   rs.tableBegin("DirectoryOwnerCache");
   rs.tableTop({"Name","ReferenceNode"});
@@ -135,9 +139,9 @@ void DirectoryOwnerCache::webhookInfo(webhook::ReplyStream &rs){
 
 
 void DirectoryOwnerCache::sstr(stringstream &ss, int depth, int indent) const {
-  ss << string(indent,' ')<<"[DirectoryOwnerCache] Items: "
+  ss << string(indent,' ')<<"["<<GetFullName()<<"] Items: "
      <<known_resource_owners.size()
-     <<" Debug: "<<debug<<endl;
+     <<" Debug: "<<GetDebug()<<endl;
   if(depth>0){
     int i=0;
     for(auto &tag_id : known_resource_owners){
@@ -154,7 +158,7 @@ void DirectoryOwnerCache::sstr(stringstream &ss, int depth, int indent) const {
 
 bool DirectoryOwnerCache::_Lookup(const faodel::ResourceURL &url, nodeid_t *node_id){
 
-  kassert(node_id, "Invalid node_id");
+  kassert(node_id!=nullptr, "Invalid node_id");
   kassert(url.Valid(), "Invalid url given to RIC:"+url.GetFullURL());
 
   string bucket_path_name = url.GetBucketPathName();
@@ -169,9 +173,5 @@ bool DirectoryOwnerCache::_Lookup(const faodel::ResourceURL &url, nodeid_t *node
   return true;
 }
 
-void DirectoryOwnerCache::log(std::string s){
-  if(debug) cout << "DirectoryOwnerCache: "<<s<<endl;
-}
 
-
-} // namespace opbox
+} // namespace dirman

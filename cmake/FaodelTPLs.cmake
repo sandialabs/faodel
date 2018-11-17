@@ -1,79 +1,22 @@
-#####################################
-# Get the Kokkos target
-#####################################
-
-# This does NOT call out to a FindKokkos.cmake module. CMake CONFIG mode.
-find_package(Kokkos
-  HINTS ${KOKKOS_ROOT} ${KOKKOS} $ENV{KOKKOS_ROOT} $ENV{KOKKOS}
-  NO_MODULE
-  QUIET )
-
-if( Kokkos_FOUND )
-  # This indicates we found a config file, possibly from a Trilinos installation
   
-  # Use the same compilers as Trilinos
-  # WHen would we ever want to allow the compiler to be changed underneath us?
-  SET(CMAKE_CXX_COMPILER     ${Kokkos_CXX_COMPILER}     )
-  SET(CMAKE_C_COMPILER       ${Kokkos_C_COMPILER}       )
-  SET(CMAKE_Fortran_COMPILER ${Kokkos_Fortran_COMPILER} )
-  
-  SET(CMAKE_CXX_FLAGS     "${Kokkos_CXX_COMPILER_FLAGS}     ${CMAKE_CXX_FLAGS}"     )
-  SET(CMAKE_C_FLAGS       "${Kokkos_C_COMPILER_FLAGS}       ${CMAKE_C_FLAGS}"       )
-  SET(CMAKE_Fortran_FLAGS "${Kokkos_Fortran_COMPILER_FLAGS} ${CMAKE_Fortran_FLAGS}" )
-  
-else()
-  
-  # No config file found, so we go looking for a standalone Kokkos install
-  # (likely from a checkout of the public Kokkos github repo).
-
-  # Try pkg_config first  
-  pkg_check_modules( Kokkos QUIET Kokkos )
-
-  if( NOT Kokkos_FOUND )
-
-    # Try to find it ourselves
-    find_path( Kokkos_INCLUDE_DIRS
-      NAMES KokkosCore_config.h
-      PATHS ${KOKKOS_ROOT}/include $ENV{KOKKOS}/include $ENV{Kokkos}/include
-      )
-    
-    find_library( Kokkos_LIBRARIES
-      NAMES kokkos
-      PATHS ${KOKKOS_ROOT}/lib $ENV{KOKKOS}/lib $ENV{Kokkos}/lib
-      )
-  endif()
-
-  # At this point, we won't try anything else to find it, so decide y/n
-  find_package_handle_standard_args( Kokkos
-    FOUND_VAR Kokkos_FOUND
-    REQUIRED_VARS Kokkos_LIBRARIES Kokkos_INCLUDE_DIRS
-    )
-
-endif()
-
-if( Kokkos_FOUND )
-    
-  if( NOT TARGET Kokkos::Kokkos )
-    add_library( Kokkos::Kokkos UNKNOWN IMPORTED )
-    set_target_properties( Kokkos::Kokkos PROPERTIES
-      IMPORTED_LOCATION "${Kokkos_LIBRARIES}"
-      IMPORTED_LINK_INTERFACE "CXX"
-      INTERFACE_INCLUDE_DIRECTORIES "${Kokkos_INCLUDE_DIRS}"
-      INTERFACE_COMPILE_DEFINITIONS "${Kokkos_DEFINITIONS}"
-      )
-  endif()
-  
-  mark_as_advanced( Kokkos_INCLUDE_DIRS Kokkos_LIBRARIES )
-
-  message( STATUS "\nFound Kokkos!  Here are the details: ")
-  message( STATUS "   Kokkos_LIBRARIES        = ${Kokkos_LIBRARIES}" )
-  message( STATUS "   Kokkos_INCLUDE_DIRS     = ${Kokkos_INCLUDE_DIRS}" )
-  
-endif()
-    
 ##########################
 ## Get the Boost targets
 ##########################
+
+# Try not to accidentally pick up the wrong install of a TPL when part of a larger compilation.
+# In general, for a TPL that has a FindXXX.cmake that we can access through find_package(),
+# require that the associated XXX_ROOT variable is set (e.g., BOOST_ROOT for Boost). If we
+# are included in someone else's compilation, this will allow the top level to let us know
+# which TPL install that they've used to build other components. 
+
+if( NOT DEFINED BOOST_ROOT AND 
+    NOT DEFINED BOOSTROOT AND 
+    NOT DEFINED ENV{BOOST_ROOT} )
+  message( FATAL_ERROR
+    "Neither of the variables BOOST_ROOT or BOOSTROOT is set. Make sure one of these variables contains the location of a usable Boost installation for this build, then re-run CMake."
+    )
+endif()
+
 set( Boost_NO_BOOST_CMAKE ON )
 if( FAODEL_FORCE_BOOST_STATIC_LINKING OR REQUIRE_STATIC_LINKING )
   set( Boost_USE_STATIC_LIBS ON )
@@ -91,10 +34,7 @@ if( NOT TARGET Boost::system )
   # However, since we can't continue until the user either uses a "new enough" CMake or "old enough"
   # Boost, we will just pull the plug here.
   message( FATAL_ERROR
-    "Imported targets for Boost were not created and FAODEL subprojects cannot be built. 
-This can happen when the located Boost installation is newer than your version of CMake,
-and your CMake's FindBoost.cmake doesn't have dependency information for that Boost version. If this is the case, you should
-either switch to a newer CMake or an older Boost."
+    "Imported targets for Boost were not created and FAODEL subprojects cannot be built. This can happen when the located Boost installation is newer than your version of CMake, and your CMake's FindBoost.cmake doesn't have dependency information for that Boost version. If this is the case, you should either switch to a newer CMake or an older Boost."
     )
 endif()
 
@@ -106,48 +46,116 @@ endif()
 #########################
 ## Google Test
 #########################
-find_package(GTest REQUIRED)
+  
+if(BUILD_TESTS)  # We only care about GTEST_ROOT if tests are being built
+  
+  if( NOT DEFINED GTEST_ROOT AND
+      NOT DEFINED GOOGLETEST_ROOT AND
+      NOT DEFINED ENV{GTEST_ROOT} AND
+      NOT DEFINED ENV{GOOGLETEST_ROOT}
+   )
+    message( FATAL_ERROR
+      "Neither of the variables GTEST_ROOT or GOOGLETEST_ROOT is set. Make sure one of these variables contains the location of a usable GTest installation for this build, then re-run CMake."
+      )
+  endif()
+  
+  find_package(GTest REQUIRED)
+  
+endif() 
+
+########################
+## HDF5 IOM
+########################
+if( Faodel_ENABLE_IOM_HDF5 )
+  find_package( HDF5 COMPONENTS C MODULE )
+  if( HDF5_FOUND AND NOT TARGET Faodel::HDF5 )
+    add_library( Faodel::HDF5 INTERFACE IMPORTED )
+    target_compile_definitions( Faodel::HDF5 INTERFACE ${HDF5_DEFINITIONS} )
+    target_link_libraries( Faodel::HDF5 INTERFACE ${HDF5_LIBRARIES} )
+    target_include_directories( Faodel::HDF5 INTERFACE ${HDF5_INCLUDE_DIRS} )
+    set( FAODEL_HAVE_HDF5 TRUE )
+    message( STATUS "Will build HDF5 IOM, Faodel_ENABLE_IOM_HDF5 set and HDF5 found" )
+  else()
+    message( STATUS "Cannot build HDF5 IOM as requested, HDF5 not found. Set HDF5_ROOT" )
+  endif()
+endif()
+
+
+########################
+## LevelDB IOM
+########################
+if( Faodel_ENABLE_IOM_LEVELDB )
+  find_package( leveldb NO_MODULE )
+  if( TARGET leveldb::leveldb )
+    set( FAODEL_HAVE_LEVELDB TRUE )
+    message( STATUS "Will build LevelDB IOM, Faodel_ENABLE_IOM_LEVELDB set and LevelDB found" )
+  else()
+    message( STATUS "Cannot build LevelDB IOM as requested, LevelDB not found. Set CMAKE_PREFIX_PATH or leveldb_DIR" )
+  endif()
+endif()
+    
+
 
 ########################
 ## MPI
 ########################
 
 #
-# Provide the user a choice of building with MPI or not. Synthesize import targets.
+# Provide the user a choice of building with MPI or not. Synthesize import targets if they
+# don't get defined by FindMPI.cmake.
 #
-# This will need to change once we move to a default CMake whose FindMPI.cmake defines its own
-# import targets.
-if( USE_MPI )
- 
+# Since building with MPI is usually pretty complicated and handled by a compiler wrapper,
+# we assume here that any higher-level compilation driver has defined CMAKE_CXX_COMPILER
+# appropriately and we don't check for anything else.
+#
+if( Faodel_ENABLE_MPI_SUPPORT )
+  
   find_package(MPI REQUIRED)
-  message(STATUS "MPI_C_FOUND = ${MPI_C_FOUND}")
-  if (MPI_C_FOUND)
-    add_library( MPI_C INTERFACE IMPORTED )
-    set_target_properties( MPI_C PROPERTIES INTERFACE_INCLUDE_DIRECTORIES "${MPI_C_INCLUDE_PATH}" )
-    set_target_properties( MPI_C PROPERTIES INTERFACE_LINK_LIBRARIES "${MPI_C_LIBRARIES}" )
-    set(${PROJECT_NAME}_HAVE_MPI 1)
-  endif()
-  message(STATUS "MPI_CXX_FOUND = ${MPI_CXX_FOUND}")
-  if (MPI_CXX_FOUND)
-    add_library( MPI_CXX INTERFACE IMPORTED )
-    set_target_properties( MPI_CXX PROPERTIES INTERFACE_INCLUDE_DIRECTORIES "${MPI_CXX_INCLUDE_PATH}" )
-    set_target_properties( MPI_CXX PROPERTIES INTERFACE_LINK_LIBRARIES "${MPI_CXX_LIBRARIES}" )
-    set(${PROJECT_NAME}_HAVE_MPI 1)
-  endif()
 
+  message(STATUS "MPI_C_FOUND = ${MPI_C_FOUND}")
+  if( MPI_C_FOUND AND NOT TARGET MPI::MPI_C )
+    message( STATUS "Defining MPI::MPI_C import target since FindMPI.cmake did not define it" )
+    add_library( MPI::MPI_C INTERFACE IMPORTED )
+    set_target_properties( MPI::MPI_C PROPERTIES
+      INTERFACE_INCLUDE_DIRECTORIES "${MPI_C_INCLUDE_PATH}"
+      INTERFACE_LINK_LIBRARIES "${MPI_C_LIBRARIES}"
+      INTERFACE_COMPILE_OPTIONS "${MPI_C_COMPILE_OPTIONS}"
+      INTERFACE_COMPILE_DEFINITIONS "${MPI_C_COMPILE_DEFINITIONS}"
+      )
+  endif()
+  
+  message(STATUS "MPI_CXX_FOUND = ${MPI_CXX_FOUND}")
+  if( MPI_CXX_FOUND AND NOT TARGET MPI::MPI_CXX )
+    message( STATUS "Defining MPI::MPI_CXX import target since FindMPI.cmake did not define it" )
+    add_library( MPI::MPI_CXX INTERFACE IMPORTED )
+    set_target_properties( MPI::MPI_CXX PROPERTIES
+      INTERFACE_INCLUDE_DIRECTORIES "${MPI_CXX_INCLUDE_PATH}"
+      INTERFACE_LINK_LIBRARIES "${MPI_CXX_LIBRARIES}"
+      INTERFACE_COMPILE_OPTIONS "${MPI_CXX_COMPILE_OPTIONS}"
+      INTERFACE_COMPILE_DEFINITIONS "${MPI_CXX_COMPILE_DEFINITIONS}"
+      )
+  endif()
+  
 endif()
+
 
 ##############################
 #
 # Stanza 3 : Determine Faodel's network library 
 #
 ##############################
-if( "${NETWORK_LIBRARY}" STREQUAL "" )
-  MESSAGE( STATUS "NETWORK_LIBRARY is not set, using nnti" )
-  set( NETWORK_LIBRARY "nnti" )
+# When we're outside of the Faodel project (ie, this file has been installed and
+# the user is importing Faodel to use in their project), we can pull in some of
+# our settings from the installed lib when the user hasn't defined them.
+if( NOT "${PROJECT_NAME}" STREQUAL "Faodel" )
+
+if( "${Faodel_NETWORK_LIBRARY}" STREQUAL "" )
+    set(Faodel_NETWORK_LIBRARY ${Faodel_BUILT_NETWORK_LIBRARY})
+  endif()
+  
 endif()
 
-if (NETWORK_LIBRARY STREQUAL "libfabric")
+if (Faodel_NETWORK_LIBRARY STREQUAL "libfabric")
 
   set( PKG_CONFIG_USE_CMAKE_PREFIX_PATH 1 )
 
@@ -177,7 +185,7 @@ if (NETWORK_LIBRARY STREQUAL "libfabric")
         PROPERTY INTERFACE_COMPILE_OPTIONS ${Libfabric_pc_STATIC_CFLAGS_OTHER}
         )
     else()	
-      # Unlikely that we have any STATIC info, use the regularr variabes
+      # Unlikely that we have any STATIC info, use the regular variabes
       set_property( TARGET Libfabric
         PROPERTY INTERFACE_INCLUDE_DIRECTORIES ${Libfabric_pc_INCLUDE_DIRS}
         )
@@ -194,7 +202,7 @@ if (NETWORK_LIBRARY STREQUAL "libfabric")
     message( STATUS "Found Libfabric, target appended to FaodelNetlib_TARGETS" )
   endif()
 
-elseif( NETWORK_LIBRARY STREQUAL "nnti" )
+elseif( Faodel_NETWORK_LIBRARY STREQUAL "nnti" )
 
   set( NET_USE_NNTI 1 )
   set( BUILD_NNTI TRUE )
@@ -282,9 +290,7 @@ elseif( NETWORK_LIBRARY STREQUAL "nnti" )
     LIST( APPEND FaodelNetlib_TARGETS ${DRC_TARGETS} )
     set( PKGCONFIG_REQUIRES "${PKGCONFIG_REQUIRES} cray-drc" )
   endif(DRC_PC_FOUND)
-   
-elseif(NETWORK_LIBRARY STREQUAL "localmem")
-   message(WARNING "NETWORK_LIBRARY is set to localmem. Build will NOT try to use nnti or libfabric")
+
 else()
-   message(FATAL_ERROR "NETWORK_LIBRARY should be defined as one of (nnti | libfabric | localmem ). Defaulting to localmem." )
+   message(FATAL_ERROR "Faodel_NETWORK_LIBRARY must be defined as one of (nnti | libfabric).  The build cannot continue." )
 endif()

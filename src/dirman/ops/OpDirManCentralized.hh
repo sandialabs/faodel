@@ -2,16 +2,16 @@
 // LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
 // the U.S. Government retains certain rights in this software. 
 
-#ifndef OPBOX_OPDIRMANCENTRALIZED_HH
-#define OPBOX_OPDIRMANCENTRALIZED_HH
+#ifndef DIRMAN_OPDIRMANCENTRALIZED_HH
+#define DIRMAN_OPDIRMANCENTRALIZED_HH
 
 #include <future>
 
 
-#include "opbox/services/dirman/DirectoryInfo.hh"
+#include "faodel-common/DirectoryInfo.hh"
 #include "opbox/ops/Op.hh"
 
-namespace opbox {
+namespace dirman {
 
 /**
  * @brief This Op is used to do all the remote requests in the centralized DirMan
@@ -50,7 +50,7 @@ public:
 
 public:
   //An origin can issue any of the above requests, but they involve different data
-  OpDirManCentralized(RequestType req_type, faodel::nodeid_t root_id, DirectoryInfo dir_info);
+  OpDirManCentralized(RequestType req_type, faodel::nodeid_t root_id, faodel::DirectoryInfo dir_info);
   OpDirManCentralized(RequestType req_type, faodel::nodeid_t root_id, faodel::ResourceURL url);
 
   //A target starts off the same way no matter what command
@@ -58,7 +58,7 @@ public:
   ~OpDirManCentralized() override;
 
   //Means for passing back the result
-  std::future<DirectoryInfo> GetFuture();
+  std::future<faodel::DirectoryInfo> GetFuture();
 
   //Unique name and id for this op
   const static unsigned int op_id;
@@ -78,7 +78,7 @@ private:
   lunasa::DataObject  ldo_msg;
   RequestType request_type;
 
-  std::promise<DirectoryInfo> di_promise;
+  std::promise<faodel::DirectoryInfo> di_promise;
 
   WaitingType updateState(State new_state, WaitingType waiting_condition) {
     state=new_state;
@@ -86,6 +86,6 @@ private:
   }
 };
 
-} // namespace opbox
+} // namespace dirman
 
-#endif // OPBOX_OPDIRMANCREATE_HH
+#endif // DIRMAN_OPDIRMANCREATE_HH

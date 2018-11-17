@@ -45,15 +45,19 @@ const rc_t KELPIE_RECHECK   =  3;    //!< Operation worked, but may have caveats
 
 //Fail
 const rc_t KELPIE_ENOENT    = -2;    //!< Item doesn't exist
+const rc_t KELPIE_EIO       = -5;     //!< Input/output error
 const rc_t KELPIE_NXIO      = -6;    //!< Not configured
 const rc_t KELPIE_EINVAL    = -22;   //!< Bad input
 const rc_t KELPIE_ETIMEDOUT = -110;  //!< Timed out
+const rc_t KELPIE_EOVERFLOW = -84;   //!< Value too large to be stored
 const rc_t KELPIE_TODO      = -1000; //!< Hit something that isn't yet implemented in Kelpie.
 
 //Network fails
 const rc_t KELPIE_EBADRPC = -200;    //!< Network told us we had a bad rpc
 const rc_t KELPIE_EREMOTE = -201;    //!< RPC completed ok, but remote sent an errorcode
 
+
+typedef uint32_t iom_hash_t;         //!< Hash used to identify a specific IOM
 
 /**
  * @brief An enumerated type that defines how available a requested item is
@@ -94,6 +98,38 @@ struct kv_col_info_t {
   Availability        availability;           //!< Whether item is available locally
   std::string str();
   void ChangeAvailabilityFromLocalToRemote();
+};
+
+
+typedef uint8_t pool_behavior_t;
+/**
+ * @brief Provides instructions on what actions to take in different stages of communication pipeline
+ */
+struct PoolBehavior {
+  //Individual actions
+  static constexpr pool_behavior_t WriteToLocal  = 0x01; //!< Publish writes to local memory
+  static constexpr pool_behavior_t WriteToRemote = 0x02; //!< Publish writes to remote memory
+  static constexpr pool_behavior_t WriteToIOM    = 0x04; //!< Publish writes to remote IOM
+  static constexpr pool_behavior_t ReadToLocal   = 0x08; //!< Want/Need writes to local memory
+  static constexpr pool_behavior_t ReadToRemote  = 0x10; //!< Want/Need writes to remote memory
+
+  //Common labels (combine individual actions)
+  static constexpr pool_behavior_t WriteAround   = WriteToIOM; //!< Publish only to IOM (skip local/remote memory)
+  static constexpr pool_behavior_t WriteToAll    = WriteToLocal | WriteToRemote | WriteToIOM; //!< Publish to all levels
+  static constexpr pool_behavior_t ReadToNone    = 0x00; //!< Want/Need isn't cached in local/remote memory
+  static constexpr pool_behavior_t NoAction      = 0x00; //!< Don't take any action
+  static constexpr pool_behavior_t TODO          = 0x00; //!< Not implemented. Should revisit
+
+  //Default behaviors: assume ioms are fire and forget
+  static constexpr pool_behavior_t DefaultBaseClass  = WriteToAll | ReadToLocal |ReadToRemote; //!< Cache everywhere
+  static constexpr pool_behavior_t DefaultIOM        = WriteToIOM | ReadToNone; //!< Don't cache writes/reads
+  static constexpr pool_behavior_t DefaultLocalIOM   = WriteToIOM | ReadToNone; //!< Don't cache writes/reads
+  static constexpr pool_behavior_t DefaultRemoteIOM  = WriteToIOM | ReadToRemote; //!< Only cache reads on remote side
+  static constexpr pool_behavior_t DefaultCachingIOM = WriteToAll | ReadToLocal | ReadToRemote;  //!< Cache everywhere
+
+  static pool_behavior_t ChangeRemoteToLocal(pool_behavior_t f);
+  static pool_behavior_t ParseString(std::string parse_line);
+  static std::string GetString(pool_behavior_t f);
 };
 
 

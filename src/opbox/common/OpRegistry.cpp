@@ -8,7 +8,7 @@
 #include <sstream>
 #include <map>
 
-#include "common/Debug.hh"
+#include "faodel-common/Debug.hh"
 
 #include "opbox/common/OpRegistry.hh"
 
@@ -171,7 +171,7 @@ void OpRegistry::HandleWebhookStatus(
                     const std::map<std::string,std::string> &args,
                     std::stringstream &results) {
 
-  webhook::ReplyStream rs(args, "OpBox OpRegistry Status", &results);
+  faodel::ReplyStream rs(args, "OpBox OpRegistry Status", &results);
   webhookInfo(rs);
   rs.Finish();
 }
@@ -181,7 +181,7 @@ void OpRegistry::HandleWebhookStatus(
  *
  * @param[in] rs The replystream that output should be written to
  */
-void OpRegistry::webhookInfo(webhook::ReplyStream &rs) {
+void OpRegistry::webhookInfo(faodel::ReplyStream &rs) {
 
   rs.tableBegin("OpRegistry");
   rs.tableTop({"Parameter","Setting"});

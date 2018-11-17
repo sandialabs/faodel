@@ -5,9 +5,10 @@
 #include <iostream>
 #include <chrono>
 #include <thread>
+#include <stdexcept>
 
-#include "common/Debug.hh"
-#include "common/BackBurner.hh"
+#include "faodel-common/Debug.hh"
+#include "faodel-services/BackBurner.hh"
 
 #include "webhook/WebHook.hh"
 #include "webhook/Server.hh"
@@ -226,7 +227,7 @@ int OpBoxCoreThreaded::HandleIncomingMessage(opbox::net::peer_ptr_t peer, messag
         << std::hex<<incoming_message->op_id
         << " failed because Op was not known. Known Ops:\n";
 
-      opbox::internal::Singleton::impl_ob.registry.sstr(ss, 100, 4);
+      opbox::internal::Singleton::impl.registry.sstr(ss, 100, 4);
 
     } else{
       ss<<" existing Op (mailbox "<<my_mailbox<<") failed because Op not active.\n";
@@ -286,6 +287,7 @@ int OpBoxCoreThreaded::UpdateOp(Op *op, OpArgs *args){
  * @param[out] resulting_mailbox The mailbox generated for this op
 */
 int OpBoxCoreThreaded::LaunchOp(Op *op, mailbox_t *resulting_mailbox){
+
   dbg("LaunchOp enter");
 
   kassert(initialized && running, "Attempted to StartOp when OpBoxCoreThreaded that is not running");
@@ -453,7 +455,7 @@ void OpBoxCoreThreaded::HandleWebhookStatus(
                     const std::map<std::string,std::string> &args,
                     std::stringstream &results) {
 
-    webhook::ReplyStream rs(args, "OpBox Status", &results);
+    faodel::ReplyStream rs(args, "OpBox Status", &results);
 
     rs.tableBegin("OpBox Status");
     rs.tableTop({"Parameter", "Setting"});
@@ -465,7 +467,7 @@ void OpBoxCoreThreaded::HandleWebhookStatus(
 
     rs.mkText(html::mkLink("Current Active Ops", "/opbox/ops"));
     
-    opbox::internal::Singleton::impl_ob.webhookInfoRegistry(rs);
+    opbox::internal::Singleton::impl.webhookInfoRegistry(rs);
     rs.Finish();
 }
 
@@ -479,7 +481,7 @@ void OpBoxCoreThreaded::HandleWebhookActiveOps(
                     const std::map<std::string,std::string> &args,
                     std::stringstream &results) {
 
-  webhook::ReplyStream rs(args, "OpBox Active Ops", &results);
+  faodel::ReplyStream rs(args, "OpBox Active Ops", &results);
   if(!running) return;
 
   rs.tableBegin("OpBox Active Ops");

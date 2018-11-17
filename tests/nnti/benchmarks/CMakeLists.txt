@@ -12,7 +12,7 @@ SET(EXTRA_TEST_LIBS "-lz")
 
 
 # Build the test support lib-------------------------------------------------
-add_library(benchutils STATIC
+add_library(benchutils
             bench_utils.hpp
             bench_utils.cpp
 )
@@ -29,7 +29,7 @@ set(SERIAL_TEST_LIBS
 )
 
 set(MPI_TEST_LIBS 
-  MPI_CXX
+  MPI::MPI_CXX
   ${SERIAL_TEST_LIBS}
 )
 
@@ -38,7 +38,7 @@ set(MPI_TEST_LIBS
 #--------------+-----------------------------+----------------------------------+---------+
 add_serial_test( MemoryRegistration           . false  )
 
-if( USE_MPI )
+if( Faodel_ENABLE_MPI_SUPPORT )
   add_mpi_test( AtomicsWithCallback          . 2 false  )
   add_mpi_test( RdmaWithCallback             . 2 false  )
   add_mpi_test( SendWithCallback             . 2 false  )

@@ -14,6 +14,10 @@
 
 #include "nnti/nnti_pch.hpp"
 
+#include "faodel-common/Configuration.hh"
+
+#include "nnti/nntiConfig.h"
+
 #include <fcntl.h>
 #include <sys/poll.h>
 
@@ -22,9 +26,10 @@
 #include <map>
 #include <vector>
 
-#include "common/Configuration.hh"
-
-#include "nnti/nntiConfig.h"
+#include <infiniband/verbs.h>
+#if (NNTI_HAVE_VERBS_EXP_H)
+#include <infiniband/verbs_exp.h>
+#endif
 
 #include "nnti/nnti_transport.hpp"
 #include "nnti/transports/base/base_transport.hpp"
@@ -106,6 +111,8 @@ ibverbs_transport::ibverbs_transport(
  */
 ibverbs_transport::~ibverbs_transport()
 {
+    nthread_lock_fini(&new_connection_lock_);
+
     return;
 }
 
@@ -117,10 +124,6 @@ ibverbs_transport::start(void)
 
     struct ibv_device_attr dev_attr;
     struct ibv_port_attr   dev_port_attr;
-
-#if NNTI_HAVE_IBV_EXP_QUERY_DEVICE
-    struct ibv_exp_device_attr exp_dev_attr;
-#endif
 
     log_debug("ibverbs_transport", "enter");
 
@@ -168,19 +171,8 @@ ibverbs_transport::start(void)
         return NNTI_EIO;
     }
 
-#if NNTI_HAVE_IBV_EXP_QUERY_DEVICE
-    exp_dev_attr.comp_mask = IBV_EXP_DEVICE_ATTR_RESERVED - 1;
-    ibv_rc = ibv_exp_query_device(ctx_, &exp_dev_attr);
-    if (ibv_rc) {
-        log_error("ibverbs_transport", "ibv_exp_query_device failed");
-        return NNTI_EIO;
-    }
-#endif
-#if NNTI_HAVE_IBV_EXP_ATOMIC_HCA_REPLY_BE
-    byte_swap_atomic_result_ = (exp_dev_attr.exp_atomic_cap == IBV_EXP_ATOMIC_HCA_REPLY_BE);
-#else
-    byte_swap_atomic_result_ = false;
-#endif
+    have_exp_qp_ = have_exp_qp();
+    byte_swap_atomic_result_ = atomic_result_is_be();
 
     log_debug("ibverbs_transport", "max %d completion queue entries", dev_attr.max_cqe);
     cqe_count_ = dev_attr.max_cqe;
@@ -209,6 +201,13 @@ ibverbs_transport::start(void)
         log_error("ibverbs_transport", "ibv_alloc_pd failed");
         return NNTI_EIO;
     }
+
+    faodel::nodeid_t nodeid = webhook::Server::GetNodeID();
+    std::string addr = nodeid.GetIP();
+    std::string port = nodeid.GetPort();
+    url_ = nnti::core::nnti_url(addr, port);
+    me_ = nnti::datatype::ibverbs_peer(this, url_);
+    log_debug_stream("ibverbs_transport") << "me_ = " << me_.url().url();
 
     rc = setup_command_channel();
     if (rc) {
@@ -265,12 +264,21 @@ NNTI_result_t
 ibverbs_transport::stop(void)
 {
     NNTI_result_t rc=NNTI_OK;;
+    nnti::core::nnti_connection_map_iter_t iter;
 
     log_debug("ibverbs_transport", "enter");
 
     started_ = false;
 
-//    close_all_conn();
+    // purge any remaining connections from the map
+    // FIX: this will leak memory and IB resources - do it better
+    nthread_lock(&new_connection_lock_);
+    for (iter = conn_map_.begin() ; iter != conn_map_.end() ; ) {
+        nnti::core::nnti_connection *conn = *iter;
+        ++iter;
+        conn_map_.remove(conn);
+    }
+    nthread_unlock(&new_connection_lock_);
 
     unregister_webhook_cb();
 
@@ -406,9 +414,7 @@ ibverbs_transport::connect(
     std::string  wh_path = build_webhook_connect_path(conn);
     int wh_rc = 0;
     int retries = 5;
-
     wh_rc = webhook::retrieveData(peer_url.hostname(), peer_url.port(), wh_path, &reply);
-
     while (wh_rc != 0 && --retries) {
         sleep(1);
         wh_rc = webhook::retrieveData(peer_url.hostname(), peer_url.port(), wh_path, &reply);
@@ -442,19 +448,30 @@ ibverbs_transport::disconnect(
     std::string                  reply;
     nnti::core::nnti_connection *conn     = peer->conn();
 
-    if (conn==nullptr) {
-        log_warn("ibverbs_transport", "disconnect failed.  peer conn (%016lx) is nullptr", peer->pid());
+    log_debug("ibverbs_transport", "disconnecting from %s", peer_url.url().c_str());
+
+    nthread_lock(&new_connection_lock_);
+
+    conn = (nnti::core::ibverbs_connection*)conn_map_.get(peer->pid());
+    if (conn == nullptr) {
+        log_debug("ibverbs_transport", "disconnect couldn't find connection to %s. Already disconnected?", peer_url.url().c_str());
+        nthread_unlock(&new_connection_lock_);
         return NNTI_EINVAL;
     }
 
-    std::string wh_path = build_webhook_disconnect_path(conn);
+    conn_map_.remove(conn);
 
-    int wh_rc = webhook::retrieveData(peer_url.hostname(), peer_url.port(), wh_path, &reply);
-    if (wh_rc != 0) {
-        return(NNTI_ETIMEDOUT);
+    nthread_unlock(&new_connection_lock_);
+
+    if (*peer != me_) {
+        std::string wh_path = build_webhook_disconnect_path(conn);
+        int wh_rc = webhook::retrieveData(peer_url.hostname(), peer_url.port(), wh_path, &reply);
+        if (wh_rc != 0) {
+            return(NNTI_ETIMEDOUT);
+        }
     }
 
-    conn_map_.remove(conn);
+    log_debug("ibverbs_transport", "disconnect from %s (pid=%x) succeeded", peer->url(), peer->pid());
 
     delete conn;
     delete peer;
@@ -1211,6 +1228,35 @@ ibverbs_transport::get_instance(
     return instance;
 }
 
+
+bool
+ibverbs_transport::have_exp_qp(void)
+{
+#if NNTI_HAVE_IBV_EXP_CREATE_QP
+    return true;
+#else
+    return false;
+#endif
+}
+bool
+ibverbs_transport::atomic_result_is_be(void)
+{
+#if (NNTI_HAVE_IBV_EXP_QUERY_DEVICE && NNTI_HAVE_IBV_EXP_ATOMIC_HCA_REPLY_BE)
+    int ibv_rc=0;
+    struct ibv_exp_device_attr exp_dev_attr;
+    exp_dev_attr.comp_mask = IBV_EXP_DEVICE_ATTR_RESERVED - 1;
+    ibv_rc = ibv_exp_query_device(ctx_, &exp_dev_attr);
+    if (ibv_rc) {
+        log_error("ibverbs_transport", "ibv_exp_query_device failed");
+        return false;
+    }
+
+    return (exp_dev_attr.exp_atomic_cap == IBV_EXP_ATOMIC_HCA_REPLY_BE);
+#else
+    return false;
+#endif
+}
+
 /*************************************************************
  * Accessors for data members specific to this interconnect.
  *************************************************************/
@@ -1600,13 +1646,18 @@ ibverbs_transport::disconnect_cb(const std::map<std::string,std::string> &args, 
     nnti::core::nnti_connection *conn = nullptr;
     nnti::core::nnti_url         peer_url(args.at("hostname"), args.at("port"));
 
+    nthread_lock(&new_connection_lock_);
+
     log_debug("ibverbs_transport", "%s is disconnecting", peer_url.url().c_str());
     conn = conn_map_.get(peer_url.pid());
     log_debug("ibverbs_transport", "connection map says %s => conn(%p)", peer_url.url().c_str(), conn);
 
-    conn_map_.remove(conn);
+    if (conn != nullptr) {
+        conn_map_.remove(conn);
+        delete conn;
+    }
 
-    delete conn;
+    nthread_unlock(&new_connection_lock_);
 
     log_debug("ibverbs_transport", "disconnect_cb - results=%s", results.str().c_str());
 }
@@ -1647,7 +1698,6 @@ ibverbs_transport::peers_cb(const std::map<std::string,std::string> &args, std::
     nnti::core::nnti_connection_map_iter_t iter;
     for (iter = conn_map_.begin() ; iter != conn_map_.end() ; iter++) {
         std::string p((*iter)->peer()->url().url());
-        p.replace(0,2,"http");
         links.push_back(html::mkLink(p, p));
     }
     html::mkList(results, links);
@@ -2517,7 +2567,6 @@ ibverbs_transport::poll_rdma_cq(void)
             bool                                 event_complete = false;
             bool                                 release_event  = true;
 
-#if NNTI_HAVE_IBV_EXP_ATOMIC_HCA_REPLY_BE
             if (byte_swap_atomic_result_) {
                 nnti::datatype::ibverbs_work_request *ibwr = (nnti::datatype::ibverbs_work_request *)&wr;
                 uint64_t *result = (uint64_t*)((uintptr_t)ibwr->local_addr() + ibwr->local_offset());
@@ -2525,7 +2574,6 @@ ibverbs_transport::poll_rdma_cq(void)
                 *result = nnti::util::betoh64(*result);
                 log_debug("ibverbs_transport", "swapped result = %ld", *result);
             }
-#endif
 
             if (wr.invoke_cb(e) == NNTI_OK) {
                 event_complete = true;
@@ -2573,7 +2621,6 @@ ibverbs_transport::poll_rdma_cq(void)
             bool                                 event_complete = false;
             bool                                 release_event  = true;
 
-#if NNTI_HAVE_IBV_EXP_ATOMIC_HCA_REPLY_BE
             if (byte_swap_atomic_result_) {
                 nnti::datatype::ibverbs_work_request *ibwr = (nnti::datatype::ibverbs_work_request *)&wr;
                 uint64_t *result = (uint64_t*)((uintptr_t)ibwr->local_addr() + ibwr->local_offset());
@@ -2581,7 +2628,6 @@ ibverbs_transport::poll_rdma_cq(void)
                 *result = nnti::util::betoh64(*result);
                 log_debug("ibverbs_transport", "swapped result = %ld", *result);
             }
-#endif
 
             if (wr.invoke_cb(e) == NNTI_OK) {
                 event_complete = true;

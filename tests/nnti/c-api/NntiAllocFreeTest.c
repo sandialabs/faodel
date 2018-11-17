@@ -25,7 +25,7 @@ main(int argc, char *argv[])
     NNTI_buffer_t       dst_buf;
     char               *dst_base=NULL;
 
-    test_bootstrap();
+    test_bootstrap_start();
 
     rc = NNTI_init(transport_id, req_url, &transport);
     if (rc != NNTI_OK) {
@@ -63,6 +63,7 @@ main(int argc, char *argv[])
     }
 
     NNTI_fini(transport);
+    test_bootstrap_finish();
 
 cleanup:
     if (success) {

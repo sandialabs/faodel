@@ -17,7 +17,7 @@ using namespace kelpie;
 
 string default_config = R"EOF(
 
-kelpie.core_type nonet
+#kelpie.core_type nonet
 #kelpie.debug true
 #kelpie.lkv.debug true
 #kelpie.lkv.max_capacity 32M
@@ -35,8 +35,12 @@ protected:
   virtual void SetUp() {
 
     config.Append(default_config);
-    lunasa::Init(config); //Setup lunasa
-    lkv.Init(config); //Setup local kv
+
+    bootstrap::Init(config, lunasa::bootstrap);
+
+    //Create and configure our lkv
+    lkv = new LocalKV();
+    lkv->Init(config);
 
     DIM=32;
     for(int i=0; i<DIM; i++)
@@ -44,18 +48,19 @@ protected:
         ids.push_back(pair<int,int>(i,j));
     random_shuffle(ids.begin(), ids.end());
 
+    bootstrap::Start(); //Do the actual start
   }
-  virtual void TearDown() {
-    lkv.wipeAll(iuo); //Get rid of all the entries (ie, all lunasa items freed)
-    lunasa::Finish();
+
+  void TearDown() override {
+    delete lkv;          //This deregisters webhooks, so do it before bootstrap finishes
+    bootstrap::Finish();
   }
 
   internal_use_only_t iuo;
   vector<pair<int,int>> ids;
   int DIM;
   Configuration config;
-  LocalKV lkv;
-
+  LocalKV *lkv; //Note: we keep this as a pointer because this needs to be destroyed *before* webhook shuts down
 
 };
 void setBuf(int *buf, int num, int owner, int x, int y){
@@ -89,12 +94,12 @@ TEST_F(LocalKVTest, basics){
 
     memcpy(ldo.GetDataPtr(), buf, bufsize*sizeof(int));
     Key key=KeyGen<int,int>(it->first, it->second);
-    rc = lkv.put(owner, key, ldo, nullptr, nullptr);
+    rc = lkv->put(owner, key, ldo, PoolBehavior::DefaultBaseClass, nullptr, nullptr);
     EXPECT_EQ(KELPIE_OK,rc);
   }
 
   memset(buf, 4, sizeof(buf));
-  //cout << "lkv is\n" << lkv.str(10); //Dumps all info about table out
+  //cout << "lkv is\n" << lkv->str(10); //Dumps all info about table out
 
 
   //Pull things out in a different random order
@@ -102,7 +107,7 @@ TEST_F(LocalKVTest, basics){
   for(vector<pair<int,int>>::iterator it=ids.begin(); it!=ids.end(); ++it){
     size_t ret_size=0;
 
-    rc = lkv.getData(owner, KeyGen<int,int>(it->first,it->second), (void *)buf, sizeof(buf), &ret_size, nullptr, nullptr);
+    rc = lkv->getData(owner, KeyGen<int,int>(it->first,it->second), (void *)buf, sizeof(buf), &ret_size, nullptr, nullptr);
     EXPECT_EQ(KELPIE_OK,rc);
     EXPECT_EQ(ret_size, sizeof(buf));
 
@@ -133,7 +138,7 @@ TEST_F(LocalKVTest, ldoRefCount){
   ref_count = ldo1_copy.internal_use_only.GetRefCount();     EXPECT_EQ(2, ref_count);
 
   //Insert into lkv, verify ref count is 3
-  rc = lkv.put(owner, Key("booya"), ldo1, nullptr,nullptr); EXPECT_EQ(KELPIE_OK,rc);
+  rc = lkv->put(owner, Key("booya"), ldo1, PoolBehavior::DefaultBaseClass, nullptr, nullptr); EXPECT_EQ(KELPIE_OK, rc);
   ref_count = ldo1.internal_use_only.GetRefCount();        EXPECT_EQ(3, ref_count);
   ref_count = ldo1_copy.internal_use_only.GetRefCount();   EXPECT_EQ(3, ref_count);
 
@@ -143,17 +148,17 @@ TEST_F(LocalKVTest, ldoRefCount){
   EXPECT_EQ(2112, x2[0]);
   EXPECT_EQ(x, x2); //Points should match
 
-  //Get a reference from lkv. That makes 4 references
+  //Get a reference from lkv That makes 4 references
   lunasa::DataObject ldo3_lkv;
-  rc = lkv.get(owner, Key("booya"), &ldo3_lkv, nullptr, nullptr); EXPECT_EQ(KELPIE_OK, rc);
-  int *x3 = static_cast<int *>(ldo3_lkv.GetDataPtr());
+  rc = lkv->get(owner, Key("booya"), &ldo3_lkv, nullptr, nullptr); EXPECT_EQ(KELPIE_OK, rc);
+  int *x3 = ldo3_lkv.GetDataPtr<int *>();
   ref_count = ldo1.internal_use_only.GetRefCount();
   EXPECT_EQ(x3[0], x[0]);
   EXPECT_EQ(x, x3);
   EXPECT_EQ(4, ref_count);
 
-  //Drop the entry for lkv.. That should free up a reference
-  rc = lkv.drop(owner, Key("booya"));
+  //Drop the entry for lkv That should free up a reference
+  rc = lkv->drop(owner, Key("booya"));
   ref_count = ldo1.internal_use_only.GetRefCount();
   EXPECT_EQ(KELPIE_OK, rc);
   EXPECT_EQ(3, ref_count);
@@ -178,7 +183,7 @@ TEST_F(LocalKVTest, access){
         lunasa::DataObject ldo(0, bufsize*sizeof(int), lunasa::DataObject::AllocatorType::eager);
         setBuf(ldo.GetDataPtr<int *>(), bufsize, owners[i].bid, r,c);
 
-        rc = lkv.put(owners[i], KeyGen<int,int>(r,c), ldo, nullptr, nullptr);
+        rc = lkv->put(owners[i], KeyGen<int, int>(r, c), ldo, PoolBehavior::DefaultBaseClass, nullptr, nullptr);
         EXPECT_EQ(KELPIE_OK,rc);
       }
     }
@@ -189,7 +194,7 @@ TEST_F(LocalKVTest, access){
       for(int c=0; c<10; c++){
         size_t ret_size=0;
 
-        rc = lkv.getData(owners[i], KeyGen<int,int>(r,c), (void *)buf, sizeof(buf), &ret_size, nullptr, nullptr);
+        rc = lkv->getData(owners[i], KeyGen<int,int>(r,c), (void *)buf, sizeof(buf), &ret_size, nullptr, nullptr);
         EXPECT_EQ(KELPIE_OK,rc);
         EXPECT_EQ(ret_size, sizeof(buf));
 
@@ -206,8 +211,33 @@ TEST_F(LocalKVTest, access){
     for(int r=0; r<10; r++)
       for(int c=0; c<10; c++){
         size_t ret_size=0;
-        rc = lkv.getData(b, KeyGen<int,int>(r,c), (void *)buf, sizeof(buf), &ret_size, nullptr,nullptr);
+        rc = lkv->getData(b, KeyGen<int,int>(r,c), (void *)buf, sizeof(buf), &ret_size, nullptr,nullptr);
         EXPECT_EQ(KELPIE_ENOENT,rc);
       }
   }
+}
+
+TEST_F(LocalKVTest, IgnoreWrites) {
+
+  int rc;
+  bucket_t bucket("bucky");
+  Key k1("nothere");
+  lunasa::DataObject ldo1(1024);
+
+  lunasa::DataObject ldo_return;
+
+  //LKV Should only do a write if the WriteToLocal bit is set. It still checks dependencies, but otherwise returns w/ no entry
+  rc = lkv->put(bucket, k1, ldo1, PoolBehavior::NoAction,      nullptr, nullptr ); EXPECT_EQ(KELPIE_ENOENT, rc);
+  rc = lkv->put(bucket, k1, ldo1, PoolBehavior::WriteToRemote, nullptr, nullptr ); EXPECT_EQ(KELPIE_ENOENT, rc);
+  rc = lkv->put(bucket, k1, ldo1, PoolBehavior::WriteToIOM,    nullptr, nullptr ); EXPECT_EQ(KELPIE_ENOENT, rc);
+
+  //Double check there's no data
+  rc = lkv->get(bucket, k1, &ldo_return, nullptr, nullptr);                        EXPECT_EQ(KELPIE_ENOENT, rc);
+
+
+  //Make sure a local write works
+  rc = lkv->put(bucket, k1, ldo1, PoolBehavior::WriteToLocal,  nullptr, nullptr ); EXPECT_EQ(KELPIE_OK, rc);
+  rc = lkv->get(bucket, k1, &ldo_return, nullptr, nullptr);                        EXPECT_EQ(KELPIE_OK, rc);
+  EXPECT_EQ(1024, ldo_return.GetUserSize());
+
 }

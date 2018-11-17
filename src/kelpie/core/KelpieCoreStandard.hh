@@ -24,7 +24,7 @@ public:
 
 
   KelpieCoreStandard();
-  ~KelpieCoreStandard();
+  ~KelpieCoreStandard() override;
   KelpieCoreStandard(const KelpieCoreStandard &)             = delete;  //don't copy ourselves
   KelpieCoreStandard(KelpieCoreStandard &&)                  = default;
   KelpieCoreStandard & operator=(const KelpieCoreStandard &) = default;
@@ -41,7 +41,7 @@ public:
  
   //IOM Management
   void RegisterIomConstructor(std::string type, fn_IomConstructor_t ctor_function) override;
-  IomBase * FindIOM(uint32_t iom_hash) override;
+  IomBase * FindIOM(iom_hash_t iom_hash) override;
 
   std::string GetType() const override { return "standard"; }
   void getLKV(LocalKV **localkv_ptr) override { *localkv_ptr = &lkv; }

@@ -10,10 +10,10 @@
 #include <string>
 #include <vector>
 
-#include "common/Common.hh"
-#include "webhook/common/ReplyStream.hh"
+#include "faodel-common/Common.hh"
+#include "faodel-common/ReplyStream.hh"
 
-namespace opbox {
+namespace faodel {
 
 /**
  * @brief A class for storing directory information for an entry in DirMan
@@ -30,14 +30,11 @@ public:
 
   DirectoryInfo() : url(), info(), children()  {}
 
-  explicit DirectoryInfo(faodel::ResourceURL url) : url(url), info(url.GetOption("info")), children() {
-    url.RemoveOption("info");
+  explicit DirectoryInfo(faodel::ResourceURL new_url);
+  explicit DirectoryInfo(std::string s_url)
+          : DirectoryInfo(faodel::ResourceURL(s_url)) {
   }
 
-  explicit DirectoryInfo(std::string s_url) : url(faodel::ResourceURL(s_url)), children() {
-    info=url.GetOption("info");
-    url.RemoveOption("info");
-  }
   DirectoryInfo(std::string s_url, std::string s_info)
     : url(faodel::ResourceURL(s_url)), info(s_info), children() {
     url.RemoveOption("info");
@@ -50,7 +47,9 @@ public:
   bool operator!=( const DirectoryInfo &x) const { return url != x.url; }
 
   faodel::nodeid_t GetReferenceNode() { return url.reference_node; }
-  bool Valid()                        { return url.Valid(); }
+  bool Valid() const                  { return url.Valid(); }
+  bool IsEmpty() const; //True when no url, info, or children. Sometimes used to pass back "no info"
+
 
   bool GetChildReferenceNode(const std::string &child_name, faodel::nodeid_t *reference_node= nullptr) const;
   bool GetChildNameByReferenceNode(faodel::nodeid_t reference_node, std::string *child_name= nullptr) const;
@@ -60,7 +59,9 @@ public:
   bool LeaveByNode(faodel::nodeid_t node);
   bool LeaveByName(const std::string &reference_name="");
 
-  void webhookInfo(webhook::ReplyStream &rs);
+  bool ContainsNode(faodel::nodeid_t node) const;
+
+  void webhookInfo(faodel::ReplyStream &rs);
 
   //Serialization hook
   template <typename Archive>

@@ -11,7 +11,7 @@
 
 #include <string>
 
-#include "common/NodeID.hh"
+#include "faodel-common/NodeID.hh"
 
 #include "nnti/nnti_types.h"
 #include "nnti/nnti_pid.hpp"

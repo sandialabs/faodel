@@ -8,7 +8,7 @@
 #include <boost/archive/binary_oarchive.hpp>
 #include <boost/archive/binary_iarchive.hpp>
 
-#include "common/Debug.hh"
+#include "faodel-common/Debug.hh"
 
 #include "OpRapidFire.hh"
 
@@ -163,6 +163,8 @@ WaitingType OpRapidFire::UpdateTarget(OpArgs *args) {
   case State::done:
     return WaitingType::done_and_destroy;
   }
+  KHALT("Missing state");
+  return WaitingType::done_and_destroy;
 }
 
 string OpRapidFire::GetStateName() const {
@@ -172,4 +174,5 @@ string OpRapidFire::GetStateName() const {
   case State::done:                  return "Done";
   }
   KFAIL();
+  return "Unknown";
 }

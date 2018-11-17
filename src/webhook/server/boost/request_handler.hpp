@@ -60,7 +60,7 @@ private:
   
   void dumpRegisteredHandles(std::stringstream &results);
   void dumpAbout(std::stringstream &results);
-  void dumpBootstraps(std::stringstream &results);
+
 };
 
 } // namespace server

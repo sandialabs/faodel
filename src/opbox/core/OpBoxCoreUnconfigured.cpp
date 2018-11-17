@@ -7,7 +7,7 @@
 #include "opbox/core/OpBoxCoreUnconfigured.hh"
 #include "opbox/core/OpBoxCoreStandard.hh"
 
-#include "common/NodeID.hh"
+#include "faodel-common/NodeID.hh"
 
 #include "webhook/WebHook.hh"
 #include "webhook/Server.hh"

@@ -49,16 +49,11 @@ void msg_direct_buffer_t::SetLDO(lunasa::DataObject *ldo_data) {
   }
 }
 
-bool msg_direct_buffer_t::Alloc(
-                    lunasa::DataObject &ldo_msg,
-                    const uint32_t op_id,
-                    const uint16_t command_and_flags,
-                    const faodel::nodeid_t dst,
-                    const opbox::mailbox_t src_mailbox,
-                    const opbox::mailbox_t dst_mailbox,
-                    const faodel::bucket_t bucket,
-                    const kelpie::Key &key,
-                          lunasa::DataObject *ldo_data){
+bool
+msg_direct_buffer_t::Alloc(lunasa::DataObject &ldo_msg, const uint32_t op_id, const uint16_t command_and_flags, const faodel::nodeid_t dst,
+                           const opbox::mailbox_t src_mailbox, const opbox::mailbox_t dst_mailbox, const faodel::bucket_t bucket,
+                           const kelpie::Key &key, const kelpie::iom_hash_t iom_hash, const kelpie::pool_behavior_t behavior_flags,
+                           lunasa::DataObject *ldo_data) {
 
   //Allocate the message
   ldo_msg = net::NewMessage(sizeof(msg_direct_buffer_t)+key.size());
@@ -73,6 +68,8 @@ bool msg_direct_buffer_t::Alloc(
   msg->k1_size = key.k1_size();
   msg->k2_size = key.k2_size();
   msg->bucket = bucket;
+  msg->iom_hash = iom_hash;
+  msg->behavior_flags = behavior_flags;
 
   //Set the header now that we know our key sizes
   msg->hdr.SetStandardRequest(dst, src_mailbox, op_id, command_and_flags);
@@ -86,7 +83,7 @@ bool msg_direct_buffer_t::Alloc(
   memcpy(&msg->key_data[0],            key.K1().c_str(), msg->k1_size);
   memcpy(&msg->key_data[msg->k1_size], key.K2().c_str(), msg->k2_size);
 
-  return (ldo_msg.GetTotalSize() > MESSAGE_MTU);  //TODO: verify this is correct
+  return (ldo_msg.GetWireSize() > MESSAGE_MTU);
 }
 
 

@@ -40,23 +40,25 @@ public:
                     const net::peer_ptr_t target_ptr,
                     const faodel::bucket_t bucket,
                     const Key &key,
+                    const iom_hash_t iom_hash,
+                    const pool_behavior_t behavior_flags,
                     fn_opget_result_t cb_result);
 
   //A target starts off the same way no matter what command
   OpKelpieGetUnbounded(Op::op_create_as_target_t t);
-  ~OpKelpieGetUnbounded();
+  ~OpKelpieGetUnbounded() override;
 
   //Unique name and id for this op
   const static unsigned int op_id;
   const static std::string  op_name;
-  unsigned int getOpID() const { return op_id; }
-  std::string  getOpName() const { return op_name; }
+  unsigned int getOpID() const override { return op_id; }
+  std::string  getOpName() const override { return op_name; }
 
   WaitingType Update(OpArgs *args) override; //Combined use
-  WaitingType UpdateOrigin(OpArgs *args) {}  //Remove
-  WaitingType UpdateTarget(OpArgs *args) {}  //Remove
+  WaitingType UpdateOrigin(OpArgs *args) override { return WaitingType::error; }  //Remove
+  WaitingType UpdateTarget(OpArgs *args) override { return WaitingType::error; }  //Remove
 
-  std::string GetStateName() const;
+  std::string GetStateName() const override;
 
   static void configure(faodel::internal_use_only_t iuo, LocalKV *new_lkv);
 

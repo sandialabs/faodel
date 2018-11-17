@@ -3,16 +3,23 @@
 // the U.S. Government retains certain rights in this software. 
 
 #include <sstream>
+#include <stdexcept>
 
-#include "common/FaodelTypes.hh"
-#include "common/MutexWrapper.hh"
-#include "common/StringHelpers.hh"
-
+#include "faodel-common/FaodelTypes.hh"
+#include "faodel-common/MutexWrapper.hh"
+#include "faodel-common/StringHelpers.hh"
+#include "faodel-common/LoggingInterface.hh"
 #include "webhook/Server.hh"
 
 #include "kelpie/ioms/IomRegistry.hh"
 
 #include "kelpie/ioms/IomPosixIndividualObjects.hh"
+#ifdef FAODEL_HAVE_LEVELDB
+#include "kelpie/ioms/IomLevelDB.hh"
+#endif
+#ifdef FAODEL_HAVE_HDF5
+#include "kelpie/ioms/IomHDF5.hh"
+#endif
 
 using namespace std;
 
@@ -20,7 +27,8 @@ namespace kelpie {
 namespace internal {
 
 IomRegistry::IomRegistry()
-  : finalized(false) {
+  : LoggingInterface("kelpie.iom_registry"),
+    finalized(false) {
   mutex = faodel::GenerateMutex();
 }
 
@@ -28,9 +36,18 @@ IomRegistry::~IomRegistry() {
   if(mutex) delete mutex;
 }
 
+/**
+ * @brief Create a new IOM instance based on settings
+ * @param type The IOM driver type to use
+ * @param name The name of the IOM instance
+ * @param settings Settings to pass into the IOM
+ * @throw runtime_error if name already used, driver is not known, or race problems detected
+ */
 void IomRegistry::RegisterIom(string type, string name, const map<string,string> &settings) {
 
   faodel::ToLowercaseInPlace(type);
+
+  dbg("Register iom "+name+" type "+type+ "("+to_string(settings.size())+" settings)");
 
   //Don't let user register an iom multiple times (could have config mismatches)
   IomBase *iom = Find(name);
@@ -41,7 +58,7 @@ void IomRegistry::RegisterIom(string type, string name, const map<string,string>
   //Make sure ctor exists
   auto name_fn = iom_ctors.find(type);
   if(name_fn == iom_ctors.end()) {
-    throw std::runtime_error("Driver '"+type+"' has not been rehistered for Iom '"+name+"'");
+    throw std::runtime_error("Driver '"+type+"' has not been registered for Iom '"+name+"'");
   }
 
   //Construct the iom 
@@ -49,9 +66,10 @@ void IomRegistry::RegisterIom(string type, string name, const map<string,string>
   if(iom==nullptr){
     throw std::runtime_error("Driver creation problem for Iom '"+name+"' with driver '"+type+"'"); 
   }
+  iom->SetLoggingLevel(default_logging_level);
 
   //Store it in the list
-  uint32_t hid = faodel::hash32(name);
+  iom_hash_t hid = faodel::hash32(name);
   if(!finalized) {
     ioms_by_hash_pre[hid] = iom;
   } else {
@@ -68,12 +86,15 @@ void IomRegistry::RegisterIom(string type, string name, const map<string,string>
   
 }
 
+/**
+ * @brief Register a new iom driver with kelpie
+ * @param type The name of this driver
+ * @param constructor_function A constructor for building an instance of the driver
+ */
 void IomRegistry::RegisterIomConstructor(string type, fn_IomConstructor_t constructor_function) {
 
-  //TODO: doc This function is for registering a new constructor for an iom type.
-  //          the idea is that 
+  dbg("Registering iom driver for type "+type);
 
-  //cout <<"Registering driver "<<type<<endl;
   faodel::ToLowercaseInPlace(type);
   if(finalized){
     throw std::runtime_error("Attempted to register IomConstructor after started");
@@ -87,7 +108,15 @@ void IomRegistry::RegisterIomConstructor(string type, fn_IomConstructor_t constr
 }
 
 
+/**
+ * @brief Initialize the registry with a config and register default drivers
+ * @param config
+ */
 void IomRegistry::init(const faodel::Configuration &config) {
+
+  ConfigureLogging(config); //Set registry's logging level
+  default_logging_level = faodel::LoggingInterface::GetLoggingLevelFromConfiguration(config,"kelpie.iom"); //For setting ioms
+
 
   //Register the drivers
 
@@ -101,6 +130,20 @@ void IomRegistry::init(const faodel::Configuration &config) {
   //
   // Insert other built-in drivers here
   //
+#ifdef FAODEL_HAVE_LEVELDB
+  fn_IomConstructor_t fn_ldb = [] (string name, const map< string, string > &settings) -> IomBase * {
+				 return new IomLevelDB( name, settings );
+			       };
+  RegisterIomConstructor( "leveldb", fn_ldb );
+#endif
+
+#ifdef FAODEL_HAVE_HDF5
+  fn_IomConstructor_t fn_hdf5 = [] (string name, const map< string, string > &settings) -> IomBase * {
+				  return new IomHDF5( name, settings );
+			       };
+  RegisterIomConstructor( "hdf5", fn_hdf5 );
+#endif
+
   
   //Get the list of Ioms this Configuration wants to use
   string s,role;
@@ -112,6 +155,7 @@ void IomRegistry::init(const faodel::Configuration &config) {
     vector<string> names = faodel::Split(s,';',true);
     for(auto &name : names) {
 
+      //Get all settings for this iom. Do hierarchy of default, iom.name, then role.iom.name
       map<string, string> settings;
       config.GetComponentSettings(&settings, "default.iom");
       config.GetComponentSettings(&settings, "iom."+name);
@@ -144,15 +188,24 @@ void IomRegistry::init(const faodel::Configuration &config) {
 
 }
 
+/**
+ * @brief Shutdown all ioms and remove all references to instances/drivers
+ */
 void IomRegistry::finish() {
+
+  dbg("Finishing");
   webhook::Server::deregisterHook("kelpie/iom_registry");
   
-  //Tell all ioms to shutdown (may trigger some close operations
+  //Tell all ioms to shutdown (may trigger some close operations)
   for(auto &name_iomptr : ioms_by_hash_pre) {
+    dbg("Removing (pre) iom "+name_iomptr.second->Name());
     name_iomptr.second->finish();
+    delete name_iomptr.second;
   }
   for(auto &name_iomptr : ioms_by_hash_post) {
+    dbg("Removing (post) iom "+name_iomptr.second->Name());
     name_iomptr.second->finish();
+    delete name_iomptr.second;
   }
   //Get rid of all references
   ioms_by_hash_pre.clear();
@@ -161,7 +214,13 @@ void IomRegistry::finish() {
   
 }
 
-IomBase * IomRegistry::Find(uint32_t iom_hash) {
+/**
+ * @brief Use a hash to locate a particular IOM instance. (usually for remote ops)
+ * @param iom_hash The hash of the iom instance name
+ * @retval ptr A pointer to the instance
+ * @retval nullptr Instance was not found
+ */
+IomBase * IomRegistry::Find(iom_hash_t iom_hash) {
 
   //Start with pre-init items
   auto rhash_rptr = ioms_by_hash_pre.find(iom_hash);
@@ -183,6 +242,11 @@ IomBase * IomRegistry::Find(uint32_t iom_hash) {
   return nullptr;
 }
 
+/**
+ * @brief Webhook for dumping info about known IOMs
+ * @param args Incoming webhook args
+ * @param results Results handed back
+ */
 void IomRegistry::HandleWebhookStatus(const std::map<std::string,std::string> &args, std::stringstream &results) {
 
   auto ii=args.find("iom_name");
@@ -190,7 +254,7 @@ void IomRegistry::HandleWebhookStatus(const std::map<std::string,std::string> &a
   if(ii!=args.end()) {
     string iom_name = faodel::ExpandPunycode(ii->second);
   
-    webhook::ReplyStream rs(args, "Kelpie IOM "+iom_name, &results);
+    faodel::ReplyStream rs(args, "Kelpie IOM "+iom_name, &results);
     rs.mkSection("IOM Info");
     mutex->Lock();
     IomBase *iom = Find(iom_name);
@@ -204,7 +268,7 @@ void IomRegistry::HandleWebhookStatus(const std::map<std::string,std::string> &a
     
   } else {
   
-    webhook::ReplyStream rs(args, "Kelpie IOM Registry", &results);
+    faodel::ReplyStream rs(args, "Kelpie IOM Registry", &results);
 
     mutex->Lock();
 

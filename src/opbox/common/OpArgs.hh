@@ -6,6 +6,7 @@
 #define OPBOX_OPARGS_HH
 
 #include <cstring>
+#include <stdexcept>
 
 #include "opbox/common/Types.hh"
 
@@ -27,6 +28,7 @@ class OpArgs :
 public:
   OpArgs()=delete;                        ///< Intentionally removed to force a real ctor
 
+  //Everything except incoming message
   explicit OpArgs(UpdateType type)
     : type(type),
       result(0),
@@ -34,6 +36,7 @@ public:
       incoming_msg(nullptr),
       copy_msg(false) {} ///< ctor for all types except incoming message
 
+  //Incoming message
   OpArgs(opbox::net::peer_ptr_t sender, message_t *msg, bool copy_msg=false)
     : type(UpdateType::incoming_message),
       result(0),
@@ -102,7 +105,8 @@ public:
   }
 
   //InfoInterface
-  virtual void sstr(std::stringstream &ss, int depth=0, int indent=0) const;
+  void sstr(std::stringstream &ss, int depth=0, int indent=0) const override;
+  void print(std::stringstream &ss, int depth=0, int indent=0) const;
 
   UpdateType type;                            //!< Which type of update is this OpArgs
 

@@ -2,9 +2,10 @@
 // LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
 // the U.S. Government retains certain rights in this software. 
 
+#include <stdexcept>
+
 #include "kelpie/pools/Pool.hh"
 #include "kelpie/pools/PoolRegistry.hh"
-
 #include "kelpie/pools/PoolBase.hh"
 
 
@@ -18,7 +19,8 @@ namespace internal {
 
 
 PoolRegistry::PoolRegistry()
-  : default_bucket(faodel::BUCKET_UNSPECIFIED) {
+  : default_bucket(faodel::BUCKET_UNSPECIFIED),
+    default_pool_logging_level(0) {
   mutex = faodel::GenerateMutex();
 }
 
@@ -26,8 +28,10 @@ PoolRegistry::~PoolRegistry() {
   if(mutex) delete mutex;
 }
 
-void PoolRegistry::init(faodel::bucket_t default_bucket) {
-  this->default_bucket = default_bucket;
+void PoolRegistry::init(const faodel::Configuration &config) {
+
+  config.GetDefaultSecurityBucket(&default_bucket);
+  default_pool_logging_level = LoggingInterface::GetLoggingLevelFromConfiguration(config, "kelpie.pool");
 
   webhook::Server::updateHook("/kelpie/pool_registry", [this] (const map<string,string> &args, stringstream &results) {
         return HandleWebhookStatus(args, results);
@@ -66,14 +70,38 @@ Pool PoolRegistry::Connect(const ResourceURL &pool_url){
   if(src_url.bucket == BUCKET_UNSPECIFIED){
     src_url.bucket = default_bucket;
   }
-  string pool_key = makeKnownPoolKey(src_url);
 
   //cout <<"Input url is '"<<src_url.GetFullURL()<<"'  type='"<<src_url.resource_type <<"' path='"<<src_url.path<<"'\n";
+
+  if(src_url.resource_type=="ref") {
+
+    DirectoryInfo dir_info;
+
+    bool ok = dirman::GetDirectoryInfo(src_url, &dir_info);
+    if(!ok){
+      throw std::runtime_error("Reference not known during Connect to "+src_url.str());
+    }
+    src_url = dir_info.url; 
+
+    //Copy user requested options onto new url
+    auto original_options = pool_url.GetOptions();
+    for(auto &kv : original_options) {
+      src_url.SetOption(kv.first, kv.second);
+    }
+  }
+
+
+
+  string pool_key = makeKnownPoolKey(src_url);
+
+  //cout <<"Input url is '"<<src_url.GetFullURL()<<"'  type='"<<src_url.resource_type <<"' path='"<<src_url.path<<"' PoolKey='"<<pool_key<<"'\n";
+
 
   //See if we already know about this pool. Reuse it if we do.
   mutex->Lock();
   auto rname_rptr = known_pools.find(pool_key);
   if(rname_rptr != known_pools.end() ){
+    //cout <<"Found existing pool. Using "<<rname_rptr->first;
     Pool p(faodel::internal_use_only, rname_rptr->second);
     mutex->Unlock();
     return p;
@@ -92,8 +120,10 @@ Pool PoolRegistry::Connect(const ResourceURL &pool_url){
   //for(auto &src_ptr : known_pools) {
   //  cout << src_ptr.first <<endl;
   //}
-  
+  //cout<<"New pool. Creating "<<pool_key<<" with url "<<src_url.GetFullURL()<<endl;
+   
   shared_ptr<PoolBase> rbase_ptr =  name_ctor->second(src_url);
+  rbase_ptr->SetLoggingLevel(default_pool_logging_level);
   known_pools[pool_key] = rbase_ptr;
 
   
@@ -111,13 +141,13 @@ Pool PoolRegistry::Connect(const ResourceURL &pool_url){
 
 
 void PoolRegistry::HandleWebhookStatus(const std::map<std::string,std::string> &args, std::stringstream &results) {
-    webhook::ReplyStream rs(args, "Kelpie Pool Registry", &results);
+    faodel::ReplyStream rs(args, "Kelpie Pool Registry", &results);
 
     vector<pair<string,string>> stats;
 
     //Just a one-column table with function names for now.. Maybe include pointers later?
     vector<vector<string>> pool_names;
-    pool_names.push_back({"Name"});
+    pool_names.push_back({"Register Pool Names"});
     for(auto &name_fn : pool_create_fns){
       vector<string> row;
       row.push_back(name_fn.first);
@@ -127,17 +157,27 @@ void PoolRegistry::HandleWebhookStatus(const std::map<std::string,std::string> &
 
     mutex->Lock();
     vector<vector<string>> existing_pools;
-    existing_pools.push_back({"ID", "Type","Iom", "Bucket", "RefCount","NumNodes","Info"});
+    existing_pools.push_back({"Type", "Bucket", "Name", "Behavior", "Iom", "IomDetail",  "RefCount","NumNodes","Info", "ID"});
     for(auto &url_bptr : known_pools){
       vector<string> row;
-      row.push_back(url_bptr.first);
       row.push_back(url_bptr.second->TypeName());
-      row.push_back(url_bptr.second->GetIomName(true));
       row.push_back(url_bptr.second->GetBucket().GetHex());
+      row.push_back(url_bptr.second->GetURL().GetPathName());
+
+      //row.push_back(PoolBehavior::GetString(url_bptr.second->GetBehavior()));
+      int behavior = url_bptr.second->GetBehavior();
+      stringstream behave_hex;
+      behave_hex << "0x"<<hex<<behavior;
+      row.push_back(behave_hex.str());
+
+      row.push_back(url_bptr.second->GetIomName(true,false));
+      row.push_back(url_bptr.second->GetIomName(true,true));
+
       row.push_back(to_string(url_bptr.second.use_count()));
       auto di = url_bptr.second->GetDirectoryInfo();
       row.push_back(std::to_string(di.children.size()));
       row.push_back(di.info);
+      row.push_back(url_bptr.first);
       existing_pools.push_back(row);
     }
     mutex->Unlock();

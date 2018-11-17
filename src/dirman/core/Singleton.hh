@@ -2,28 +2,25 @@
 // LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
 // the U.S. Government retains certain rights in this software. 
 
-#ifndef OPBOX_DIRMAN_SINGLETON_HH
-#define OPBOX_DIRMAN_SINGLETON_HH
+#ifndef DIRMAN_SINGLETON_HH
+#define DIRMAN_SINGLETON_HH
 
-#include "common/Common.hh"
-#include "common/LoggingInterface.hh"
+#include "faodel-common/Common.hh"
+#include "faodel-common/LoggingInterface.hh"
+#include "faodel-common/DirectoryInfo.hh"
 
-#include "opbox/services/dirman/DirectoryInfo.hh"
-#include "opbox/services/dirman/common/DirectoryCache.hh"
-#include "opbox/services/dirman/common/DirectoryOwnerCache.hh"
-
-#include "opbox/services/dirman/core/DirManCoreUnconfigured.hh"
-
+#include "dirman/common/DirectoryCache.hh"
+#include "dirman/common/DirectoryOwnerCache.hh"
+#include "dirman/core/DirManCoreUnconfigured.hh"
 
 
-namespace opbox {
+
 namespace dirman {
 namespace internal {
 
 /**
  * @brief An implementation of the DirMan service's Singleton
  *
- * @note this is instantiated in the OpBox singleton
  */
 class SingletonImpl
   : public faodel::bootstrap::BootstrapInterface,
@@ -54,10 +51,15 @@ private:
 
 };
 
-
+/**
+ * @brief A static placeholder for opbox's singleton
+ */
+class Singleton {
+public:
+  static dirman::internal::SingletonImpl impl;
+};
 
 } // namespace internal
 } // namespace dirman
-} // namespace opbox
 
-#endif // OPBOX_DIRMAN_SINGLETON_HH
+#endif // DIRMAN_SINGLETON_HH

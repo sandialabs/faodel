@@ -411,9 +411,8 @@ public:
     }
 
 
-    virtual std::string
-    toString()
-    {
+  std::string
+    toString() override {
         std::stringstream out;
         out << "nnti_buffer.to_hdl(this)="        << to_hdl(this)
             << " | nnti_buffer.id_="               << this->id_

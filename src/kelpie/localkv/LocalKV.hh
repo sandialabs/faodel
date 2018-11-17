@@ -10,10 +10,11 @@
 #include <sstream>
 #include <memory>
 
-#include "common/FaodelTypes.hh"
-#include "common/Configuration.hh"
-#include "common/InfoInterface.hh"
-#include "common/LoggingInterface.hh"
+#include "faodel-common/FaodelTypes.hh"
+#include "faodel-common/Configuration.hh"
+#include "faodel-common/InfoInterface.hh"
+#include "faodel-common/LoggingInterface.hh"
+#include "faodel-common/ReplyStream.hh"
 
 #include "kelpie/Key.hh"
 #include "kelpie/localkv/LocalKVRow.hh"
@@ -21,8 +22,7 @@
 
 #include "webhook/WebHook.hh"
 #include "webhook/Server.hh"
-#include "webhook/common/ReplyStream.hh"
-#include "webhook/common/QuickHTML.hh"
+
 
 #include "lunasa/DataObject.hh"
 
@@ -55,7 +55,8 @@ class LocalKV :
 
 public:
   LocalKV();
-  ~LocalKV();
+
+  ~LocalKV() override;
 
   //One-time configure the lkv
   rc_t Init(const faodel::Configuration &config);
@@ -64,6 +65,7 @@ public:
   //Put a reference into local store. Ref should not be modified
   rc_t put(faodel::bucket_t bucket, const Key &key,
                     const lunasa::DataObject &new_ldo,
+                    pool_behavior_t behavior_flags,
                     kv_row_info_t *row_info,
                     kv_col_info_t *col_info);
 
@@ -131,10 +133,10 @@ public:
   void HandleWebhookStatus(const std::map<std::string,std::string> &args, std::stringstream &results);
   void HandleWebhookRow(const std::map<std::string,std::string> &args, std::stringstream &results);
   void HandleWebhookCell(const std::map<std::string,std::string> &args, std::stringstream &results);
-  void webhookInfo(webhook::ReplyStream &rs, bool detailed=false);
+  void webhookInfo(faodel::ReplyStream &rs, bool detailed=false);
 
   //InfoInterface function
-  void sstr(std::stringstream &ss, int depth=0, int indent=0) const;
+  void sstr(std::stringstream &ss, int depth=0, int indent=0) const override;
 
 private:
   faodel::MutexWrapperTypeID row_mutex_type_id;  //!< The mutex type to use for creating new rows

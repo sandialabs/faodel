@@ -14,7 +14,7 @@
 // 1. Setting LOGGING_DISABLED to a nonzero value
 // 2. Loading the LoggingInterfaceMacros, which remove dbg(), info(), warn()
 #define LOGGING_DISABLED (DISABLE_CLASS_B_LOGGING)
-#include "common/LoggingInterfaceMacros.hh"
+#include "faodel-common/LoggingInterfaceMacros.hh"
 
 
 

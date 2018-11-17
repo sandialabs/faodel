@@ -26,7 +26,7 @@ public:
       col_info(col_info) {
   }
 
-  ~OpArgsObjectAvailable(){
+  ~OpArgsObjectAvailable() override {
   }
 
   //InfoInterface

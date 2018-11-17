@@ -15,7 +15,7 @@
 #ifndef NNTI_LOGGER_HPP_
 #define NNTI_LOGGER_HPP_
 
-#include <sbl/sbl_logger.hpp>
+#include <sbl/sbl_logger.hh>
 
 #include "nnti/nnti_types.h"
 

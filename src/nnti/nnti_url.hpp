@@ -59,6 +59,7 @@ public:
         const NNTI_process_id_t pid);
 
     nnti_url(
+
         const std::string &hostname,
         const std::string &port);
 
@@ -76,6 +77,7 @@ public:
     pid(void) const;
 
     const std::string&
+
     hostname(void) const;
 
     NNTI_ip_addr

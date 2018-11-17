@@ -25,7 +25,7 @@ class KelpieCoreNoNet : public KelpieCoreBase {
 public:
 
   KelpieCoreNoNet();
-  ~KelpieCoreNoNet();
+  ~KelpieCoreNoNet() override;
   KelpieCoreNoNet(const KelpieCoreNoNet &)             = delete;  //don't copy ourselves
   KelpieCoreNoNet(KelpieCoreNoNet &&)                  = default;
   KelpieCoreNoNet & operator=(const KelpieCoreNoNet &) = default;
@@ -45,7 +45,7 @@ public:
  
   //IOM Management
   void RegisterIomConstructor(std::string type, fn_IomConstructor_t ctor_function) override;
-  IomBase * FindIOM(uint32_t iom_hash) override { return iom_registry.Find(iom_hash); }
+  IomBase * FindIOM(iom_hash_t iom_hash) override { return iom_registry.Find(iom_hash); }
 
 
   void HandleWebhookStatus(const std::map<std::string,std::string> &args, std::stringstream &results);

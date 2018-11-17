@@ -5,9 +5,18 @@
 #ifndef LUNASA_TYPES_HH
 #define LUNASA_TYPES_HH
 
+#include <functional>
+
+#include "faodel-common/ReplyStream.hh"
+
+//Forward refs
+namespace lunasa { class DataObject; }
+
 namespace lunasa {
 
-typedef uint16_t meta_tag_t;
+typedef uint16_t dataobject_type_t;
+
+using fn_DataObjectDump_t = std::function<void (const lunasa::DataObject &ldo, faodel::ReplyStream &rs)>;
 
 
 } // namespace lunasa

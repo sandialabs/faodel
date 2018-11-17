@@ -15,9 +15,10 @@ set( NET_SOURCES
 
 # Select network library wrapper to use
 
-if(NETWORK_LIBRARY STREQUAL "nnti")
+if(Faodel_NETWORK_LIBRARY STREQUAL "nnti")
    message(STATUS "Using NNTI")
-   set(OPBOX_NET_NNTI 1 CACHE BOOL "")
+   set(Faodel_OPBOX_NET_NNTI 1 CACHE BOOL "")
+   mark_as_advanced(Faodel_OPBOX_NET_NNTI)
    set( SOURCES
         ${SOURCES}
         ${NET_SOURCES}
@@ -25,9 +26,10 @@ if(NETWORK_LIBRARY STREQUAL "nnti")
         PARENT_SCOPE
    )
 
-elseif(NETWORK_LIBRARY STREQUAL "libfabric")
+elseif(Faodel_NETWORK_LIBRARY STREQUAL "libfabric")
    message(STATUS "Using LIBFABRIC")
-   set(OPBOX_NET_LIBFABRIC 1 CACHE BOOL "")
+   set(Faodel_OPBOX_NET_LIBFABRIC 1 CACHE BOOL "")
+   mark_as_advanced(Faodel_OPBOX_NET_LIBFABRIC)
    set( SOURCES
         ${SOURCES}
         ${NET_SOURCES}
@@ -37,5 +39,5 @@ elseif(NETWORK_LIBRARY STREQUAL "libfabric")
    )
 
 else()
-  message(FATAL_ERROR "NETWORK_LIBRARY must be defined as either nnti or libfabric")
+  message(FATAL_ERROR "Faodel_NETWORK_LIBRARY must be defined as either nnti or libfabric")
 endif()

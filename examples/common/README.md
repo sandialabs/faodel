@@ -36,3 +36,6 @@ started up by bootstrap. This example shows how to declare
 dependencies between singleton classes and have them automatically
 register themselves so they will be usable with bootstrap.
 
+Note: We do NOT recommend using this trickery for registering singletons,
+      as it is prone to linking problems.
+

@@ -3,6 +3,7 @@
 // the U.S. Government retains certain rights in this software. 
 
 
+#include <array>
 #include <vector>
 #include <map>
 #include <algorithm>
@@ -11,9 +12,9 @@
 #include <fstream>
 #include <iomanip>
 
-#include "common/Debug.hh"
-#include "common/Configuration.hh"
-#include "common/StringHelpers.hh"
+#include "faodel-common/Debug.hh"
+#include "faodel-common/Configuration.hh"
+#include "faodel-common/StringHelpers.hh"
 
 using namespace std;
 
@@ -23,7 +24,7 @@ namespace configlog {
 namespace internal {
 map<string, array<string,2>> config_values;
 } //internal
-void AppendRequestedGet(string field, string option_type, string default_value) {
+void AppendRequestedGet(const string &field, const string &option_type, const string &default_value) {
   std::array<string,2> vals;
   vals[0]=option_type;
   vals[1]=default_value;
@@ -48,25 +49,28 @@ string str() {
 
 namespace faodel {
 
-/**
- * @brief Create a new configuration. Load from env var "CONFIG_FILE" if specified
- */
-Configuration::Configuration() {
-
-  node_role = "default";
-
-  //See if config filename passed in as env
-  char *penv = getenv("CONFIG_FILE");
-  if(penv) AppendFromFile(string(penv));
-}
 
 /**
- * @brief Parse a user-supplied Configuration (does NOT load from env var "CONFIG_FILE")
+ * @brief Parse a user-supplied Configuration
+ * @param[in] configuration_string A multi-line string with different config settings in it
+ * @param[in] env_variable_for_extra_settings Name of an envionrment variable that points to a file with additional settings
+ * @note While the Envionment Variable is set here, the file is NOT LOADED here. You need to call
+ *       AppendFromReferences, or have bootstrap::Init load it.
+ * @note The default environment variable name is FAODEL_CONFIG
  */
-Configuration::Configuration(const string &configuration) {
+Configuration::Configuration(const string &configuration_string,
+                             const string &env_variable_for_extra_settings) {
   node_role = "default";
-  int rc = Append(configuration);
-  kassert(rc==0, "Configuration string had problems");
+
+  //Set the default env var to load here, but do not load it so user
+  //can switch or erase it.
+  if(!env_variable_for_extra_settings.empty()) {
+    Append("config.additional_files.env_name.if_defined", env_variable_for_extra_settings);
+  }
+  if(!configuration_string.empty()) {
+    int rc = Append(configuration_string);
+    kassert(rc == 0, "Configuration string had problems");
+  }
 }
 
 Configuration::~Configuration() = default;
@@ -87,6 +91,7 @@ int Configuration::Append(const string &config_str) {
  * @retval 0 Always works
  */
 int Configuration::Append(const string &name, const string &val) {
+  //cout <<"Config Append '"<<name<<"' value '"<<val<<"'\n";
   return Set(name,val);
 }
 
@@ -96,14 +101,16 @@ int Configuration::Append(const string &name, const string &val) {
  * @retval 0 Always works
  */
 rc_t Configuration::AppendFromFile(const string &file_name) {
-
   stringstream ssout;
 
   string segment;
   stringstream ss(file_name);
   while(getline(ss, segment, ';')) {
-    ifstream src(segment.c_str());
-    ssout << src.rdbuf();
+    string expanded = ExpandPathSafely(segment);
+    if (expanded.length() > 0) {
+        ifstream src(expanded.c_str());
+        ssout << src.rdbuf();
+    }
   }
   Append(ssout.str());
   return 0;
@@ -198,14 +205,28 @@ rc_t Configuration::Set(const string &name, const string &val) {
   string target_val  = val;
 
   //See if this is an item appended to our list
-  if(((target_name.size()>2) &&
-      (target_name.compare(target_name.size()-2, target_name.size(), "<>"))==0)) {
-    //Ended with <>, so append
-    target_name = target_name.substr(0, target_name.size()-2);
-    auto ii = config_map.find(target_name);
-    if(ii != config_map.end()) //Only have to revise if we append
-      target_val = ii->second + ";"+val;
+  if(target_name.size()>2) {
+    string suffix = target_name.substr(target_name.size()-2);
+    string prefix = target_name.substr(0, target_name.size()-2);
+
+    if(suffix=="[]") {
+      //Multiple instances: One variable name may have multiple instances. Use GetStringVector to access
+      target_name = prefix;
+      int id = GetStringVector(nullptr, target_name);
+      target_name = target_name + "."+std::to_string(id);
+
+    } else if (suffix=="<>") {
+      //Multiple values: Find the one variable and then add this to the list of entries
+      //TODO: Is this used anymore?
+      target_name = prefix;
+      auto ii = config_map.find(target_name);
+      if (ii != config_map.end()) //Only have to revise if we append
+        target_val = ii->second + ";" + val;
+    }
+
   }
+
+  //Store in map
   config_map[target_name]=target_val;
   if(name == "node_role")
     node_role = val;
@@ -267,6 +288,15 @@ rc_t Configuration::Set(const string &name, bool val) {
   return Set(name, (val)?"true":"false");
 }
 
+/**
+ * @brief Remove an entry from a configuration
+ * @param name Name of the variable to remove
+ * @retval 0 Always works
+ */
+rc_t Configuration::Unset(const string &name){
+  config_map.erase(name);
+  return 0;
+}
 
 /**
  * @brief Search configuration data and return string of value, or default if not found
@@ -575,8 +605,11 @@ rc_t Configuration::GetFilename(string *fname, const string &name,
     penv = getenv(ename.c_str());
     if(penv) {
       //Env var exists, use it
-      *fname = string(penv);
-      return 0;
+      string expanded = ExpandPathSafely(string(penv));
+      if (expanded.length() > 0) {
+        *fname = expanded;
+        return 0;
+      }
     }
     //Didn't exist. Can continue because it was optional
   }
@@ -587,8 +620,15 @@ rc_t Configuration::GetFilename(string *fname, const string &name,
     //They asked to use a mandatory env var
     penv = getenv(ename.c_str());
     if(penv) {
-      *fname = string(penv);
-      return 0;
+      //Env var exists, use it
+      string expanded = ExpandPathSafely(string(penv));
+      if (expanded.length() > 0) {
+        *fname = expanded;
+        return 0;
+      }
+      cerr <<"Configuration requested "
+           <<name<<".file.env_name "<<ename<<" but shell expansion failed.\n";
+      exit(-1);
     }
     cerr <<"Configuration requested "
          <<name<<".file.env_name "<<ename<<" but it was not set.\n";
@@ -596,6 +636,27 @@ rc_t Configuration::GetFilename(string *fname, const string &name,
   }
 
   return GetString(fname, name+".file", default_value);
+}
+
+/**
+ * @brief Search for an name that has multiple instances (ie, name.0, name.1) and return a vector of vals
+ * @param vals The vector to append the results
+ * @param name The base name of the variable to use. The name is appended with ".#" until no variable is found
+ * @retval number_of_items The number of items that were found and sent back
+ */
+int Configuration::GetStringVector(std::vector<std::string> *vals, const std::string &name) const {
+
+  int i;
+  rc_t rc=0;
+  for(i=0; rc!=ENOENT; i++) {
+    string n, v;
+    n = name + "." + std::to_string(i);
+    rc = GetString(&v, n);
+    if ((rc != ENOENT) && (vals))
+      vals->push_back(v);
+  }
+
+  return (i-1);
 }
 
 /**
@@ -843,5 +904,7 @@ void Configuration::sstr(stringstream &ss, int depth, int indent) const {
   for(auto &k_v : config_map)
     ss << string(indent+2,' ') << k_v.first << " " << k_v.second << endl;
 }
+
+
 
 } // namespace kelpie

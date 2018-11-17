@@ -17,7 +17,7 @@
 #include <map>
 #include <string>
 
-#include "common/Configuration.hh"
+#include "faodel-common/Configuration.hh"
 
 #include "nnti/nnti_transport.hpp"
 

@@ -9,12 +9,12 @@
  *      Author: thkorde
  */
 
-#include "sbl_boost_headers.hpp"
-#include "sblConfig.h"
+#include "faodelConfig.h"
+#include "sbl/sbl_boost_headers.hh"
 
-#include "sbl_source.hpp"
-#include "sbl_stream.hpp"
-#include "sbl_logger.hpp"
+#include "sbl/sbl_source.hh"
+#include "sbl/sbl_stream.hh"
+#include "sbl/sbl_logger.hh"
 
 
 uint64_t sbl::logger::logger_id_=0;

@@ -72,6 +72,8 @@ nnti_url::parse(void)
             port_ = url_.substr(port_start_pos+1, path_start_pos-port_start_pos);
         }
     }
+
+    return NNTI_OK;
 }
 
 void

@@ -11,7 +11,7 @@ SET(EXTRA_TEST_LIBS "-lz")
 
 
 # Build the test support lib-------------------------------------------------
-add_library(cpptestutils STATIC
+add_library(cpptestutils
             test_utils.hpp
             test_utils.cpp
 )
@@ -29,7 +29,7 @@ set(SERIAL_TEST_LIBS
 
 set(MPI_TEST_LIBS 
   ${SERIAL_TEST_LIBS}
-  MPI_CXX
+  MPI::MPI_CXX
 )
 
 #--------------+-----------------------------+----------------------------------+---------+
@@ -44,7 +44,7 @@ add_serial_test( NntiPidClassTest             .  false  )
 add_serial_test( NntiUrlClassTest             .  false  )
 #add_serial_test( NntiWidClassTest             .  false  )
 
-if( USE_MPI )
+if( Faodel_ENABLE_MPI_SUPPORT )
     add_mpi_test( AllocFreeTest              .  1  true  )
     add_mpi_test( AtomicOpTest               .  2  true  )
     add_mpi_test( CallbackStateMachineTest   .  2  true  )

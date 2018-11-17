@@ -5,9 +5,10 @@
 #include "gtest/gtest.h"
 //#include <mpi.h>
 
-#include "common/Common.hh"
+#include "faodel-common/Common.hh"
 #include "lunasa/Lunasa.hh"
 #include "lunasa/DataObject.hh"
+
 using namespace std;
 using namespace faodel;
 using namespace lunasa;
@@ -30,15 +31,27 @@ lunasa.lazy_memory_manager tcmalloc
 
 class LunasaCfgTest : public testing::Test {
 protected:
-  virtual void SetUp () {}
-  virtual void TearDown () {}
+  void SetUp() override {}
+
+  void TearDown() override {}
 };
 
 
 // TEST: failure with invalid configuration (multiple instances of tcmalloc allocator)
 TEST_F(LunasaCfgTest, invalidCfgTest) {
-  cout << "[ TEST INVALID CONFIGURATION: multiple instances of tcmalloc allocator ]" << endl;
 
+  cout << "\n\ntb_LunasaConfiguration3 note: This test tries to use tcmalloc in different\n"
+       << "  allocators, which is illegal. You should see an error message below about\n"
+       << "  multiple instances of tcmalloc. It's ok!\n\n";
+
+  #ifdef Faodel_ENABLE_TCMALLOC
   EXPECT_THROW(bootstrap::Init(Configuration(invalid_config), lunasa::bootstrap),
                lunasa::LunasaConfigurationException);
+  #else
+    //No tcmalloc support should throw its own exception
+    EXPECT_ANY_THROW(bootstrap::Init(Configuration(invalid_config), lunasa::bootstrap));
+  #endif
+
+  cout << "\n ^--- Expect an error message above. It's ok!! ----^\n\n";
+
 }

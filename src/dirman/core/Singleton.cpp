@@ -4,27 +4,25 @@
 
 #include "opbox/core/Singleton.hh"
 
-#include "opbox/services/dirman/core/Singleton.hh"
-#include "opbox/services/dirman/core/DirManCoreCentralized.hh"
-#include "opbox/services/dirman/core/DirManCoreDistributed.hh"
+#include "dirman/core/Singleton.hh"
+#include "dirman/core/DirManCoreStatic.hh"
+#include "dirman/core/DirManCoreCentralized.hh"
 
 #include "webhook/WebHook.hh"
 #include "webhook/Server.hh"
 
 using namespace std;
 
-//Initialize the singleton. Dirman now lives in opbox/core singleon
-opbox::dirman::internal::SingletonImpl opbox::internal::Singleton::impl_dm;
+//Initialize the dirman singleton.
+dirman::internal::SingletonImpl dirman::internal::Singleton::impl;
 
 
-namespace opbox {
 namespace dirman {
 namespace internal {
 
 SingletonImpl::SingletonImpl()
   : LoggingInterface("dirman"), dirman_service_none(false) {
 
-  //faodel::bootstrap::RegisterComponent(this);
   core = &unconfigured; //Start in unconfigured state
 }
 
@@ -51,9 +49,9 @@ void SingletonImpl::GetBootstrapDependencies(
                        string &name,
                        vector<string> &requires,
                        vector<string> &optional) const {
-  name = "directorymanager";
+  name = "dirman";
   requires = {"opbox"};
-  optional = {"webhook"};
+  optional = {"webhook", "mpisyncstart"};
 }
 
 
@@ -77,11 +75,13 @@ void SingletonImpl::Init(const faodel::Configuration &config){
   dbg("About to create type "+dirman_type);
 
 
-  if        (dirman_type == "none")       {  dirman_service_none=true; return;
+  if        (dirman_type == "none") {
+    dirman_service_none = true;
+    return;
+  } else if (dirman_type == "static") {      core = new DirManCoreStatic(config);
   } else if (dirman_type == "centralized"){  core = new DirManCoreCentralized(config);
-  } else if (dirman_type == "distributed"){  core = new DirManCoreDistributed(config);
   } else {
-    error("Unknown dirman.type '"+dirman_type+"'. Options are 'none', 'centralized', or 'distributed'");
+    error("Unknown dirman.type '"+dirman_type+"'. Options are 'none', 'static', or 'centralized'");
     exit(-1);
   }
 
@@ -104,6 +104,7 @@ void SingletonImpl::Start(){
     error("Attempted to start an uninitialized DirMan");
     exit(-1);
   }
+  dbg("Dirman ("+core->GetType()+") Starting State is "+core->str(4,2));
   core->start();
 }
 
@@ -118,6 +119,7 @@ void SingletonImpl::Finish() {
   }
   webhook::Server::deregisterHook("/dirman");
 
+
   if(IsUnconfigured()){
     error("Attempted to finish OpBox that is unconfigured");
   } else {
@@ -125,10 +127,25 @@ void SingletonImpl::Finish() {
     core = &unconfigured;
   }
 
-
-
 }
 
 } // namespace internal
+
+/**
+ * @brief Bootstrap function used to manually register dirman with bootstrap
+ *
+ * @retval "dirman"
+ *
+ * @note Users pass this to bootstrap's Start/Init. Only the last
+ *       bootstap dependency needs to be supplied.
+ */
+std::string bootstrap() {
+
+  //register dependencies
+  opbox::bootstrap();
+  faodel::bootstrap::RegisterComponent(&dirman::internal::Singleton::impl, true);
+
+  return "dirman";
+}
+
 } // namespace dirman
-} // namespace opbox

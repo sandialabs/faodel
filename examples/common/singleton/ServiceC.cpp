@@ -4,7 +4,7 @@
 
 #include "ServiceC.hh"
 
-#include "common/Common.hh"
+#include "faodel-common/Common.hh"
 
 namespace service_c {
 

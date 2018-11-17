@@ -12,8 +12,8 @@
 #ifndef SBL_SOURCE_HPP_
 #define SBL_SOURCE_HPP_
 
-#include "sbl/sbl_boost_headers.hpp"
-#include "sbl/sblConfig.h"
+#include "faodelConfig.h"
+#include "sbl/sbl_boost_headers.hh"
 
 #include <errno.h>
 #include <time.h>
@@ -28,7 +28,7 @@
 #include <map>
 #include <string>
 
-#include "sbl/sbl_types.hpp"
+#include "sbl/sbl_types.hh"
 
 /*
  * This is some serious voodoo.  The difficulty here is that we
@@ -42,10 +42,13 @@
  * BOOST_LOG_STREAM_WITH_PARAMS_INTERNAL macro found here:
  * boost/log/sources/record_ostream.hpp
  */
-//#define SBL_LOG_STREAM(s, c) \
-//    for (::boost::log::record _boost_log_record = (s).boostlogger().open_record((::boost::log::keywords::channel = (c), ::boost::log::keywords::severity = ((s).severity()))); \
-//         !!_boost_log_record;) \
-//         ((s).make_record_pump(_boost_log_record)).stream()
+#if 0
+#define SBL_LOG_STREAM(s, c) \
+    for (::boost::log::record _boost_log_record = (s).boostlogger().open_record((::boost::log::keywords::channel = (c), ::boost::log::keywords::severity = ((s).severity()))); \
+         !!_boost_log_record;) \
+         ((s).make_record_pump(_boost_log_record)).stream()
+#endif
+
 #define SBL_LOG(s, ...) s.log("", __FUNCTION__,__FILE__,__LINE__, ## __VA_ARGS__)
 #define SBL_LOG_STREAM(s, c) BOOST_LOG_CHANNEL_SEV(s.boostlogger(), c, s.severity())
 

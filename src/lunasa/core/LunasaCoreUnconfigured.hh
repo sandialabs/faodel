@@ -5,43 +5,43 @@
 #ifndef LUNASA_LUNASACOREUNCONFIGURED_HH
 #define LUNASA_LUNASACOREUNCONFIGURED_HH
 
-#include "common/Common.hh"
+#include "faodel-common/Common.hh"
 #include "lunasa/core/LunasaCoreBase.hh"
 
 namespace lunasa {
 namespace internal {
 
-class LunasaCoreUnconfigured : 
-    public LunasaCoreBase {
+class LunasaCoreUnconfigured
+        : public LunasaCoreBase {
   
 public:
   LunasaCoreUnconfigured();
-  ~LunasaCoreUnconfigured();
+  ~LunasaCoreUnconfigured() override;
   
   void init(std::string lmm_name, std::string emm_name, bool use_webhook,
-            const faodel::Configuration &config);
-  void start(){}
-  void finish(){}
+            const faodel::Configuration &config) override;
+  void start() override {}
+  void finish() override {}
 
-  void RegisterPinUnpin(net_pin_fn pin, net_unpin_fn unpin);
+  void RegisterPinUnpin(net_pin_fn pin, net_unpin_fn unpin) override;
 
-  allocation_t *AllocateEager(uint32_t metaCapacity, uint32_t dataCapacity);
-  allocation_t *AllocateLazy(uint32_t metaCapacity, uint32_t dataCapacity);
+  Allocation *AllocateEager(uint32_t user_capacity) override;
+  Allocation *AllocateLazy(uint32_t user_capacity) override;
   
   size_t TotalAllocated() const;
-  size_t TotalManaged() const;
-  size_t TotalUsed() const;
-  size_t TotalFree() const;
+  size_t TotalManaged() const override;
+  size_t TotalUsed() const override;
+  size_t TotalFree() const override;
 
-  bool SanityCheck();
-  void PrintState(std::ostream& stream);
+  bool SanityCheck() override;
+  void PrintState(std::ostream& stream) override;
 
-  Lunasa GetLunasaInstance();
+  Lunasa GetLunasaInstance() override;
 
-  std::string GetType() const { return "unconfigured"; };
+  std::string GetType() const override { return "unconfigured"; };
 
   //InfoInterface
-  void sstr(std::stringstream &ss, int depth=0, int indent=0) const;
+  void sstr(std::stringstream &ss, int depth=0, int indent=0) const override;
 
 private:
   void Panic(std::string fname) const;

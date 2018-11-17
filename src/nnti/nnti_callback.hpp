@@ -92,8 +92,8 @@ public:
         }
         return;
     }
-    virtual ~nnti_event_callback()
-    {
+
+  ~nnti_event_callback() override {
         return;
     }
 
@@ -108,9 +108,8 @@ public:
         return cb_(event, context);
     }
 
-    virtual std::string
-    toString()
-    {
+  std::string
+    toString() override {
         std::stringstream out;
         out << "cb_==" << &cb_;
         return out.str();

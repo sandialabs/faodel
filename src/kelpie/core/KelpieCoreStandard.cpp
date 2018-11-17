@@ -8,6 +8,10 @@
 #include "kelpie/pools/LocalPool/LocalPool.hh"
 #include "kelpie/pools/DHTPool/DHTPool.hh"
 
+#ifdef Faodel_ENABLE_MPI_SUPPORT
+#include "kelpie/pools/RFTPool/RFTPool.hh"
+#endif
+
 #include "kelpie/ops/direct/OpKelpieMeta.hh"
 #include "kelpie/ops/direct/OpKelpiePublish.hh"
 #include "kelpie/ops/direct/OpKelpieGetBounded.hh"
@@ -30,19 +34,20 @@ void KelpieCoreStandard::init(const faodel::Configuration &config) {
 
   ConfigureLogging(config);
 
-  bucket_t bucket;
-  config.GetDefaultSecurityBucket(&bucket);
-  
   rc_t rc = lkv.Init(config);
   kassert(rc==KELPIE_OK, "lkv init failed");
   iom_registry.init(config);
-  pool_registry.init(bucket);
+  pool_registry.init(config);
   
   
   //Register built-in pool creators
   pool_registry.RegisterPoolConstructor("local", &LocalPoolCreate);
   pool_registry.RegisterPoolConstructor("lkv",   &LocalPoolCreate);
   pool_registry.RegisterPoolConstructor("dht",   &DHTPoolCreate);
+
+  #ifdef Faodel_ENABLE_MPI_SUPPORT
+  pool_registry.RegisterPoolConstructor("rft",   &RFTPoolCreate);
+  #endif
 
   //Register OPs with opbox, program in their lkv
   opbox::RegisterOp<OpKelpieMeta>();
@@ -87,12 +92,12 @@ void KelpieCoreStandard::RegisterIomConstructor(std::string type, fn_IomConstruc
   iom_registry.RegisterIomConstructor(type, ctor_function);
 }
 
-IomBase * KelpieCoreStandard::FindIOM(uint32_t iom_hash) {
+IomBase * KelpieCoreStandard::FindIOM(iom_hash_t iom_hash) {
   return iom_registry.Find(iom_hash);
 }
 
 void KelpieCoreStandard::HandleWebhookStatus(const std::map<std::string,std::string> &args, std::stringstream &results) {
-  webhook::ReplyStream rs(args, "Kelpie Status", &results);
+  faodel::ReplyStream rs(args, "Kelpie Status", &results);
 
   vector<pair<string,string>> stats;
   stats.push_back(pair<string,string>("Core Type", GetType()));

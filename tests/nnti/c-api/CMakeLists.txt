@@ -11,7 +11,7 @@ SET(EXTRA_TEST_LIBS "-lz")
 
 
 # Build the test support lib-------------------------------------------------
-add_library(ctestutils STATIC
+add_library(ctestutils
             test_utils.h
             test_utils.cpp
 )

@@ -15,10 +15,11 @@
 
 #include <iostream>
 
-#include "common/Common.hh"
+#include "faodel-common/Common.hh"
 #include "lunasa/common/Types.hh"
 
 namespace lunasa {
+
 
 std::string bootstrap();
 
@@ -34,8 +35,7 @@ class LunasaConfigurationException: public std::exception
       mMsg = prefix + msg;
     }
 
-    virtual const char* what() const throw()
-    {
+  const char* what() const throw() override {
       return mMsg.c_str();
     }
 
@@ -44,20 +44,19 @@ class LunasaConfigurationException: public std::exception
 };
 
 //Forward references that are defined in private files
-namespace internal {
-  class LunasaCoreBase;
-}
+namespace internal { class LunasaCoreBase; }
+namespace internal { class AllocatorBase; }
 
-class AllocatorBase;
 
 class Lunasa : public faodel::InfoInterface {
 public:
 
   Lunasa();
-  Lunasa(faodel::internal_use_only_t iuo, AllocatorBase *lazy_allocator, AllocatorBase *eager_allocator);
+  Lunasa(faodel::internal_use_only_t iuo,
+         internal::AllocatorBase *lazy_allocator, internal::AllocatorBase *eager_allocator);
 
   Lunasa(const Lunasa&);
-  ~Lunasa();
+  ~Lunasa() override;
 
   Lunasa& operator=(const Lunasa&);
 
@@ -71,17 +70,25 @@ public:
   void PrintState (std::ostream& stream) ;
 
   //InfoInterface
-  void sstr(std::stringstream &ss, int depth=0, int indent=0) const;
+  void sstr(std::stringstream &ss, int depth=0, int indent=0) const override;
 
 private:
-  AllocatorBase *lazyImpl;
-  AllocatorBase *eagerImpl;
+  internal::AllocatorBase *lazyImpl;
+  internal::AllocatorBase *eagerImpl;
 };
 
 void Init(const faodel::Configuration &config);
 void Finish();
 
+
 void RegisterPinUnpin(net_pin_fn pin, net_unpin_fn unpin);
+
+void RegisterDataObjectType(dataobject_type_t tag, std::string name, fn_DataObjectDump_t dump_func);
+void DeregisterDataObjectType(dataobject_type_t tag);
+bool DumpDataObject(const DataObject &ldo, faodel::ReplyStream &rs);
+
+std::vector<std::string> AvailableAllocators();
+std::vector<std::string> AvailableCores();
 
 } // namespace lunasa
 

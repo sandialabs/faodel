@@ -12,10 +12,10 @@
 
 #include "gtest/gtest.h"
 
-#include "common/Common.hh"
+#include "faodel-common/Common.hh"
 #include "lunasa/Lunasa.hh"
 #include "opbox/OpBox.hh"
-#include "opbox/services/dirman/DirectoryManager.hh"
+#include "dirman/DirMan.hh"
 #include "kelpie/Kelpie.hh"
 
 #include "webhook/Server.hh"
@@ -42,15 +42,11 @@ Params P = { 2, 10, 20*1024 };
 string default_config_string = R"EOF(
 # Note: node_role is defined when we determine if this is a client or a server
 # default to using mpi, but allow override in config file pointed to by FAODEL_CONFIG
-nnti.transport.name                           mpi
-config.additional_files.env_name.if_defined   FAODEL_CONFIG
 
 dirman.root_role rooter
 dirman.type centralized
 
 target.dirman.host_root
-
-
 
 # MPI tests will need to have a standard networking base
 #kelpie.type standard
@@ -63,18 +59,54 @@ target.dirman.host_root
 
 )EOF";
 
+void fn_dumpDummy(const lunasa::DataObject &ldo, faodel::ReplyStream &rs) {
+
+}
+
+void fn_dumpMyFloat(const lunasa::DataObject &ldo, faodel::ReplyStream &rs) {
+
+  auto *x = ldo.GetDataPtr<int *>();
+  int len = ldo.GetDataSize() / sizeof(int);
+
+  rs.mkSection("Test Data Dump");
+
+  rs.tableBegin("Stats", 2);
+  rs.tableTop({"Parameter", "Value"});
+  rs.tableRow({"Number Bytes", to_string(ldo.GetDataSize())});
+  rs.tableRow({"Number of Ints:", to_string(len)});
+  rs.tableEnd();
+
+  rs.tableBegin("Data Values", 2);
+  rs.tableTop({"ID", "val[ID]", "val[ID+1]", "val[ID+2]", "val[ID+3]"});
+  for(int i = 0; i < len; i += 4) {
+    vector<string> line;
+    line.push_back(to_string(i));
+    for(int j = 0; j < 4; j++)
+      line.push_back((i + j < len) ? to_string(x[i + j]) : "");
+    rs.tableRow(line);
+  }
+  rs.tableEnd();
+
+}
 
 class MPIDHTTest : public testing::Test {
 protected:
-  virtual void SetUp() {
+  void SetUp() override {
     dht_full  = kelpie::Connect("dht:/dht_full");
     dht_front = kelpie::Connect("dht:/dht_front_half");
     dht_back  = kelpie::Connect("dht:/dht_back_half");
     dht_single_self  = kelpie::Connect("dht:/dht_single_self");
     dht_single_other = kelpie::Connect("dht:/dht_single_other");
     my_id = net::GetMyID();
+    lunasa::RegisterDataObjectType(faodel::const_hash16("TestData"),"TestData", fn_dumpMyFloat);
+    lunasa::RegisterDataObjectType(faodel::const_hash16("Dummy"),   "Dummy",    fn_dumpDummy);
+
   }
-  virtual void TearDown(){}
+
+  void TearDown() override {
+    lunasa::DeregisterDataObjectType(faodel::const_hash16("TestData"));
+    lunasa::DeregisterDataObjectType(faodel::const_hash16("Dummy"));
+  }
   kelpie::Pool dht_full;
   kelpie::Pool dht_front;
   kelpie::Pool dht_back;
@@ -84,8 +116,11 @@ protected:
   int rc;
 };
 
+
 lunasa::DataObject generateLDO(int num_words, uint32_t start_val){
-  lunasa::DataObject ldo(0, num_words*sizeof(int), lunasa::DataObject::AllocatorType::eager);
+  lunasa::DataObject ldo(0, num_words*sizeof(int), lunasa::DataObject::AllocatorType::eager,
+                         faodel::const_hash16("TestData"));
+
   int *x = static_cast<int *>(ldo.GetDataPtr());
   for(int i=0; i <num_words; i++)
     x[i]=start_val+i;
@@ -235,23 +270,42 @@ void checkWantUnbounded(kelpie::Pool dht, const vector<pair<kelpie::Key, lunasa:
 
 }
 
-// Sanity check: This test just checks to make sure the dhts are setup correctly
+TEST_F(MPIDHTTest, VerifySaneWebhookIP) {
+  //If webhook chose the wrong port, it can get a bad ip address
+
+  EXPECT_TRUE( my_id.Valid() );
+  EXPECT_TRUE( my_id.ValidIP() );  //Most likely to break if webhook.interfaces is bad
+  EXPECT_TRUE( my_id.ValidPort() );
+}
+
+
+// Sanity check: This test just checks to make sure the dhts are setup correctly. If these
+// are note right, then you'll get a lot of errors about whether things are local or remote.
+// The most common problem is that webhook grabbed the wrong IP card and it has a bad
+// IP address (see sanity check above). To fix, set "webhook.interfaces" in FAODEL_CONFIG. 
 TEST_F(MPIDHTTest, CheckDHTs) {
 
   auto di  = dht_full.GetDirectoryInfo();
-  auto dif = dht_front.GetDirectoryInfo();
-  auto dib = dht_back.GetDirectoryInfo();
-  auto dis = dht_single_self.GetDirectoryInfo();
-  auto dio = dht_single_other.GetDirectoryInfo();
+  auto di_front = dht_front.GetDirectoryInfo();
+  auto di_back = dht_back.GetDirectoryInfo();
+  auto di_self = dht_single_self.GetDirectoryInfo();
+  auto di_other = dht_single_other.GetDirectoryInfo();
   
   EXPECT_EQ(G.mpi_size,   di.children.size());
-  EXPECT_EQ(G.mpi_size/2, dif.children.size());
-  EXPECT_EQ(G.mpi_size - G.mpi_size/2, dib.children.size());
-  EXPECT_EQ(1, dis.children.size());
-  EXPECT_EQ(1, dio.children.size());
+  EXPECT_EQ(G.mpi_size/2, di_front.children.size());
+  EXPECT_EQ(G.mpi_size - G.mpi_size/2, di_back.children.size());
+  EXPECT_EQ(1, di_self.children.size());
+  EXPECT_EQ(1, di_other.children.size());
 
-  if(dis.children.size()==1) EXPECT_EQ(my_id, dis.children[0].node);
-  if(dio.children.size()==1) EXPECT_EQ(G.nodes[G.mpi_size-1], dio.children[0].node);
+  if(di_self.children.size()==1) EXPECT_EQ(my_id, di_self.children[0].node);
+  if(di_other.children.size()==1) EXPECT_EQ(G.nodes[G.mpi_size-1], di_other.children[0].node);
+
+  //Verify our node is actually in self lists. Assumes we're rank 0 (see main).
+  EXPECT_TRUE(  di.ContainsNode(my_id) );
+  EXPECT_TRUE(  di_front.ContainsNode(my_id) );
+  EXPECT_FALSE( di_back.ContainsNode(my_id) );
+  EXPECT_TRUE(  di_self.ContainsNode(my_id) );
+  EXPECT_FALSE( di_other.ContainsNode(my_id) );
 }
 
 
@@ -448,7 +502,8 @@ void targetLoop(){
 }
 
 int main(int argc, char **argv){
-
+  int rc=0;
+  
   ::testing::InitGoogleTest(&argc, argv);
 
   //Insert any Op registrations here
@@ -457,14 +512,15 @@ int main(int argc, char **argv){
   config.AppendFromReferences();
   G.StartAll(argc, argv, config);
 
+  assert(G.mpi_size >= 4 && "mpi_kelpie_dht needs to be 4 or larger");
 
   if(G.mpi_rank==0){
     //Register the dht
-    opbox::DirectoryInfo dir_info1("dht:/dht_full",         "This is My DHT");
-    opbox::DirectoryInfo dir_info2("dht:/dht_front_half",   "This DHT is on the first half of ranks");
-    opbox::DirectoryInfo dir_info3("dht:/dht_back_half",    "This DHT is on the second half of ranks");
-    opbox::DirectoryInfo dir_info4("dht:/dht_single_self",  "Single node, same as writer");
-    opbox::DirectoryInfo dir_info5("dht:/dht_single_other", "Single node, different than writer");
+    DirectoryInfo dir_info1("dht:/dht_full",         "This is My DHT");
+    DirectoryInfo dir_info2("dht:/dht_front_half",   "This DHT is on the first half of ranks");
+    DirectoryInfo dir_info3("dht:/dht_back_half",    "This DHT is on the second half of ranks");
+    DirectoryInfo dir_info4("dht:/dht_single_self",  "Single node, same as writer");
+    DirectoryInfo dir_info5("dht:/dht_single_other", "Single node, different than writer");
     
     for(int i=0; i<G.mpi_size; i++){
       dir_info1.Join(G.nodes[i]);
@@ -473,19 +529,20 @@ int main(int argc, char **argv){
       if(i==0)             dir_info4.Join(G.nodes[i]);
       if(i==G.mpi_size-1)  dir_info5.Join(G.nodes[i]);
     }
-    opbox::dirman::HostNewDir(dir_info1);
-    opbox::dirman::HostNewDir(dir_info2);
-    opbox::dirman::HostNewDir(dir_info3);
-    opbox::dirman::HostNewDir(dir_info4);
-    opbox::dirman::HostNewDir(dir_info5);
+    dirman::HostNewDir(dir_info1);
+    dirman::HostNewDir(dir_info2);
+    dirman::HostNewDir(dir_info3);
+    dirman::HostNewDir(dir_info4);
+    dirman::HostNewDir(dir_info5);
     
     faodel::nodeid_t n2 = net::GetMyID();
 
-    int rc = RUN_ALL_TESTS();
+    rc = RUN_ALL_TESTS();
     sleep(1);
   } else {
     targetLoop();
     sleep(1);
   }
   G.StopAll();
+  return rc;
 }

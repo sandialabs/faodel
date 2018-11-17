@@ -4,8 +4,8 @@
 
 #include <assert.h>
 
-#include "common/Common.hh"
-#include "support/Globals.hh"
+#include "faodel-common/Common.hh"
+#include "Globals.hh"
 
 using namespace std;
 using namespace faodel;

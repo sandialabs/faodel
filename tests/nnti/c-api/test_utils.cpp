@@ -14,9 +14,9 @@
 
 #include <assert.h>
 
-#include "common/Configuration.hh"
-#include "common/Bootstrap.hh"
-#include "common/NodeID.hh"
+#include "faodel-common/Configuration.hh"
+#include "faodel-common/Bootstrap.hh"
+#include "faodel-common/NodeID.hh"
 
 #include "webhook/Server.hh"
 
@@ -27,12 +27,11 @@
 
 std::string default_config_string = R"EOF(
 nnti.transport.name                           mpi
-config.additional_files.env_name.if_defined   FAODEL_CONFIG
 )EOF";
 
 extern "C"
 void
-test_bootstrap(void)
+test_bootstrap_start(void)
 {
     faodel::Configuration config;
 
@@ -40,6 +39,14 @@ test_bootstrap(void)
     config.AppendFromReferences();
 
     faodel::bootstrap::Start(config, webhook::bootstrap);
+
+}
+
+extern "C"
+void
+test_bootstrap_finish(void)
+{
+    faodel::bootstrap::Finish();
 
 }
 

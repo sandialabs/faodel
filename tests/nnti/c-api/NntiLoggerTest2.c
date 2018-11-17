@@ -34,7 +34,7 @@ main(int argc, char *argv[])
     setenv("NNTI_LOG_FILEPER", "0", 1);
     setenv("NNTI_LOG_LEVEL", "DEBUG", 1);
 
-    test_bootstrap();
+    test_bootstrap_start();
 
     rc = NNTI_init(transport_id, req_url, &transport);
     assert(rc==NNTI_OK);
@@ -53,6 +53,7 @@ main(int argc, char *argv[])
     log_debug("NntiLoggetTest2", "my_url=%s", my_url);
 
     NNTI_fini(transport);
+    test_bootstrap_finish();
 
     if (stat(log_filename, &sb) == -1) {
         perror("stat");

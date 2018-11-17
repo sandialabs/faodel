@@ -1,3 +1,6 @@
+#ifndef FAODEL_FAODELCONFIG_HH
+#define FAODEL_FAODELCONFIG_HH
+
 #define @PROJECT_NAME@_MAJOR_VERSION @PROJECT_VERSION_MAJOR@
 #define @PROJECT_NAME@_MINOR_VERSION @PROJECT_VERSION_MINOR@
 #define @PROJECT_NAME@_PATCH_VERSION @PROJECT_VERSION_PATCH@
@@ -5,4 +8,72 @@
 #define @PROJECT_NAME@_VERSION       @PROJECT_VERSION@
 #define  PROJECT_NAME                @PROJECT_NAME@
 
-#cmakedefine USE_MPI
+/*
+ *  Record variables needed for a configuration summary here
+ */
+#cmakedefine Faodel_ENABLE_MPI_SUPPORT
+
+/* Compiler Info */
+#cmakedefine CMAKE_CXX_COMPILER_ID      @CMAKE_CXX_COMPILER_ID@
+#cmakedefine CMAKE_CXX_COMPILER_VERSION @CMAKE_CXX_COMPILER_VERSION@
+
+/* External Programs Info */
+#cmakedefine01 DOXYGEN_FOUND
+#cmakedefine   DOXYGEN_VERSION        @DOXYGEN_VERSION@
+
+/* TPL Info */
+#cmakedefine01 Kokkos_FOUND
+#cmakedefine01 LIBHIO_FOUND
+#cmakedefine01 Boost_FOUND
+#cmakedefine   Boost_VERSION        @Boost_MAJOR_VERSION@.@Boost_MINOR_VERSION@.@Boost_SUBMINOR_VERSION@
+#cmakedefine01 GTest_FOUND
+#cmakedefine01 LIBFABRIC_FOUND
+#cmakedefine   Libfabric_pc_VERSION @Libfabric_pc_VERSION@
+#cmakedefine01 UGNI_FOUND
+#cmakedefine   UGNI_PC_VERSION      @UGNI_PC_VERSION@
+#cmakedefine01 DRC_FOUND
+#cmakedefine01 IBVerbs_FOUND
+
+/* MPI Info */
+#cmakedefine01 MPI_FOUND
+#cmakedefine   MPI_C_VERSION        @MPI_C_VERSION@
+
+/* ************************************************
+ * Linux thread ID configuration
+ * ************************************************ */
+#cmakedefine SBL_HAVE_UNISTD_H 1
+#cmakedefine SBL_HAVE_SYSCALL_H 1
+#cmakedefine SBL_HAVE_GETTID 1
+
+
+/* Faodel Common Info */
+#cmakedefine Faodel_THREADING_MODEL   @Faodel_THREADING_MODEL@
+#cmakedefine Faodel_THREADING_MODEL_PTHREADS   1
+#cmakedefine Faodel_THREADING_MODEL_OPENMP     1
+#cmakedefine01 Faodel_LOGGINGINTERFACE_DISABLED
+#cmakedefine01 Faodel_LOGGINGINTERFACE_USE_SBL
+
+
+/* NNTI Config Info */
+#cmakedefine01 NNTI_BUILD_IBVERBS
+#cmakedefine01 NNTI_BUILD_UGNI
+#cmakedefine01 NNTI_BUILD_MPI
+#cmakedefine01 NNTI_DISABLE_IBVERBS_TRANSPORT
+#cmakedefine01 NNTI_DISABLE_UGNI_TRANSPORT
+#cmakedefine01 NNTI_DISABLE_MPI_TRANSPORT
+#cmakedefine01 NNTI_HAVE_VERBS_EXP_H
+
+/* Lunasa Info */
+#cmakedefine Faodel_ENABLE_TCMALLOC @Faodel_ENABLE_TCMALLOC@
+
+/* Opbox Info */
+#cmakedefine   Faodel_NETWORK_LIBRARY      @Faodel_NETWORK_LIBRARY@
+#cmakedefine01 USE_NNTI
+#cmakedefine01 USE_LIBFABRIC
+
+/* Which network module was selected at configure time? */
+#cmakedefine Faodel_OPBOX_NET_NNTI      1
+#cmakedefine Faodel_OPBOX_NET_LIBFABRIC 1
+
+
+#endif //FAODEL_FAODELCONFIG_HH

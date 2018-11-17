@@ -591,7 +591,7 @@ class TCMallocImplementation : public MallocExtension {
       : extra_bytes_released_(0) {
   }
 
-  virtual void GetStats(char* buffer, int buffer_length) {
+  void GetStats(char* buffer, int buffer_length) override {
     ASSERT(buffer_length > 0);
     TCMalloc_Printer printer(buffer, buffer_length);
 
@@ -604,7 +604,7 @@ class TCMallocImplementation : public MallocExtension {
   }
 
   // We may print an extra, tcmalloc-specific warning message here.
-  virtual void GetHeapSample(MallocExtensionWriter* writer) {
+  void GetHeapSample(MallocExtensionWriter* writer) override {
     if (FLAGS_tcmalloc_sample_parameter == 0) {
       const char* const kWarningMsg =
           "%warn\n"
@@ -619,7 +619,7 @@ class TCMallocImplementation : public MallocExtension {
     MallocExtension::GetHeapSample(writer);
   }
 
-  virtual void** ReadStackTraces(int* sample_period) {
+  void** ReadStackTraces(int* sample_period) override {
     tcmalloc::StackTraceTable table;
     {
       SpinLockHolder h(Static::pageheap_lock());
@@ -632,15 +632,15 @@ class TCMallocImplementation : public MallocExtension {
     return table.ReadStackTracesAndClear(); // grabs and releases pageheap_lock
   }
 
-  virtual void** ReadHeapGrowthStackTraces() {
+  void** ReadHeapGrowthStackTraces() override {
     return DumpHeapGrowthStackTraces();
   }
 
-  virtual void Ranges(void* arg, RangeFunction func) {
+  void Ranges(void* arg, RangeFunction func) override {
     IterateOverRanges(arg, func);
   }
 
-  virtual bool GetNumericProperty(const char* name, size_t* value) {
+  bool GetNumericProperty(const char* name, size_t* value) override {
     ASSERT(name != NULL);
 
     if (strcmp(name, "generic.current_allocated_bytes") == 0) {
@@ -725,7 +725,7 @@ class TCMallocImplementation : public MallocExtension {
     return false;
   }
 
-  virtual bool SetNumericProperty(const char* name, size_t value) {
+  bool SetNumericProperty(const char* name, size_t value) override {
     ASSERT(name != NULL);
 
     if (strcmp(name, "tcmalloc.max_total_thread_cache_bytes") == 0) {
@@ -742,23 +742,23 @@ class TCMallocImplementation : public MallocExtension {
     return false;
   }
 
-  virtual void MarkThreadIdle() {
+  void MarkThreadIdle() override {
     ThreadCache::BecomeIdle();
   }
 
-  virtual void MarkThreadBusy();  // Implemented below
+  void MarkThreadBusy() override;  // Implemented below
 
   virtual SysAllocator* GetSystemAllocator() {
     SpinLockHolder h(Static::pageheap_lock());
     return sys_alloc;
   }
 
-  virtual void SetSystemAllocator(SysAllocator* alloc) {
+  void SetSystemAllocator(SysAllocator* alloc) override {
     SpinLockHolder h(Static::pageheap_lock());
     sys_alloc = alloc;
   }
 
-  virtual void ReleaseToSystem(size_t num_bytes) {
+  void ReleaseToSystem(size_t num_bytes) override {
     SpinLockHolder h(Static::pageheap_lock());
     if (num_bytes <= extra_bytes_released_) {
       // We released too much on a prior call, so don't release any
@@ -783,14 +783,15 @@ class TCMallocImplementation : public MallocExtension {
     }
   }
 
-  virtual void SetMemoryReleaseRate(double rate) {
+  void SetMemoryReleaseRate(double rate) override {
     FLAGS_tcmalloc_release_rate = rate;
   }
 
-  virtual double GetMemoryReleaseRate() {
+  double GetMemoryReleaseRate() override {
     return FLAGS_tcmalloc_release_rate;
   }
-  virtual size_t GetEstimatedAllocatedSize(size_t size) {
+
+  size_t GetEstimatedAllocatedSize(size_t size) override {
     if (size <= kMaxSize) {
       const size_t cl = Static::sizemap()->SizeClass(size);
       const size_t alloc_size = Static::sizemap()->ByteSizeForClass(cl);
@@ -803,12 +804,12 @@ class TCMallocImplementation : public MallocExtension {
   // This just calls GetSizeWithCallback, but because that's in an
   // unnamed namespace, we need to move the definition below it in the
   // file.
-  virtual size_t GetAllocatedSize(const void* ptr);
+  size_t GetAllocatedSize(const void* ptr) override;
 
   // This duplicates some of the logic in GetSizeWithCallback, but is
   // faster.  This is important on OS X, where this function is called
   // on every allocation operation.
-  virtual Ownership GetOwnership(const void* ptr) {
+  Ownership GetOwnership(const void* ptr) override {
     const PageID p = reinterpret_cast<uintptr_t>(ptr) >> kPageShift;
     // The rest of tcmalloc assumes that all allocated pointers use at
     // most kAddressBits bits.  If ptr doesn't, then it definitely
@@ -824,7 +825,7 @@ class TCMallocImplementation : public MallocExtension {
     return span ? kOwned : kNotOwned;
   }
 
-  virtual void GetFreeListSizes(vector<MallocExtension::FreeListInfo>* v) {
+  void GetFreeListSizes(vector<MallocExtension::FreeListInfo>* v) override {
     static const char* kCentralCacheType = "tcmalloc.central";
     static const char* kTransferCacheType = "tcmalloc.transfer";
     static const char* kThreadCacheType = "tcmalloc.thread";

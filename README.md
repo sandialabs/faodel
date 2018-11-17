@@ -16,6 +16,9 @@ FAODEL is composed of multiple libraries:
   between compute nodes in a platform. It utilizes out-of-band RDMA
   communication to enable different MPI jobs to interact with each
   other.
+- [DirMan](src/dirman/README_DirMan.md): DirMan is a service for 
+  managing runtime information (e.g., a list of nodes that make up
+  a pool for storing data).
 - [OpBox](src/opbox/README_OpBox.md): OpBox is a communication engine
   responsible for orchestrating complex communication patterns in a
   distributed system. Rather than use traditional remote-procedure
@@ -36,7 +39,9 @@ FAODEL is composed of multiple libraries:
 - [WebHook](src/webhook/README_WebHook.md): WebHook is a network service for
   FAODEL nodes that enables users and applications to query
   and change the state of a node via an HTTP connection.
-- [Common](src/common/README_Common.md): Common is a collection of data types
+- [Services](src/faodel-services/README_Services.md): Basic services that make it
+  easier to write communication applications.  
+- [Common](src/faodel-common/README_Common.md): Common is a collection of data types
   and software functions that are used throughout FAODEL.
 - [SBL](src/sbl/README_SBL.md): The Simplified Boost Logging (SBL) library
   provides a way to map log information in FAODEL components to

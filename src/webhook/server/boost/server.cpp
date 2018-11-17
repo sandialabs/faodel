@@ -8,8 +8,8 @@
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
 
-#include "common/NodeID.hh"
-#include "common/Bootstrap.hh"
+#include "faodel-common/NodeID.hh"
+#include "faodel-common/Bootstrap.hh"
 
 #include "webhook/Server.hh"
 #include "webhook/server/boost/server.hpp"
@@ -31,15 +31,7 @@ server::server()
   : LoggingInterface("webhook"),
     configured_(false),
     port_(0),
-    num_starters_(0),
-    io_service_(),
-    signals_(io_service_),
-    acceptor_(io_service_),
-    connection_manager_(),
-    socket_(io_service_),
-    request_handler_() {
-
-  do_await_stop();
+    num_starters_(0) {
 
   //faodel::bootstrap::RegisterComponent(this);
 
@@ -86,28 +78,31 @@ void server::Init(const faodel::Configuration &config){
 
   config.GetAllSettings(&config_entries); //Copy all of the config settings for display
 
-  dbg("requested_address "+address);
-  dbg("requested_port "+to_string(port));
+  asio_ = new asio_resources();
+  do_await_stop();
 
   webhook::Server::updateHook("/config", [this] (const map<string,string> &args, stringstream &results) {
       return HandleWebhookConfig(args, results);
     });
 
+  webhook::Server::updateHook("/bootstraps", [this] (const map<string,string> &args, stringstream &results) {
+      return HandleWebhookBootstrap(args, results);
+  });
 
   //Start the server. This is the only service that should fire up in Init,
   //because we need nodeid to be valid asap.
-  info("Starting on requested "+requested_address+":"+to_string(requested_port));
+  dbg("Requesting "+requested_address+":"+to_string(requested_port));
   start(requested_address, requested_port);
-  dbg("Webhook running at "+my_nodeid.GetHttpLink());
+  info("Running at "+my_nodeid.GetHttpLink());
 
-  faodel::bootstrap::SetNodeID(my_nodeid);
+  faodel::bootstrap::setNodeID(faodel::internal_use_only, my_nodeid);
   
 }
 
 
 
 void server::HandleWebhookConfig(const map<string,string> &args, stringstream &results){
-  webhook::ReplyStream rs(args, "Webhook Configuration Settings", &results);
+  faodel::ReplyStream rs(args, "Webhook Configuration Settings", &results);
 
   rs.tableBegin("Webhook Node Info",2);
   rs.tableTop({"Parameter", "Value"});
@@ -136,6 +131,12 @@ void server::HandleWebhookConfig(const map<string,string> &args, stringstream &r
   rs.Finish();
 }
 
+void server::HandleWebhookBootstrap(const map<string,string> &args, stringstream &results) {
+  faodel::ReplyStream rs(args, "Bootstrap", &results);
+  faodel::bootstrap::dumpInfo(rs);
+
+}
+
 void server::Start(){
   //Normally this would start the service, but it should already
   //have started in Init in order to guarantee GetNodeID works
@@ -161,6 +162,7 @@ int server::start(const std::string &address, unsigned int port){
   //See if we're already running on a port. If so, hand back port number
   if(configured_){
     rc=port_;
+    //cout <<"Already running on port "<<port_<<endl;
     configured_mutex_.unlock();
     return rc;
   }
@@ -172,23 +174,23 @@ int server::start(const std::string &address, unsigned int port){
     ssport<<port;
     try{
       //cout <<"Trying port "<<ssport.str()<<endl;
-      boost::asio::ip::tcp::resolver resolver(io_service_);
+      boost::asio::ip::tcp::resolver resolver(asio_->io_service_);
       boost::asio::ip::tcp::endpoint endpoint = *resolver.resolve({address, ssport.str()});
-      acceptor_.open(endpoint.protocol());
-      acceptor_.set_option(boost::asio::ip::tcp::acceptor::reuse_address(true));
-      acceptor_.bind(endpoint);
-      acceptor_.listen();
+      asio_->acceptor_.open(endpoint.protocol());
+      asio_->acceptor_.set_option(boost::asio::ip::tcp::acceptor::reuse_address(true));
+      asio_->acceptor_.bind(endpoint);
+      asio_->acceptor_.listen();
       do_accept();
       ok=true;
     } catch(exception &e){
       //cout <<"Exception "<<e.what()<<" (port="<<ssport.str()<<")"<<endl;
-      acceptor_.close();
+      asio_->acceptor_.close();
       ok=false;
     }
     if(!ok) port++;
   } while(!ok);
 
-  //cout<<"Opened on port "<<port<<endl;  
+  //cout<<"Opened on port "<<port<<endl;
 
   configured_=true;
   port_ = port;
@@ -202,13 +204,13 @@ int server::start(const std::string &address, unsigned int port){
 }
 
 std::string server::hostname(void){
-    return acceptor_.local_endpoint().address().to_string();
+    return asio_->acceptor_.local_endpoint().address().to_string();
 }
 unsigned long server::address(void){
-    return acceptor_.local_endpoint().address().to_v4().to_ulong();
+    return asio_->acceptor_.local_endpoint().address().to_v4().to_ulong();
 }
 unsigned int server::port(void){
-    return acceptor_.local_endpoint().port();
+    return asio_->acceptor_.local_endpoint().port();
 }
 
 
@@ -218,7 +220,8 @@ void server::run()
   // have finished. While the server is running, there is always at least one
   // asynchronous operation outstanding: the asynchronous accept call waiting
   // for new incoming connections.
-  io_service_.run();
+  asio_->io_service_.run();
+  //cout << "asio_->io_service_.run() has exited" << endl;
 }
 
 // adapted from the Linux getifaddrs(3) manpage
@@ -262,18 +265,18 @@ std::string server::search_interfaces(std::string interfaces) {
 
 void server::do_accept()
 {
-  acceptor_.async_accept(socket_,
+  asio_->acceptor_.async_accept(asio_->socket_,
       [this](boost::system::error_code ec)
       {
         // Check whether the server was stopped by a signal before this
         // completion handler had a chance to run.
-        if (!acceptor_.is_open()){
+        if (!asio_->acceptor_.is_open()){
           return;
         }
 
         if (!ec) {
-          connection_manager_.start(std::make_shared<connection>(
-              std::move(socket_), connection_manager_, request_handler_));
+          asio_->connection_manager_.start(std::make_shared<connection>(
+              std::move(asio_->socket_), asio_->connection_manager_, asio_->request_handler_));
         }
 
         do_accept();
@@ -282,14 +285,14 @@ void server::do_accept()
 
 void server::do_await_stop()
 {
-  signals_.async_wait(
+  asio_->signals_.async_wait(
       [this](boost::system::error_code /*ec*/, int /*signo*/)
       {
-        // The server is stopped by cancelling all outstanding asynchronous
+        // The server is stopped by canceling all outstanding asynchronous
         // operations. Once all operations have finished the io_service::run()
         // call will exit.
-        acceptor_.close();
-        connection_manager_.stop_all();
+        asio_->acceptor_.close();
+        asio_->connection_manager_.stop_all();
       });
 }
 
@@ -300,12 +303,16 @@ int server::stop(){
     num_starters_--;
 
     if(num_starters_==0){
+      //cout << "Stopping webhook on port " << port_ << endl;
       do_await_stop(); //Kill all the connections
-      io_service_.stop(); //Must manually stop    
+      asio_->io_service_.stop(); //Must manually stop
+      //cout << "Joining webhook thread " << th_http_server_.get_id() << endl;
       th_http_server_.join();
+      delete asio_;
       configured_=false;
     }
   }
+  //cout << "num_starters_ is " << num_starters_ << endl;
   configured_mutex_.unlock();
   return num_starters_;
 }
@@ -314,6 +321,7 @@ bool server::IsRunning(){
   bool is_running;
   configured_mutex_.lock();
   is_running = configured_;
+  //cout << "webhook running? " << configured_ << endl;
   configured_mutex_.unlock();
   return is_running;
 }

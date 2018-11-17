@@ -14,9 +14,9 @@
 #include <thread>
 
 #include "webhook/Server.hh"
-#include "webhook/common/QuickHTML.hh"
+#include "faodel-common/QuickHTML.hh"
 
-#include "common/Common.hh"
+#include "faodel-common/Common.hh"
 
 using namespace std;
 

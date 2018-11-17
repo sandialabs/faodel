@@ -31,8 +31,8 @@ void ex2_publish_and_need(){
        << " data="<<ldo1.GetDataSize() <<endl;
 
   //Fill in each ldo with different data values
-  int *data1 = static_cast<int *>(ldo1.GetDataPtr());
-  int *data2 = static_cast<int *>(ldo2.GetDataPtr());
+  int *data1 = ldo1.GetDataPtr<int *>();
+  int *data2 = ldo2.GetDataPtr<int *>();
   for(int i=0; i<num_words; i++) {
     data1[i]=i;
     data2[i]=1000+i;

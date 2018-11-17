@@ -9,10 +9,7 @@
 #include <map>
 #include <functional>
 
-#include "common/Common.hh"
-
-#include "webhook/common/ReplyStream.hh"
-
+#include "faodel-common/Common.hh"
 
 
 namespace webhook {

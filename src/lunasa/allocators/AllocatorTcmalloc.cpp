@@ -17,21 +17,21 @@
 #endif
 
 using namespace std;
-namespace lunasa {
 
+namespace lunasa {
+namespace internal {
 
 // !!!! TODO: manage statistics properly !!!!
 unsigned long bytes = 0;
 
 /* This is the method that the core tcmalloc code uses to request more memory. */
-void *AllocatorTcmalloc::TcmallocSysAllocator::Alloc(size_t size, size_t *actual_size, size_t alignment)
-{
+void *AllocatorTcmalloc::TcmallocSysAllocator::Alloc(size_t size, size_t *actual_size, size_t alignment) {
   int rc = 0;
   void *memory;
 
   bytes += size;
   *actual_size = size;
-  rc = posix_memalign(&memory, 8*1024, size);
+  rc = posix_memalign(&memory, 8 * 1024, size);
   assert(rc == 0);
   AllocatorTcmalloc *tcmalloc = GetInstance();
   assert(tcmalloc != NULL);
@@ -39,18 +39,17 @@ void *AllocatorTcmalloc::TcmallocSysAllocator::Alloc(size_t size, size_t *actual
 
   // if eager, this memory needs to be pinned
   void *pinnedPtr;
-  if( tcmalloc->mEagerPinning ) {
+  if(tcmalloc->mEagerPinning) {
     tcmalloc->mPinFunc(memory, size, pinnedPtr);
     tcmalloc->AddPinnedRegion(memory, size, pinnedPtr);
   }
-  return memory; 
+  return memory;
 }
 
 // Only one instance of this allocator may exist per address space.  
 
-AllocatorTcmalloc::AllocatorTcmalloc(const faodel::Configuration &config, bool eagerPinning) 
-  : AllocatorBase(config, "Tcmalloc", eagerPinning) 
-{
+AllocatorTcmalloc::AllocatorTcmalloc(const faodel::Configuration &config, bool eagerPinning)
+        : AllocatorBase(config, "Tcmalloc", eagerPinning) {
   dbg("AllocatorTcmalloc ctor()");
 
   size_t bytes_allocated = 0;
@@ -64,7 +63,7 @@ AllocatorTcmalloc::AllocatorTcmalloc(const faodel::Configuration &config, bool e
   sa = MallocExtension::instance()->GetSystemAllocator();
   tcmalloc_allocator = dynamic_cast<AllocatorTcmalloc::TcmallocSysAllocator *>(sa);
 
-  if( tcmalloc_allocator == NULL ) {
+  if(tcmalloc_allocator == NULL) {
     // FLUSH any memory that was requested from the system during initialization but was not allocated.
     // All subsequent allocation requests should be handled by using memory obtained with our custom
     // allocator.  We accomplish this by requesting an allocation that is equal to the unallocated memory.
@@ -73,7 +72,7 @@ AllocatorTcmalloc::AllocatorTcmalloc(const faodel::Configuration &config, bool e
 
     // By repeatedly allocating from the smallest size class, we'll eventually pull in all of the free memory 
     // from all of the size classes. 
-    for( int i = 0; i < (bytes_managed-bytes_allocated)/8; i ++ ) {
+    for(size_t i=0; i < (bytes_managed - bytes_allocated) / 8; i++) {
       tc_malloc(8);
     }
 
@@ -89,9 +88,9 @@ AllocatorTcmalloc::~AllocatorTcmalloc() {
   mutex->WriterLock();
   bool danglingRefs = false;
   //Walk through any remaining allocations and free them
-  for( auto &alloc_ptr : allocations ) {
-    if( alloc_ptr->GetRefCount() > 1 ) danglingRefs=true;
-    if( alloc_ptr->local.net_buffer_handle ) {
+  for(auto &alloc_ptr : allocations) {
+    if(alloc_ptr->GetRefCount() > 1) danglingRefs = true;
+    if(alloc_ptr->local.net_buffer_handle) {
       mUnpinFunc(alloc_ptr->local.net_buffer_handle);
     }
     free(alloc_ptr);
@@ -99,7 +98,7 @@ AllocatorTcmalloc::~AllocatorTcmalloc() {
   allocations.clear();
   instance = NULL;
   mutex->Unlock();
-  
+
   if(danglingRefs) {
     // TODO throw exceptions 
     cerr << "Warning: Lunasa allocator being destroyed but dangling references remain to LDOs\n";
@@ -114,16 +113,15 @@ AllocatorTcmalloc *AllocatorTcmalloc::instance = NULL;
    either eagerly-allocated memory or lazily-allocated memory, but not both.  There's certainly a way to do 
    this without using a singleton (e.g., with a static variable).  However, given the underlying constraints, 
    it's not clear that there is a clear advantage to *not* using a Singleton.  [sll] */
-  
-AllocatorTcmalloc *AllocatorTcmalloc::GetInstance(const faodel::Configuration &config, bool eagerPinning) 
-{
-  if( instance == NULL ) {
+
+AllocatorTcmalloc *AllocatorTcmalloc::GetInstance(const faodel::Configuration &config, bool eagerPinning) {
+  if(instance == NULL) {
     /* No instance yet exists, construct one. */
     instance = new AllocatorTcmalloc(config, eagerPinning);
-  } else if (instance->mEagerPinning != eagerPinning ) {//||
-           //instance->mThreadingModel != threading_model ||
-           //instance->mMutexType != mutex_type) {
-           //TODO: fix above checks, now that config holds mutex info. Previously passed in mutex_type and threading_model
+  } else if(instance->mEagerPinning != eagerPinning) {//||
+    //instance->mThreadingModel != threading_model ||
+    //instance->mMutexType != mutex_type) {
+    //TODO: fix above checks, now that config holds mutex info. Previously passed in mutex_type and threading_model
     /* Requested instance doesn't match existing instance. */
     cerr << "ERROR: Attempt to create multiple instances of tcmalloc allocator\n";
     return NULL;
@@ -132,20 +130,18 @@ AllocatorTcmalloc *AllocatorTcmalloc::GetInstance(const faodel::Configuration &c
   return instance;
 }
 
-AllocatorTcmalloc *AllocatorTcmalloc::GetInstance() 
-{
+AllocatorTcmalloc *AllocatorTcmalloc::GetInstance() {
   return instance;
 }
 
-allocation_t *AllocatorTcmalloc::Allocate(uint32_t capacity)
-{
-  if( allocator_has_been_shutdown ) {
+Allocation *AllocatorTcmalloc::Allocate(uint32_t user_capacity) {
+  if(allocator_has_been_shutdown) {
     cerr << "WARNING: attempting to allocate memory after allocator shutdown" << endl;
     return nullptr;
   }
 
-  int total_capacity = capacity + sizeof(allocation_t);
-  allocation_t *alloc = static_cast<allocation_t *>(tc_malloc(total_capacity));
+  int total_capacity = user_capacity + sizeof(Allocation);
+  Allocation *alloc = static_cast<Allocation *>(tc_malloc(total_capacity));
 
   /* RECORD where the allocation came from. */
   alloc->local.allocator = this;
@@ -157,15 +153,14 @@ allocation_t *AllocatorTcmalloc::Allocate(uint32_t capacity)
   // Add to the set
   mutex->WriterLock();
   mTotalAllocated += total_capacity;
-  mTotalUsed += capacity;
+  mTotalUsed += user_capacity;
   allocations.insert(alloc);
   mutex->Unlock();
 
   return alloc;
 }
 
-void AllocatorTcmalloc::Free(allocation_t *allocation) 
-{
+void AllocatorTcmalloc::Free(Allocation *allocation) {
   //cerr <<"------> Free item "<<std::hex <<(uint64_t)allocation << std::dec << endl;
   //std::cerr << "pre-free list:\n";
   //PrintAllocations(allocations);
@@ -175,7 +170,7 @@ void AllocatorTcmalloc::Free(allocation_t *allocation)
   auto it = allocations.find(allocation);
   mutex->Unlock();
 
-  if( it == allocations.end() ) {
+  if(it == allocations.end()) {
     throw LunasaConfigurationException("Invalid FREE; Unrecognized allocation");
   }
 
@@ -183,12 +178,11 @@ void AllocatorTcmalloc::Free(allocation_t *allocation)
   allocations.erase(it);
   mutex->Unlock();
 
-  if( mEagerPinning == false && allocation->local.net_buffer_handle!=nullptr)
-  {
+  if(mEagerPinning == false && allocation->local.net_buffer_handle != nullptr) {
     mUnpinFunc(allocation->local.net_buffer_handle);
   }
   mTotalAllocated -= allocation->local.allocated_bytes;
-  mTotalUsed -= allocation->local.allocated_bytes - sizeof(allocation_t);
+  mTotalUsed -= allocation->local.allocated_bytes - sizeof(Allocation);
   tc_free(allocation);
 
   mutex->ReaderLock();
@@ -196,7 +190,7 @@ void AllocatorTcmalloc::Free(allocation_t *allocation)
   mutex->Unlock();
 
   //If this was the last allocation and we were shutdown, delete ourself
-  if((is_empty) && (allocator_has_been_shutdown)){
+  if((is_empty) && (allocator_has_been_shutdown)) {
     delete this;
   }
 
@@ -207,56 +201,53 @@ void AllocatorTcmalloc::Free(allocation_t *allocation)
   //PrintAllocations(allocations);
 }
 
-void AllocatorTcmalloc::AddPinnedRegion(void *addr, size_t size, void *pinned_addr)
-{
+void AllocatorTcmalloc::AddPinnedRegion(void *addr, size_t size, void *pinned_addr) {
   mutex->WriterLock();
-  pinned_regions[addr] = std::pair<size_t, void *>(size, pinned_addr); 
+  pinned_regions[addr] = std::pair<size_t, void *>(size, pinned_addr);
   mutex->Unlock();
 }
 
-void *AllocatorTcmalloc::GetPinnedAddr(allocation_t *allocation)
-{
+void *AllocatorTcmalloc::GetPinnedAddr(Allocation *allocation) {
   mutex->ReaderLock();
   std::map<void *, std::pair<size_t, void *>>::iterator it;
   it = pinned_regions.lower_bound(allocation);
-  if( it->first != allocation ) {
+  if(it->first != allocation) {
     // We want the predecessor; the largest value that is less than <addr>
     assert(it != pinned_regions.begin());
     it--;
   }
   std::pair<size_t, void *> value = it->second;
-  assert( (char *)allocation >= (char *)it->first);
-  assert( (char *)it->first + value.first > (char *)allocation);
+  assert((char *) allocation >= (char *) it->first);
+  assert((char *) it->first + value.first > (char *) allocation);
   mutex->Unlock();
-  
+
   return value.second;
 }
 
-uint64_t AllocatorTcmalloc::GetPinnedOffset(allocation_t *allocation)
-{
+uint64_t AllocatorTcmalloc::GetPinnedOffset(Allocation *allocation) {
   mutex->ReaderLock();
   std::map<void *, std::pair<size_t, void *>>::iterator it;
   it = pinned_regions.lower_bound(allocation);
-  if( it->first != allocation ) {
+  if(it->first != allocation) {
     // We want the predecessor; the largest value that is less than <addr>
     assert(it != pinned_regions.begin());
     it--;
   }
   std::pair<size_t, void *> value = it->second;
-  assert( (char *)allocation >= (char *)it->first);
-  assert( (char *)it->first + value.first > (char *)allocation);
+  assert((char *) allocation >= (char *) it->first);
+  assert((char *) it->first + value.first > (char *) allocation);
 
-  uint64_t offset = (uint64_t)((char *)allocation - (char *)it->first);
+  uint64_t offset = (uint64_t) ((char *) allocation - (char *) it->first);
   mutex->Unlock();
-  return offset;  
+  return offset;
 }
 
-bool AllocatorTcmalloc::SanityCheck() 
-{
+bool AllocatorTcmalloc::SanityCheck() {
   // !!!! TODO !!!!
   return true;
 }
-void AllocatorTcmalloc::PrintState(ostream& stream) {
+
+void AllocatorTcmalloc::PrintState(ostream &stream) {
 /* TODO when malloc.h exists this'll work
   struct mallinfo info = mallinfo();
   stream << "Total Tracked " << info.arena << std::endl;
@@ -280,54 +271,55 @@ bool AllocatorTcmalloc::HasActiveAllocations() const {
 
 /* REPORTS the total number of bytes that have been allocated to satisfy user requests.
    Includes bytes requested for metadata. */
-size_t AllocatorTcmalloc::TotalAllocated () const {
+size_t AllocatorTcmalloc::TotalAllocated() const {
   return mTotalAllocated;
 }
 
 /* REPORTS the total number of bytes managed by the allocator */
-size_t AllocatorTcmalloc::TotalManaged () const {
+size_t AllocatorTcmalloc::TotalManaged() const {
   return mTotalManaged;
 }
 
 /* REPORTS the total number of bytes that are in use (i.e., memory allocated to users
    plus overhead). */
-size_t AllocatorTcmalloc::TotalUsed () const {
+size_t AllocatorTcmalloc::TotalUsed() const {
   return mTotalUsed;
 }
 
 /* REPORTS the total number of bytes that are not currently in use. */
-size_t AllocatorTcmalloc::TotalFree () const {
+size_t AllocatorTcmalloc::TotalFree() const {
   return (mTotalManaged - mTotalUsed);
 }
 
-void AllocatorTcmalloc::webhookMemoryAllocations(webhook::ReplyStream &rs, const string &allocator_name) {
-  rs.tableBegin("Lunasa "+allocator_name+" Memory Allocations");
+void AllocatorTcmalloc::webhookMemoryAllocations(faodel::ReplyStream &rs, const string &allocator_name) {
+  rs.tableBegin("Lunasa " + allocator_name + " Memory Allocations");
   rs.tableTop({"Allocated Bytes", "RefCount", "MetaBytes", "DataBytes"});
   mutex->ReaderLock();
   for(auto &a : allocations) {
     rs.tableRow({
-        to_string(a->local.allocated_bytes),
-        to_string(a->local.ref_count),
-        to_string(a->header.meta_bytes),
-        to_string(a->header.data_bytes)});
+                        to_string(a->local.allocated_bytes),
+                        to_string(a->local.ref_count),
+                        to_string(a->header.meta_bytes),
+                        to_string(a->header.data_bytes)});
   }
   mutex->Unlock();
-  rs.tableEnd();  
+  rs.tableEnd();
 }
 
 void AllocatorTcmalloc::sstr(std::stringstream &ss, int depth, int indent) const {
-  if(depth<0) return;
-  ss << std::string(indent,' ') << "[Allocator] "
-     << " Type: "<<AllocatorType()
-     << " Pinning: "<< ((mEagerPinning) ? string("Eager") : string("Lazy"))
-     << " TotalAllocated: "<< to_string(TotalAllocated())
+  if(depth < 0) return;
+  ss << std::string(indent, ' ') << "[Allocator] "
+     << " Type: " << AllocatorType()
+     << " Pinning: " << ((mEagerPinning) ? string("Eager") : string("Lazy"))
+     << " TotalAllocated: " << to_string(TotalAllocated())
      << endl;
 
-  if(depth<1) return;
-  ss << std::string(indent+2,' ') << "DataObjects:\n";
-  for(int i=0; i<allocations.size(); i++){
-    ss << std::string(indent+6,' ') << "["<<i<<"]: todo";
+  if(depth < 1) return;
+  ss << std::string(indent + 2, ' ') << "DataObjects:\n";
+  for(size_t i = 0; i < allocations.size(); i++) {
+    ss << std::string(indent + 6, ' ') << "[" << i << "]: todo";
   }
 }
 
+} //namespace internal
 } //namespace lunasa

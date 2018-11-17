@@ -5,12 +5,12 @@
 #include "gtest/gtest.h"
 #include <mpi.h>
 
-#include "common/Common.hh"
+#include "faodel-common/Common.hh"
 #include "lunasa/Lunasa.hh"
 #include "lunasa/DataObject.hh"
 
-#include "common/Configuration.hh"
-#include "common/NodeID.hh"
+#include "faodel-common/Configuration.hh"
+#include "faodel-common/NodeID.hh"
 
 #include "webhook/Server.hh"
 
@@ -31,283 +31,257 @@ using namespace std;
 using namespace faodel;
 using namespace lunasa;
 
-string default_config = R"EOF(
+const int URL_SIZE = 128;
 
-server.mutex_type rwlock
+class LunasaSendTest : public testing::Test {
+protected:
+  Configuration config;
+  int mpi_rank, mpi_size;
 
-# default to using mpi, but allow override in config file pointed to by CONFIG
-nnti.transport.name                           mpi
-config.additional_files.env_name.if_defined   FAODEL_CONFIG
+  nnti::transports::transport *transport = nullptr;
+  NNTI_event_queue_t unexpected_eq_;
+  std::promise<int> send_promise, recv_promise;
+  std::future<int> send_future, recv_future;
+  faodel::nodeid_t nodeid = faodel::NODE_UNSPECIFIED;
 
-lunasa.eager_memory_manager tcmalloc
-node_role server
-)EOF";
+  class send_callback_functor {
+  private:
+    std::promise<int> &send_promise;
+  public:
+    send_callback_functor(std::promise<int> &send_promise_) : send_promise(send_promise_) {}
 
-const int URL_SIZE=128;
+    NNTI_result_t operator()(NNTI_event_t *event, void *context) {
+#ifdef DEBUG
+      std::cout << "This is a SEND callback function.  My parameters are event(" << (void*)event
+                << ") and context(" << (void*)context << ")" << std::endl;
+#endif
+      send_promise.set_value(1);
+      return NNTI_EIO;
+    }
+  };
 
-class LunasaSendTest : public testing::Test 
-{
-  protected:
-    Configuration config;
-    int mpi_rank,mpi_size;
-
+  class unexpected_callback {
+  private:
     nnti::transports::transport *transport = nullptr;
-    NNTI_event_queue_t  unexpected_eq_;
-    std::promise<int> send_promise, recv_promise;
-    std::future<int> send_future, recv_future;
-    faodel::nodeid_t nodeid = faodel::NODE_UNSPECIFIED;
+    std::promise<int> &recv_promise;
 
-    class send_callback_functor
-    {
-      private:
-        std::promise<int> &send_promise;
-      public:
-        send_callback_functor(std::promise<int> &send_promise_):send_promise(send_promise_) 
-        {}
-
-        NNTI_result_t operator() (NNTI_event_t *event, void *context)
-        {
-#ifdef DEBUG 
-            std::cout << "This is a SEND callback function.  My parameters are event(" << (void*)event 
-                      << ") and context(" << (void*)context << ")" << std::endl;
+    NNTI_result_t recv_callback_func(NNTI_event_t *event, void *context) {
+#ifdef DEBUG
+      std::cout << "This is a RECV callback function.  My parameters are event(" << (void*)event
+                << ") and context(" << (void*)context << ")" << std::endl;
 #endif
-            send_promise.set_value(1);
-            return NNTI_EIO;
-        }
-    };
 
-    class unexpected_callback
-    {   
-      private:
-        nnti::transports::transport *transport = nullptr;
-        std::promise<int>& recv_promise;
+      NNTI_attrs_t nnti_attrs;
+      transport->attrs(&nnti_attrs);
 
-        NNTI_result_t recv_callback_func(NNTI_event_t *event, void *context)
-        {
-#ifdef DEBUG 
-          std::cout << "This is a RECV callback function.  My parameters are event(" << (void*)event 
-                    << ") and context(" << (void*)context << ")" << std::endl;
-#endif
-            
-          NNTI_attrs_t nnti_attrs;
-          transport->attrs(&nnti_attrs);
-          
-          DataObject memory(nnti_attrs.mtu-nnti_attrs.max_eager_size, 
-                            nnti_attrs.max_eager_size, 
-                            DataObject::AllocatorType::eager);
-          NNTI_buffer_t rdma_buffer;
-          uint32_t rdma_offset = 0;
+      DataObject memory(nnti_attrs.mtu - nnti_attrs.max_eager_size,
+                        nnti_attrs.max_eager_size,
+                        DataObject::AllocatorType::eager);
+      NNTI_buffer_t rdma_buffer;
+      uint32_t rdma_offset = 0;
 
-          std::queue<DataObject::rdma_segment_desc> rdma_segments;
-          memory.GetDataRdmaHandles(rdma_segments);
-          assert(rdma_segments.size() == 1);
-          DataObject::rdma_segment_desc rdma_segment = rdma_segments.front();
-          rdma_buffer = (NNTI_buffer_t)rdma_segment.net_buffer_handle;
-          rdma_offset = rdma_segment.net_buffer_offset;
+      std::queue<DataObject::rdma_segment_desc> rdma_segments;
+      memory.GetDataRdmaHandles(rdma_segments);
+      assert(rdma_segments.size() == 1);
+      DataObject::rdma_segment_desc rdma_segment = rdma_segments.front();
+      rdma_buffer = (NNTI_buffer_t) rdma_segment.net_buffer_handle;
+      rdma_offset = rdma_segment.net_buffer_offset;
 
-          NNTI_event_t e;
-          transport->next_unexpected(rdma_buffer, rdma_offset, &e);
+      NNTI_event_t e;
+      transport->next_unexpected(rdma_buffer, rdma_offset, &e);
 
-          char *msg = ((char*)e.start + e.offset);
-          int length = (*msg++ & 0xff) << 8;
-          length |= (*msg++ & 0xff);
-          assert(length > 0);
-          int seed = (*msg++ & 0xff) << 8;
-          seed |= (*msg++ & 0xff);
+      char *msg = ((char *) e.start + e.offset);
+      int length = (*msg++ & 0xff) << 8;
+      length |= (*msg++ & 0xff);
+      assert(length>0);
+      int seed = (*msg++ & 0xff) << 8;
+      seed |= (*msg++ & 0xff);
 
-          std::srand(seed);
-          for( int i = 0; i < length; i++ ) {
-              char expected = (std::rand() & 0xff);
-              char received = (*msg++ & 0xff);
-              assert(received == expected);
-          }
-          
-          recv_promise.set_value(1);
-          return NNTI_EIO;
-        }
+      std::srand(seed);
+      for(int i = 0; i<length; i++) {
+        char expected = (std::rand() & 0xff);
+        char received = (*msg++ & 0xff);
+        assert(received == expected);
+      }
 
-      public:
-          unexpected_callback(nnti::transports::transport *transport_, std::promise<int>& recv_promise_) : 
-              transport(transport_),  recv_promise(recv_promise_)
-          {}
+      recv_promise.set_value(1);
+      return NNTI_EIO;
+    }
 
-          NNTI_result_t operator() (NNTI_event_t *event, void *context)
-          {
-              recv_callback_func(event, context);
-              return NNTI_OK;
-          }
-    };
+  public:
+    unexpected_callback(nnti::transports::transport *transport_, std::promise<int> &recv_promise_) :
+            transport(transport_), recv_promise(recv_promise_) {}
 
-    class register_memory_func {
-      private:
-        nnti::transports::transport *transport = nullptr;
+    NNTI_result_t operator()(NNTI_event_t *event, void *context) {
+      recv_callback_func(event, context);
+      return NNTI_OK;
+    }
+  };
 
-      public:
-        register_memory_func(nnti::transports::transport *transport_) : transport(transport_)
-        {}
-    
-        void operator() (void *base_addr, size_t length, void *&pinned)
-        {
-          NNTI_buffer_t reg_buf;
-          nnti::datatype::nnti_event_callback null_cb(transport, (NNTI_event_callback_t)0);
+  class register_memory_func {
+  private:
+    nnti::transports::transport *transport = nullptr;
 
-          transport->register_memory(
-              (char *)base_addr,
+  public:
+    register_memory_func(nnti::transports::transport *transport_) : transport(transport_) {}
+
+    void operator()(void *base_addr, size_t length, void *&pinned) {
+      NNTI_buffer_t reg_buf;
+      nnti::datatype::nnti_event_callback null_cb(transport, (NNTI_event_callback_t) 0);
+
+      transport->register_memory(
+              (char *) base_addr,
               length,
               NNTI_BF_LOCAL_WRITE,
-              (NNTI_event_queue_t)0,
+              (NNTI_event_queue_t) 0,
               null_cb,
               nullptr,
               &reg_buf);
-          pinned = (void*)reg_buf;
-        }
-    };
-    
-    class unregister_memory_func {
-      private:
-        nnti::transports::transport *transport = nullptr;
+      pinned = (void *) reg_buf;
+    }
+  };
 
-      public:
-        unregister_memory_func(nnti::transports::transport *transport_) : transport(transport_)
-        {}
-    
-        void operator() (void *&pinned)
-        {
-          NNTI_buffer_t reg_buf = (NNTI_buffer_t)pinned;
-          transport->unregister_memory(reg_buf);
-          pinned = nullptr;
-        }
-    };
-    
-    virtual void SetUp()
-    {
-      send_future = send_promise.get_future();
-      recv_future = recv_promise.get_future();
+  class unregister_memory_func {
+  private:
+    nnti::transports::transport *transport = nullptr;
 
-      MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank);
-      MPI_Comm_size(MPI_COMM_WORLD, &mpi_size);
-      assert(2==mpi_size);
+  public:
+    unregister_memory_func(nnti::transports::transport *transport_) : transport(transport_) {}
 
-      config = Configuration(default_config);
-      config.AppendFromReferences();
+    void operator()(void *&pinned) {
+      NNTI_buffer_t reg_buf = (NNTI_buffer_t) pinned;
+      transport->unregister_memory(reg_buf);
+      pinned = nullptr;
+    }
+  };
 
-      bootstrap::Init(config, lunasa::bootstrap);
-      bootstrap::Start();
+  virtual void SetUp() {
+    send_future = send_promise.get_future();
+    recv_future = recv_promise.get_future();
 
-      assert(webhook::Server::IsRunning() && "Webhook not started before NetNnti started");
-      nodeid = webhook::Server::GetNodeID();
+    MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &mpi_size);
+    assert(2 == mpi_size);
 
-      transport = nnti::transports::factory::get_instance(config);
-      transport->start();
-      nnti::datatype::nnti_event_callback recv_cb(transport, unexpected_callback(transport, recv_promise));
-      NNTI_result_t result = transport->eq_create(128, NNTI_EQF_UNEXPECTED, recv_cb, nullptr, &unexpected_eq_);
-      assert(result == NNTI_OK);
+    config = Configuration("");
+    config.AppendFromReferences();
 
-      lunasa::RegisterPinUnpin(register_memory_func(transport), unregister_memory_func(transport));
+    bootstrap::Init(config, lunasa::bootstrap);
+    bootstrap::Start();
+
+    assert(webhook::Server::IsRunning() && "Webhook not started before NetNnti started");
+    nodeid = webhook::Server::GetNodeID();
+
+    transport = nnti::transports::factory::get_instance(config);
+    transport->start();
+    nnti::datatype::nnti_event_callback recv_cb(transport, unexpected_callback(transport, recv_promise));
+    NNTI_result_t result = transport->eq_create(128, NNTI_EQF_UNEXPECTED, recv_cb, nullptr, &unexpected_eq_);
+    assert(result == NNTI_OK);
+
+    lunasa::RegisterPinUnpin(register_memory_func(transport), unregister_memory_func(transport));
+  }
+
+  virtual void TearDown() {
+    if(transport->initialized()) {
+      transport->stop();
+    }
+    bootstrap::Finish();
+  }
+};
+
+TEST_F(LunasaSendTest, basic) {
+  int rc;
+
+  // Currently, only works for two MPI ranks
+  int partner_rank = mpi_rank ^0x1;
+  int partner_id;
+  faodel::nodeid_t partner_nodeid;
+
+  MPI_Request request;
+  rc = MPI_Isend((void *) &nodeid, sizeof(faodel::nodeid_t), MPI_CHAR, partner_rank, 0, MPI_COMM_WORLD, &request);
+  assert(rc == MPI_SUCCESS);
+
+  MPI_Status status;
+  rc = MPI_Recv((void *) &partner_nodeid, sizeof(faodel::nodeid_t), MPI_CHAR, partner_rank, 0, MPI_COMM_WORLD, &status);
+  assert(rc == MPI_SUCCESS);
+
+
+  if(mpi_rank<partner_rank) {
+    std::stringstream url;
+    std::string server_protocol("http"); // protocol is obsolete, but still required for now. Must be http now?
+    url << server_protocol << "://" << partner_nodeid.GetIP() << ":" << partner_nodeid.GetPort() << "/";
+
+    NNTI_peer_t p;
+    transport->connect(url.str().c_str(), 1000, &p);
+    int payload_length = 8;
+
+    NNTI_attrs_t nnti_attrs;
+    transport->attrs(&nnti_attrs);
+    DataObject memory(nnti_attrs.mtu - nnti_attrs.max_eager_size,
+                      payload_length + 4,
+                      DataObject::AllocatorType::eager);
+
+    char *payload = (char *) memory.GetDataPtr();
+    *payload++ = (payload_length >> 8) & 0xff;
+    *payload++ = payload_length & 0xff;
+
+    unsigned int seed = std::time(0) & 0xffff;
+    *payload++ = (seed >> 8) & 0xff;
+    *payload++ = seed & 0xff;
+
+    std::srand(seed);
+    for(int i = 0; i<payload_length; i++) {
+      char p = std::rand() & 0xff;
+      *payload++ = p;
     }
 
-    virtual void TearDown()
-    {
-      if( transport->initialized() ) {
-        transport->stop();
-      }
-      bootstrap::Finish();
-    }
-};  
+    NNTI_work_request_t base_wr = NNTI_WR_INITIALIZER;
+    NNTI_work_id_t wid;
 
-TEST_F(LunasaSendTest, basic)
-{
-    int rc;
+    NNTI_buffer_t rdma_buffer;
+    uint32_t rdma_offset = 0;
+    std::queue<DataObject::rdma_segment_desc> rdma_segments;
+    memory.GetMetaRdmaHandles(rdma_segments);
+    assert(rdma_segments.size() == 1);
 
-    // Currently, only works for two MPI ranks
-    int partner_rank = mpi_rank ^ 0x1;
-    int partner_id;
-    faodel::nodeid_t partner_nodeid; 
+    DataObject::rdma_segment_desc rdma_segment = rdma_segments.front();
+    rdma_buffer = (NNTI_buffer_t) rdma_segment.net_buffer_handle;
+    rdma_offset = rdma_segment.net_buffer_offset;
 
-    MPI_Request request;
-    rc = MPI_Isend((void *)&nodeid, sizeof(faodel::nodeid_t), MPI_CHAR, partner_rank, 0, MPI_COMM_WORLD, &request);
-    assert(rc == MPI_SUCCESS);
+    base_wr.op = NNTI_OP_SEND;
+    base_wr.flags = (NNTI_op_flags_t) (NNTI_OF_LOCAL_EVENT | NNTI_OF_ZERO_COPY);
+    base_wr.trans_hdl = nnti::transports::transport::to_hdl(transport);
+    base_wr.peer = p;
+    base_wr.local_hdl = rdma_buffer;
+    base_wr.local_offset = rdma_offset;
+    base_wr.remote_hdl = NNTI_INVALID_HANDLE;
+    base_wr.remote_offset = 0;
+    base_wr.length = rdma_segment.size;
+    nnti::datatype::nnti_event_callback send_callback(transport, send_callback_functor(send_promise));
+    nnti::datatype::nnti_work_request wr(transport, base_wr, send_callback);
 
-    MPI_Status status;
-    rc = MPI_Recv((void *)&partner_nodeid, sizeof(faodel::nodeid_t), MPI_CHAR, partner_rank, 0, MPI_COMM_WORLD, &status);
-    assert(rc == MPI_SUCCESS);
+    transport->send(&wr, &wid);
+    send_future.get();
+  } else {
+    recv_future.get();
+  }
 
-    if( mpi_rank < partner_rank ) {
-        std::stringstream url;
-        std::string server_protocol("null"); // protocol is obsolete, but still required for now
-        url << server_protocol << "://" << partner_nodeid.GetIP() << ":" << partner_nodeid.GetPort() << "/";
-
-        NNTI_peer_t p;
-        transport->connect(url.str().c_str(), 1000, &p);
-        int payload_length = 8;
-
-        NNTI_attrs_t nnti_attrs;
-        transport->attrs(&nnti_attrs);
-        DataObject memory(nnti_attrs.mtu-nnti_attrs.max_eager_size, 
-                          payload_length+4, 
-                          DataObject::AllocatorType::eager);
-
-        char *payload = (char *)memory.GetDataPtr();
-        *payload++ = (payload_length >> 8) & 0xff;
-        *payload++ = payload_length & 0xff;
-
-        unsigned int seed = std::time(0) & 0xffff;
-        *payload++ = (seed >> 8) & 0xff;
-        *payload++ = seed & 0xff;
-
-        std::srand(seed);
-        for( int i = 0; i < payload_length; i++ ) {
-            char p = std::rand() & 0xff;
-            *payload++ = p;
-        }
-
-        NNTI_work_request_t base_wr = NNTI_WR_INITIALIZER;
-        NNTI_work_id_t      wid;
-
-        NNTI_buffer_t rdma_buffer;
-        uint32_t rdma_offset = 0;
-        std::queue<DataObject::rdma_segment_desc> rdma_segments;
-        memory.GetMetaRdmaHandles(rdma_segments);
-        assert(rdma_segments.size() == 1);
-
-        DataObject::rdma_segment_desc rdma_segment = rdma_segments.front();
-        rdma_buffer = (NNTI_buffer_t)rdma_segment.net_buffer_handle;
-        rdma_offset = rdma_segment.net_buffer_offset;
-
-        base_wr.op            = NNTI_OP_SEND;
-        base_wr.flags         = (NNTI_op_flags_t)(NNTI_OF_LOCAL_EVENT | NNTI_OF_ZERO_COPY);
-        base_wr.trans_hdl     = nnti::transports::transport::to_hdl(transport);
-        base_wr.peer          = p;
-        base_wr.local_hdl     = rdma_buffer;
-        base_wr.local_offset  = rdma_offset;
-        base_wr.remote_hdl    = NNTI_INVALID_HANDLE;
-        base_wr.remote_offset = 0;
-        base_wr.length        = rdma_segment.size;
-        nnti::datatype::nnti_event_callback send_callback(transport, send_callback_functor(send_promise));
-        nnti::datatype::nnti_work_request wr(transport, base_wr, send_callback);
-
-        transport->send(&wr, &wid);
-        send_future.get();
-    } else {
-        recv_future.get();
-    }
-
-    rc = MPI_Wait(&request, &status);
-    assert(rc == MPI_SUCCESS);
+  rc = MPI_Wait(&request, &status);
+  assert(rc == MPI_SUCCESS);
 }
 
-int main(int argc, char **argv){
+int main(int argc, char **argv) {
 
-    ::testing::InitGoogleTest(&argc, argv);
-    int provided;
-    MPI_Init_thread(&argc, &argv, MPI_THREAD_MULTIPLE, &provided);
+  ::testing::InitGoogleTest(&argc, argv);
+  int provided;
+  MPI_Init_thread(&argc, &argv, MPI_THREAD_MULTIPLE, &provided);
 
-    int rc = RUN_ALL_TESTS();
-    cout <<"Tester completed all tests.\n";
+  int rc = RUN_ALL_TESTS();
+  //cout <<"Tester completed all tests.\n";
 
-    MPI_Barrier(MPI_COMM_WORLD);
+  MPI_Barrier(MPI_COMM_WORLD);
 
-    MPI_Finalize();
-    return rc; 
+  MPI_Finalize();
+  return rc;
 }
 

@@ -5,7 +5,7 @@
 #include <iostream>
 #include <assert.h>
 
-#include "common/Common.hh"
+#include "faodel-common/Common.hh"
 #include "lunasa/Lunasa.hh"
 #include "lunasa/DataObject.hh"
 

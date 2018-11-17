@@ -174,7 +174,6 @@ public:
 string default_config_string = R"EOF(
 # default to using mpi, but allow override in config file pointed to by CONFIG
 nnti.transport.name                           mpi
-config.additional_files.env_name.if_defined   FAODEL_CONFIG
 )EOF";
 
 
@@ -192,14 +191,13 @@ protected:
     uint32_t               num_clients;
     bool                   i_am_server = false;
 
-    virtual void SetUp () {
+  void SetUp () override {
         MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank);
         MPI_Comm_size(MPI_COMM_WORLD, &mpi_size);
         root_rank = 0;
         config = Configuration(default_config_string);
         config.AppendFromReferences();
 
-        system("rm -f rank*_url");
         MPI_Barrier(MPI_COMM_WORLD);
 
         msg_size   = 320;
@@ -389,6 +387,7 @@ int main(int argc, char *argv[])
     cout <<"Tester completed all tests.\n";
 
     MPI_Barrier(MPI_COMM_WORLD);
+    bootstrap::Finish();
 
     MPI_Finalize();
 

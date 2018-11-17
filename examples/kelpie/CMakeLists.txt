@@ -6,3 +6,4 @@ set(EXAMPLES_LIBS
 )
 
 add_subdirectory( nonet )
+add_subdirectory( prod-con )

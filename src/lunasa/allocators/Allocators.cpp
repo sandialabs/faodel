@@ -4,7 +4,7 @@
 
 #include <assert.h>
 
-#include "common/Debug.hh"
+#include "faodel-common/Debug.hh"
 #include "lunasa/allocators/Allocators.hh"
 
 using namespace std;
@@ -20,12 +20,12 @@ AllocatorBase * createAllocator(const faodel::Configuration &config,
   if(allocator_name=="malloc") return new AllocatorMalloc(config, eagerPinning);
   if(allocator_name=="unconfigured") return new AllocatorUnconfigured();
   if(allocator_name=="tcmalloc") {
-#ifdef ENABLE_TCMALLOC
+#ifdef Faodel_ENABLE_TCMALLOC
     return AllocatorTcmalloc::GetInstance(config, eagerPinning);
 #else
     
     faodel::fatal_fn("LunasaAllocator","Requested tcmalloc allocator, but Lunasa was not built with support for tcmalloc.");
-#endif /* ENABLE_TCMALLOC */
+#endif /* Faodel_ENABLE_TCMALLOC */
   }
   
   faodel::fatal_fn("LunasaAllocator", "Unknown Allocator '"+allocator_name+"' given to lunasa createAllocator");

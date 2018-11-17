@@ -58,7 +58,7 @@ void SingletonImpl::GetBootstrapDependencies(
 
   name = "lunasa";
   requires = {};
-  optional = {"webhook"};
+  optional = {"webhook", "mpisyncstart"};
 }
 
 
@@ -117,12 +117,19 @@ void SingletonImpl::Init(const faodel::Configuration &config){
     core->RegisterPinUnpin(registered_pin_function, registered_unpin_function);
   }
 
+  webhook::Server::updateHook("/lunasa/dataobject_type_registry",
+                              [this] (const map<string,string> &args, stringstream &results) {
+    faodel::ReplyStream rs(args, "Lunasa DataObject Type Registry", &results);
+    dataobject_type_registry.DumpRegistryStatus(rs);
+    rs.Finish();
+    return;
+    });
 }
+
 
 /**
  * @brief Bootstrap function for starting the previously-configured Lunasa core
  *
-
  */
 void SingletonImpl::Start(){
   if(IsUnconfigured()){
@@ -140,6 +147,9 @@ void SingletonImpl::Finish() {
   if(IsUnconfigured()){
     error("Attempted to finish Lunasa that is unconfigured");
   } else {
+
+    webhook::Server::deregisterHook("/lunasa/dataobject_type_registry");
+
     //Remove core and reset to unconfigured state
     delete core;
     core = &unconfigured;
@@ -177,7 +187,7 @@ void SingletonImpl::RegisterPinUnpin(net_pin_fn pin, net_unpin_fn unpin) {
  * @retval "lunasa"
  *
  * @note Users pass this to bootstrap's Start/Init. Only the last 
- *       bootstap dependenciy needs to be supplied.
+ *       bootstap dependency needs to be supplied.
  */
 std::string bootstrap(){
 

@@ -5,7 +5,7 @@ else()
   set( EXAMPLES_LIBS Faodel::lunasa )
 
   add_subdirectory( bootstrap )
-  if(NETWORK_LIBRARY STREQUAL "nnti")
+  if(Faodel_NETWORK_LIBRARY STREQUAL "nnti")
     add_subdirectory( simple_ldo_send )
     add_subdirectory( simple_user_ldo_put )
   endif()

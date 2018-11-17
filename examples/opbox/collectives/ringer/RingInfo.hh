@@ -8,7 +8,7 @@
 #include <vector>
 #include <sstream>
 
-#include "common/Common.hh"
+#include "faodel-common/Common.hh"
 
 //Forward refs
 namespace opbox { class OpArgs; }

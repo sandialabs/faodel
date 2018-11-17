@@ -9,9 +9,10 @@
 #include <sstream>
 #include <iostream>
 #include <thread>
+#include <stdexcept>
 
-#include "common/Common.hh"
-#include "common/Debug.hh"
+#include "faodel-common/Common.hh"
+#include "faodel-common/Debug.hh"
 
 #include "kelpie/Kelpie.hh"
 #include "kelpie/pools/DHTPool/DHTPool.hh"
@@ -19,6 +20,8 @@
 #include "kelpie/ops/direct/OpKelpieGetUnbounded.hh"
 #include "kelpie/ops/direct/OpKelpieMeta.hh"
 #include "kelpie/ops/direct/OpKelpiePublish.hh"
+
+#include "kelpie/core/Singleton.hh"
 
 using namespace std;
 using namespace faodel;
@@ -29,9 +32,10 @@ namespace kelpie {
 DHTPool::DHTPool(const ResourceURL &pool_url)
   : PoolBase(pool_url) {
 
+
   bool ok = dirman::GetDirectoryInfo(pool_url, &dir_info);
   if(!ok){
-    throw std::runtime_error("DHT Pool could not get directory info for "+pool_url.str());
+    throw std::runtime_error("Pool "+TypeName()+" could not get directory info for "+pool_url.str());
   }
 
   //Allocate peers and connect to each one
@@ -39,9 +43,24 @@ DHTPool::DHTPool(const ResourceURL &pool_url)
     net::peer_ptr_t peer;
     int rc = net::Connect(&peer, dir_info.children[i].node);
     if(rc!=0) {
-      throw std::runtime_error("DHT Pool could not connect to peer "+dir_info.children[i].name);
+      throw std::runtime_error("Pool "+TypeName()+" could not connect to peer "+dir_info.children[i].name);
     }
     nodes.push_back(pair<nodeid_t, net::peer_ptr_t>(dir_info.children[i].node, peer));
+  }
+
+  //Pull out iom info in order to associate the iom with this local pool. While iom option was
+  //parsed in base, it didn't save the name (just the hash)
+  string iom_option = "";
+  if (pool_url.path == "/local/iom") {
+    iom_option = pool_url.name;
+  } else {
+    iom_option = pool_url.GetOption("iom");
+  }
+  if(!iom_option.empty()) {
+    iom = kelpie::internal::Singleton::impl.core->FindIOM(iom_option);
+    if(iom==nullptr) {
+      throw std::runtime_error("Could not find iom '"+iom_option+"' for local pool with url: "+pool_url.str());
+    }
   }
 
 }
@@ -57,6 +76,8 @@ DHTPool::~DHTPool(){
  * @retval KELPIE_OK The request was successfully launched (failures may happen in callback)
  */
 rc_t DHTPool::Publish(const Key &key, fn_publish_callback_t callback){
+
+  dbg("Publish (from lkv) bucket "+default_bucket.GetHex()+" key "+key.str());
 
   //Retrieve the item from lkv so we can send to the destination
   lunasa::DataObject ldo;
@@ -78,15 +99,22 @@ rc_t DHTPool::Publish(const Key &key,
                       const lunasa::DataObject &user_ldo,
                       fn_publish_callback_t callback) {
 
-
   //Figure out which node in our list gets the spot
   uint32_t spot = findNodeIndex(key);
+
+  dbg("Publish ldo to dht node "+std::to_string(spot)+" for bucket "+default_bucket.GetHex()+" key "+key.str());
+
 
   //Skip ops if local
   if(nodes[spot].first == my_nodeid) {
     kv_row_info_t row_info;
     kv_col_info_t col_info;
-    rc_t rc = lkv->put(default_bucket, key, user_ldo, &row_info, &col_info);
+    rc_t rc = lkv->put(default_bucket, key, user_ldo, behavior_flags, &row_info, &col_info);
+
+    if((iom!=nullptr) && (behavior_flags & PoolBehavior::WriteToIOM)){
+      iom->WriteObject(default_bucket, key, user_ldo);
+    }
+
     if(callback)
       callback(rc, row_info, col_info);
     return KELPIE_OK;    
@@ -99,6 +127,8 @@ rc_t DHTPool::Publish(const Key &key,
                                 default_bucket,
                                 key,
                                 user_ldo,
+                                iom_hash,
+                                behavior_flags,
                                 callback
                                 );
 
@@ -118,6 +148,8 @@ rc_t DHTPool::Publish(const Key &key,
  * @retval KELPIE_OK Request placed (or detected it's already been placed)
  */
 rc_t DHTPool::Want(const Key &key, size_t expected_ldo_user_bytes, fn_want_callback_t callback){
+
+  dbg("Want (size="+to_string(expected_ldo_user_bytes)+") key "+key.str());
 
   //Check the lkv to see if it already exists. If it does, have lkv do
   //the callback. If it doesn't, leave the callback in place so it can
@@ -145,11 +177,13 @@ rc_t DHTPool::Want(const Key &key, size_t expected_ldo_user_bytes, fn_want_callb
                                    default_bucket,
                                    key,
                                    expected_ldo_user_bytes,
+                                   iom_hash,
+                                   behavior_flags,
                                    //TODO: Can this be restricted to a smaller capture list and still work?
                                    [=] (bool success, Key &key, lunasa::DataObject &ldo) {
                                      //Only push into lkv if we had a successful fetch
                                     if(success) {
-                                      lkv->put(default_bucket, key, ldo, nullptr, nullptr);
+                                      lkv->put(default_bucket, key, ldo, behavior_flags, nullptr, nullptr);
                                     }
                                    });
     opbox::LaunchOp(op);
@@ -161,11 +195,13 @@ rc_t DHTPool::Want(const Key &key, size_t expected_ldo_user_bytes, fn_want_callb
                                    nodes[spot].first, nodes[spot].second,
                                    default_bucket,
                                    key,
+                                   iom_hash,
+                                   behavior_flags,
                                    //TODO: Can this be restricted to a smaller capture list and still work?
                                    [=] (bool success, Key &key, lunasa::DataObject &ldo) {
                                      //Only push into lkv if we had a successful fetch
                                     if(success) {
-                                      lkv->put(default_bucket, key, ldo, nullptr, nullptr);
+                                      lkv->put(default_bucket, key, ldo, behavior_flags, nullptr, nullptr);
                                     }
                                    });
     opbox::LaunchOp(op);
@@ -183,6 +219,8 @@ rc_t DHTPool::Want(const Key &key, size_t expected_ldo_user_bytes, fn_want_callb
  * @retval KELPIE_OK Item was located
  */
 rc_t DHTPool::Need(const Key &key, size_t expected_ldo_user_bytes, lunasa::DataObject *returned_ldo){
+
+  dbg("Need (size="+to_string(expected_ldo_user_bytes)+") key "+key.str());
 
   std::mutex m;
   std::condition_variable cv;
@@ -221,10 +259,13 @@ rc_t DHTPool::Need(const Key &key, size_t expected_ldo_user_bytes, lunasa::DataO
  */
 rc_t DHTPool::Info(const Key &key, kv_col_info_t *col_info){
 
+  dbg("Info for key "+key.str());
+
   //Check local first. Only issue request if we aren't already waiting
   rc_t rc = lkv->getColInfo(default_bucket, key, col_info);
   if((rc==KELPIE_OK) || (rc==KELPIE_WAITING)) return rc;
 
+  //Wasn't available locally. Prepare to do some messaging
   std::mutex m;
   std::condition_variable cv;
   std::unique_lock<std::mutex> lk(m);
@@ -232,18 +273,21 @@ rc_t DHTPool::Info(const Key &key, kv_col_info_t *col_info){
   bool got_result=false;
   uint32_t spot = findNodeIndex(key);
 
-  //See if this item belongs here, we don't send anything
+  //See if this node is supposed to be hosting the data. We've already checked, so IOM is only other option
   if(nodes[spot].first == my_nodeid) {
-    //Item belongs on this node, but it's not here. The getColInfo op has
-    //already zero'd out col_info so no more work is required 
-    return KELPIE_ENOENT;
+    //Item belongs on this node, but it's not in memory. Check on disk
+    //if this pool has an iom associated with it.
+    if(iom!=nullptr){
+      rc = iom->GetInfo(default_bucket, key, col_info);
+    }
+    return rc;
   }
   
-
+  //Hosting node is somewhere else. Launch a new op to get the info
   auto *op = new OpKelpieMeta(DirectFlags::CMD_GET_COLINFO,
                               nodes[spot].first, nodes[spot].second,
                               default_bucket, key,
-
+                              iom_hash,
                               [col_info, &got_result, &cv, &rc](rc_t result, kv_row_info_t &ri, kv_col_info_t &ci) {
                                    rc=result;
                                    if(col_info != nullptr){
@@ -270,14 +314,22 @@ rc_t DHTPool::Info(const Key &key, kv_col_info_t *col_info){
 }
 
 /**
- * @brief Get info about a particular row. Currenly only looks locally
+ * @brief Get info about a particular row. Currently only looks locally
  * @todo Update to work on remotes nodes
  * @param key The Key label for the blob
  * @param row_info Basic statistics about the row
  * @retval KELPIE_OK if info known
  */
-rc_t DHTPool::RowInfo(const Key &key, kv_row_info_t *row_info){
-  return lkv->getRowInfo(default_bucket, key, row_info);
+rc_t DHTPool::RowInfo(const Key &key, kv_row_info_t *row_info) {
+
+  dbg("RowInfo for key "+key.str());
+
+  uint32_t spot = findNodeIndex(key);
+  if(nodes[spot].first == my_nodeid) {
+    return lkv->getRowInfo(default_bucket, key, row_info);
+  }
+  KTODO("RowInfo does not currently support remote operations");
+  return KELPIE_TODO;
 }
 
 /**
@@ -287,8 +339,16 @@ rc_t DHTPool::RowInfo(const Key &key, kv_row_info_t *row_info){
  * @param key The Key label for the blob
  * @retval KELPIE_OK if info known
  */
-rc_t DHTPool::Drop(const Key &key){
-  return lkv->drop(default_bucket, key);
+rc_t DHTPool::Drop(const Key &key) {
+
+  dbg("Drop key "+key.str());
+
+  uint32_t spot = findNodeIndex(key);
+  if(nodes[spot].first == my_nodeid) {
+    return lkv->drop(default_bucket, key);
+  }
+  KTODO("Drop does not currently support remote operations");
+  return KELPIE_TODO;
 }
 
 /**

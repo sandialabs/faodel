@@ -11,7 +11,7 @@
 #include <exception>
 #include <utility>
 
-#include "common/FaodelTypes.hh"
+#include "faodel-common/FaodelTypes.hh"
 
 namespace faodel {
 
@@ -46,8 +46,10 @@ struct NodeID {
   bool operator!= (const NodeID &other) const { return (nid != other.nid); }
   bool operator<  (const NodeID &other) const { return (nid < other.nid); }
 
-  bool Valid() const { return (nid!=0); }            //<! True if this nodeid's value is not NODE_UNSPECIFIED
-  bool Unspecified() const { return (nid==0); }      //<! True if this nodeid's value is NODE_UNSPECIFIED
+  bool        Unspecified() const { return (nid==0); }      //<! True if this nodeid's value is NODE_UNSPECIFIED
+  bool        Valid() const { return (nid!=0); }            //<! True if this nodeid's value is not NODE_UNSPECIFIED
+  bool        ValidIP() const;
+  bool        ValidPort() const;
 
   std::string GetIP() const;
   std::string GetPort() const;
@@ -84,7 +86,8 @@ public:
   NodeIDParseError() : msg("") {}
 
   explicit NodeIDParseError(std::string s) : msg(std::move(s)) {}
-  virtual const char* what() const throw() {
+
+  const char* what() const throw() override {
     std::stringstream ss;
     ss << "Format problem while parsing NodeID string: " << msg << std::endl;
     return ss.str().c_str();

@@ -9,10 +9,10 @@
  *      Author: thkorde
  */
 
-#include "sbl_boost_headers.hpp"
-#include "sblConfig.h"
+#include "faodelConfig.h"
+#include "sbl/sbl_boost_headers.hh"
 
-#include "sbl_source.hpp"
+#include "sbl/sbl_source.hh"
 
 
 namespace sbl  {

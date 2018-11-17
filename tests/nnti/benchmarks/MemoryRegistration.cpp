@@ -5,7 +5,7 @@
 
 #include "nnti/nnti_pch.hpp"
 
-#include "common/Common.hh"
+#include "faodel-common/Common.hh"
 
 #include "nnti/nntiConfig.h"
 
@@ -18,27 +18,31 @@
 #include "nnti/nnti_buffer.hpp"
 #include "nnti/transport_factory.hpp"
 
+#include "bench_utils.hpp"
+
 using namespace std;
 using namespace faodel;
 
 string default_config_string = R"EOF(
 # default to using mpi, but allow override in config file pointed to by CONFIG
 nnti.transport.name                           mpi
-config.additional_files.env_name.if_defined   FAODEL_CONFIG
 )EOF";
 
 
 int main(int argc, char *argv[])
 {
     NNTI_result_t rc;
+    nnti::transports::transport *t=nullptr;
 
     Configuration config;
     config = Configuration(default_config_string);
     config.AppendFromReferences();
 
-    nnti::transports::transport *t=nullptr;
-    t = nnti::transports::factory::get_instance(config);
-    t->start();
+    test_setup(0,
+               NULL,
+               config,
+               "MemoryRegistrations",
+               t);
 
     nnti::datatype::nnti_event_callback null_cb(t, (NNTI_event_callback_t)0);
 

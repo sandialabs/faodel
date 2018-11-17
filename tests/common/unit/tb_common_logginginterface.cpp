@@ -14,7 +14,7 @@
 #include "gtest/gtest.h"
 
 
-#include "common/Common.hh"
+#include "faodel-common/Common.hh"
 
 
 using namespace std;
@@ -54,7 +54,7 @@ public:
 
 class FaodelLoggingInterface : public testing::Test {
 protected:
-  virtual void SetUp() {
+  void SetUp() override {
     conf_none  = Configuration("mything.debug     false");
     conf_debug = Configuration("mything.log.debug true");
     conf_info  = Configuration("mything.log.info  true");

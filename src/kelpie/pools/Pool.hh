@@ -7,14 +7,14 @@
 
 #include <memory>
 
-#include "common/FaodelTypes.hh"
-#include "common/InfoInterface.hh"
-#include "common/ResourceURL.hh"
+#include "faodel-common/FaodelTypes.hh"
+#include "faodel-common/InfoInterface.hh"
+#include "faodel-common/ResourceURL.hh"
 
 #include "lunasa/Lunasa.hh"
 #include "lunasa/DataObject.hh"
 #include "opbox/net/net.hh"
-#include "opbox/services/dirman/DirectoryManager.hh"
+#include "dirman/DirMan.hh"
 #include "kelpie/Kelpie.hh"
 
 namespace kelpie {
@@ -36,19 +36,20 @@ public:
   Pool(faodel::internal_use_only_t iuo, std::shared_ptr<PoolBase> base); //Creation
   Pool(const Pool &source);  //Shallow copy
   Pool(Pool &&source);       //Move
-  ~Pool();
+  ~Pool() override;
   
   Pool& operator=(const Pool&); //For Shallow copy
   Pool& operator=(Pool&&);      //For Move
   
   //Core functions
   rc_t Publish(const Key &key, fn_publish_callback_t callback=nullptr);  //Lookup locally and publish externally
-  rc_t Publish(const Key &key, const lunasa::DataObject &user_ldo, fn_publish_callback_t callback=nullptr);
+  rc_t Publish(const Key &key, const lunasa::DataObject &user_ldo, fn_publish_callback_t callback=nullptr); //Async publish
+  rc_t Publish(const Key &key, const lunasa::DataObject &user_ldo, kv_row_info_t *row_info, kv_col_info_t *col_info); //Blocking publish 
 
-  rc_t Want(const Key &key, fn_want_callback_t callback=nullptr);                                 //Notify when available
-  rc_t Want(const Key &key, size_t expected_ldo_user_bytes, fn_want_callback_t callback=nullptr);  //Notify when available
+  rc_t Want(const Key &key, fn_want_callback_t callback=nullptr);                                    //Notify when available
+  rc_t Want(const Key &key, size_t expected_ldo_user_bytes, fn_want_callback_t callback=nullptr);    //Notify when available
 
-  rc_t Need(const Key &key, size_t expected_ldo_user_bytes, lunasa::DataObject *returned_ldo);  //Block until get
+  rc_t Need(const Key &key, size_t expected_ldo_user_bytes, lunasa::DataObject *returned_ldo);       //Block until get
   rc_t Need(const Key &key, lunasa::DataObject *returned_ldo) { return Need(key, 0, returned_ldo); } //Block until get
 
   rc_t Info(const Key &key, kv_col_info_t *col_info);
@@ -62,7 +63,8 @@ public:
   //Get info on Default settings
   faodel::bucket_t GetBucket();
   faodel::ResourceURL GetURL();
-  opbox::DirectoryInfo GetDirectoryInfo();
+  faodel::DirectoryInfo GetDirectoryInfo();
+  iom_hash_t GetIomHash();
   int GetRefCount();
 
 
@@ -77,7 +79,7 @@ public:
 
 
   //InfoInterface function
-  void sstr(std::stringstream &ss, int depth=0, int indent=0) const;
+  void sstr(std::stringstream &ss, int depth=0, int indent=0) const override;
 
 private:
   std::shared_ptr<PoolBase> impl;

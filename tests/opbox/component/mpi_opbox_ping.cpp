@@ -13,7 +13,7 @@
 
 #include "gtest/gtest.h"
 
-#include "common/Common.hh"
+#include "faodel-common/Common.hh"
 #include "opbox/OpBox.hh"
 
 #include "opbox/ops/OpCount.hh"
@@ -27,13 +27,9 @@ using namespace faodel;
 //Globals holds mpi info and manages connections (see ping example for info)
 Globals G;
 
-
+//Note: Additional configuration settings will be loaded the file specified by FAODEL_CONFIG
 string default_config_string = R"EOF(
 # Note: node_role is defined when we determine if this is a client or a server
-
-# default to using mpi, but allow override in config file pointed to by CONFIG
-nnti.transport.name                           mpi
-config.additional_files.env_name.if_defined   FAODEL_CONFIG
 
 tester.webhook.port 1991
 rooter.webhook.port 1992
@@ -58,8 +54,9 @@ dirman.type centralized
 
 class MPIPingTest : public testing::Test {
 protected:
-  virtual void SetUp(){  }
-  virtual void TearDown(){  }
+  void SetUp() override {  }
+
+  void TearDown() override {  }
 };
 
 TEST_F(MPIPingTest, LocalExecute){
@@ -146,8 +143,7 @@ int main(int argc, char **argv){
 
   //Set the configuration for the two types of nodes (tester and target)
   opbox::RegisterOp<OpPing>();
-  faodel::Configuration config(default_config_string);
-  config.AppendFromReferences();
+  faodel::Configuration config("");
   G.StartAll(argc, argv, config);
 
   if (G.mpi_size < 2) {

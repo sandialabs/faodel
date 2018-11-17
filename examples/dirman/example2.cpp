@@ -6,7 +6,7 @@
 #include <unistd.h>
 #include <assert.h>
 
-#include "common/Common.hh"
+#include "faodel-common/Common.hh"
 #include "opbox/OpBox.hh"
 
 #include "opbox/services/dirman/DirectoryManager.hh"

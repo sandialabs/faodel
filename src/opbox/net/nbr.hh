@@ -5,9 +5,9 @@
 #ifndef OPBOX_NBR_HH
 #define OPBOX_NBR_HH
 
-#include "opbox/opboxConfig.h"
+#include "faodelConfig.h"
 
-#if OPBOX_NET_NNTI
+#if Faodel_OPBOX_NET_NNTI
 #include "nnti/nntiConfig.h"
 
 #if NNTI_BUILD_MPI
@@ -16,14 +16,15 @@
 #define MAX_NET_BUFFER_REMOTE_SIZE 48 /* 4 + 4 + 40 */
 #elif NNTI_BUILD_IBVERBS
 #define MAX_NET_BUFFER_REMOTE_SIZE 36 /* 4 + 4 + 28 */
+#else
+#error NNTI did not have a valid transport. OpBox cannot be built.
 #endif
 
-#elif OPBOX_NET_LIBFABRIC
-#define MAX_NET_BUFFER_REMOTE_SIZE 32 /* 4 + 4 + 60 */
-#elif OPBOX_NET_LOCALMEM
-#warning opbox::net::localmem::NetBufferRemote not implemented yet
+#elif Faodel_OPBOX_NET_LIBFABRIC
+#define MAX_NET_BUFFER_REMOTE_SIZE 32 /* TODO: 32 = xx + yy... show your work */
+
 #else
-#error Opbox must be configured with either nnti or libfabric or localmem
+#error Opbox must be configured with either nnti or libfabric
 #endif
 
 #endif // OPBOX_NBR_HH

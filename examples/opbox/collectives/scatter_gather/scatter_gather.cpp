@@ -5,7 +5,7 @@
 #include <iostream>
 #include <cstring>
 
-#include "common/Common.hh"
+#include "faodel-common/Common.hh"
 #include "opbox/OpBox.hh"
 
 #include "Globals.hh"
@@ -28,8 +28,6 @@ Globals G;
 
 std::string default_config_string = R"EOF(
 # Note: node_role is defined when we determine if this is a client or a server
-nnti.transport.name   mpi
-config.additional_files.env_name.if_defined   FAODEL_CONFIG
 
 master.webhook.port   7777
 server.webhook.port   1992

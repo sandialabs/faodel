@@ -354,7 +354,9 @@ typedef struct NNTI_work_request_t NNTI_work_request_t;
 
 
 /********** Initializers **********/
-
+//Note: these pragmas are here because C++ people can't cope with human readable c99 structures
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
 /**
  * @brief A simple initializer to zero-out a work request.
  */
@@ -375,6 +377,6 @@ static struct NNTI_work_request_t NNTI_WR_INITIALIZER =
     .cb_context = 0,
     .event_context = 0
 };
-
+#pragma GCC diagnostic pop
 
 #endif /* NNTI_TYPES_H_ */

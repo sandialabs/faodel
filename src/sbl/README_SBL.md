@@ -1,7 +1,7 @@
 # SBL: A Simplified Interface to Boost.Log
 
 Simplified Boost.Log (SBL) provides an easy to use interface to 
-Boost.Log.  Many key features of Boost.Log are availble including 
+Boost.Log.  Many key features of Boost.Log are available including 
 multiple sinks, application created channels, per-sink severity 
 filter and per-channel severity filters.
 
@@ -46,7 +46,7 @@ be delivered to the destination.
 ## sbl::source class
 
 The sbl::source class publishes log messages to all sbl::stream 
-objects.  When the sbl::source is created, it is assgined a severity 
+objects.  When the sbl::source is created, it is assigned a severity 
 which is fixed for the life of the source.  Each source has a 
 logger_id attribute that is applied to each message and ties it to 
 a stream.  Multiple sources should be created to generate message 

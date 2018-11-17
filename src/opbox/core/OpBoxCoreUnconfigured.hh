@@ -5,8 +5,8 @@
 #ifndef OPBOX_OPBOXCOREUNCONFIGURED_HH
 #define OPBOX_OPBOXCOREUNCONFIGURED_HH
 
-#include "common/Common.hh"
-#include "common/LoggingInterface.hh"
+#include "faodel-common/Common.hh"
+#include "faodel-common/LoggingInterface.hh"
 
 #include "opbox/common/Types.hh"
 

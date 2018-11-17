@@ -18,8 +18,8 @@
 
 #include <string>
 
-#include "common/Configuration.hh"
-#include "common/NodeID.hh"
+#include "faodel-common/Configuration.hh"
+#include "faodel-common/NodeID.hh"
 
 #include "webhook/Server.hh"
 

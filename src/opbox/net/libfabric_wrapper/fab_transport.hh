@@ -41,7 +41,7 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 
-#include "shared.hh"
+#include "opbox/net/libfabric_wrapper/shared.hh"
 #include "lunasa/DataObject.hh"
 
 using namespace std;
@@ -86,6 +86,12 @@ private:
   std::mutex conn_mutex;
   std::mutex compq_mutex;
 
+  int64_t *operand1_ptr;
+  int64_t *operand2_ptr;
+  struct fid_mr *operand1_mr;
+  struct fid_mr *operand2_mr;
+
+
 public:
   struct fi_info *fi;
   int    my_transport_id;
@@ -116,9 +122,9 @@ public:
 
 // IB related functions  EP_MSG
 //
-  int fab_init_ib();
+  int fab_init_ib(const char *provider_name);
   void create_connections (faodel::nodeid_t nodeid, fid_ep * ep);
-  void create_ib_pending_connection(const std::map<std::string,std::string> &args);
+  struct fab_connection *create_ib_pending_connection(const std::map<std::string,std::string> &args);
   fab_peer* client_connect_ib (faodel::nodeid_t   peer_nodeid);
   void  find_and_update_connection(fid_ep* ep);
   void ib_server_conn();
@@ -128,15 +134,66 @@ public:
 //
   fab_peer* create_rdm_connection_client (faodel::nodeid_t   peer_nodeid);
   void create_rdm_connection_server(const std::map<std::string,std::string> &args, std::stringstream &results);
-  int fab_init_rdm();
+  int fab_init_rdm(const char *provider_name);
 
 // net layer calls
-  void Send(fab_peer *remote_peer, fab_buf *msg, DataObject ldo, std::function< WaitingType(OpArgs *args) > user_cb);
-  void Put(fab_peer *remote_peer, fab_buf *msg, DataObject ldo, struct fi_rma_iov remote, std::function< WaitingType(OpArgs *args) > user_cb);
-  void Put(fab_peer *remote_peer, fab_buf *msg, DataObject ldo, uint64_t loffset, struct fi_rma_iov remote, uint64_t length, std::function< WaitingType(OpArgs *args) > user_cb);
-  void Get(fab_peer *remote_peer, fab_buf *msg, DataObject ldo, struct fi_rma_iov remote, std::function< WaitingType(OpArgs *args) > user_cb);
-  void Get(fab_peer *remote_peer, fab_buf *msg, DataObject ldo, uint64_t loffset, struct fi_rma_iov remote, uint64_t length, std::function< WaitingType(OpArgs *args) > user_cb);
+  void Send(
+      fab_peer *remote_peer,
+      fab_buf *msg,
+      DataObject ldo,
+      std::function< WaitingType(OpArgs *args) > user_cb);
+  void Get(
+      fab_peer *remote_peer,
+      fab_buf *msg,
+      DataObject ldo,
+      struct fi_rma_iov remote,
+      std::function< WaitingType(OpArgs *args) > user_cb);
+  void Get(
+      fab_peer *remote_peer,
+      fab_buf *msg,
+      DataObject ldo,
+      uint64_t loffset,
+      struct fi_rma_iov remote,
+      uint64_t length,
+      std::function< WaitingType(OpArgs *args) > user_cb);
+  void Put(
+      fab_peer *remote_peer,
+      fab_buf *msg,
+      DataObject ldo,
+      struct fi_rma_iov remote,
+      std::function< WaitingType(OpArgs *args) > user_cb);
+  void Put(
+      fab_peer *remote_peer,
+      fab_buf *msg,
+      DataObject ldo,
+      uint64_t loffset,
+      struct fi_rma_iov remote,
+      uint64_t length,
+      std::function< WaitingType(OpArgs *args) > user_cb);
+  void Atomic(
+      fab_peer *remote_peer,
+      AtomicOp op,
+      fab_buf *msg,
+      DataObject ldo,
+      uint64_t loffset,
+      struct fi_rma_iov remote,
+      uint64_t length,
+      int64_t operand,
+      std::function< WaitingType(OpArgs *args) > user_cb);
+  void Atomic(
+      fab_peer *remote_peer,
+      AtomicOp op,
+      fab_buf *msg,
+      DataObject ldo,
+      uint64_t loffset,
+      struct fi_rma_iov remote,
+      uint64_t length,
+      int64_t operand1,
+      int64_t operand2,
+      std::function< WaitingType(OpArgs *args) > user_cb);
+
   void register_memory (void *base_addr, int length, struct fab_buf *send_buf);
+  void unregister_memory (struct fab_buf *send_buf);
 
 //
   void setupRecvQueue();

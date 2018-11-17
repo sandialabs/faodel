@@ -26,6 +26,8 @@ class BootstrapInterface {
 public:
 
   virtual void Init(const Configuration &config) = 0;
+  virtual void InitAndModifyConfiguration(Configuration *config) { Init(*config); };
+
   virtual void Start() = 0;
   virtual void Finish() = 0;
   virtual void GetBootstrapDependencies(std::string &name,
@@ -33,6 +35,7 @@ public:
                        std::vector<std::string> &optional) const = 0;
 
   virtual ~BootstrapInterface() = default;
+
 };
 
 } // namespace bootstrap

@@ -25,10 +25,6 @@
 //The configuration used in this example
 std::string default_config_string = R"EOF(
 
-# Note: node_role is defined when we determine if this is a client or a server
-nnti.transport.name   mpi
-config.additional_files.env_name.if_defined   FAODEL_CONFIG
-
 # For local testing, tell kelpie to use the nonet implementation
 kelpie.type nonet
 
@@ -38,6 +34,11 @@ kelpie.type nonet
 #opbox.debug     true
 #dirman.debug    true
 #kelpie.debug    true
+
+# Note: You can put additional config info like the above in an
+#       external text file and have kelpie load it on boot
+#       just by setting the environment variable FAODEL_CONFIG
+#       to the filename.
 
 )EOF";
 

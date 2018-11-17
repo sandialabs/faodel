@@ -5,7 +5,7 @@
 #ifndef KELPIE_MSG_DIRECT_HH
 #define KELPIE_MSG_DIRECT_HH
 
-#include "common/Common.hh"
+#include "faodel-common/Common.hh"
 
 #include "opbox/OpBox.hh"
 #include "lunasa/Lunasa.hh"
@@ -94,6 +94,9 @@ struct msg_direct_buffer_t {
   uint16_t                           k1_size;                     //!< Used for serdes of key.k1
   uint16_t                           k2_size;                     //!< Used for serdes of key.k2
   faodel::bucket_t                   bucket;                      //!< Hashed bucket id
+  iom_hash_t                         iom_hash;                    //!< Hash of the IOM to use
+  pool_behavior_t                    behavior_flags;              //!< Flags specifying actions to take
+
   char                               key_data[0];                 //!< Place where packed key data is stored
 
   //Since key_data is variable prevent user from using an empty ctor, as
@@ -112,16 +115,19 @@ struct msg_direct_buffer_t {
   std::string str();
 
 
-  static bool Alloc(lunasa::DataObject &new_ldo,                  //!< New LDO generated for holding this message
-                    const uint32_t op_id,                         //!< Which op this is for
-                    const uint16_t command_and_flags,             //!< The command/flags users wants to set
-                    const faodel::nodeid_t dst,                   //!< Where this message is going
-                    const opbox::mailbox_t src_mailbox,           //!< What our mailbox should be
-                    const opbox::mailbox_t dst_mailbox,           //!< Destination mailbox (if a response)
-                    const faodel::bucket_t bucket,                //!< Hashed bucket id for message
-                    const kelpie::Key &key,                       //!< The key for this request
-                          lunasa::DataObject *ldo_data            //!< The ldo we're using for data (or nullptr if none)
-                    );
+  static bool Alloc(lunasa::DataObject &new_ldo,                     //!< New LDO generated for holding this message
+                    const uint32_t op_id,                            //!< Which op this is for
+                    const uint16_t command_and_flags,                //!< The command/flags users wants to set
+                    const faodel::nodeid_t dst,                      //!< Where this message is going
+                    const opbox::mailbox_t src_mailbox,              //!< What our mailbox should be
+                    const opbox::mailbox_t dst_mailbox,              //!< Destination mailbox (if a response)
+                    const faodel::bucket_t bucket,                   //!< Hashed bucket id for message
+                    const kelpie::Key &key,                          //!< The key for this request
+                    const kelpie::iom_hash_t iom_hash,               //!< Optional IO Module Hash id associated with this op
+                    const kelpie::pool_behavior_t  behavior_flags,   //!< Behavior settings for this transfer
+                    lunasa::DataObject *ldo_data                     //!< The ldo we're using for data (or nullptr if none)
+  );
+
   //note: rdma address lookups may make ldo_data non const TODO
 
 };

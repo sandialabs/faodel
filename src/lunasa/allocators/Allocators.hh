@@ -5,11 +5,13 @@
 #ifndef LUNASA_ALLOCATORS_HH
 #define LUNASA_ALLOCATORS_HH
 
+#include "faodelConfig.h" //for Faodel_ENABLE_TCMALLOC setting
+
 #include "lunasa/allocators/AllocatorBase.hh"
 #include "lunasa/allocators/AllocatorMalloc.hh"
-#ifdef ENABLE_TCMALLOC
+#ifdef Faodel_ENABLE_TCMALLOC
 #include "lunasa/allocators/AllocatorTcmalloc.hh"
-#endif /* ENABLE_TCMALLOC */
+#endif /* Faodel_ENABLE_TCMALLOC */
 #include "lunasa/allocators/AllocatorUnconfigured.hh"
 
 namespace lunasa {

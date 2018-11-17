@@ -86,8 +86,8 @@ public:
 
         return;
     }
-    virtual ~ibverbs_rdma_op()
-    {
+
+  ~ibverbs_rdma_op() override {
         return;
     }
 
@@ -124,9 +124,8 @@ public:
         return &sq_wr_;
     }
 
-    virtual std::string
-    toString()
-    {
+  std::string
+    toString() override {
         std::stringstream out;
         out << "id_=="         << id_
             << " wr_id=="       << (void*)sq_wr_.wr_id

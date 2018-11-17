@@ -3,9 +3,10 @@
 // the U.S. Government retains certain rights in this software. 
 
 #include <iostream>
+#include <stdexcept>
 
+#include "kelpie/core/Singleton.hh"
 #include "kelpie/common/OpArgsObjectAvailable.hh"
-
 #include "kelpie/ops/direct/OpKelpieGetBounded.hh"
 
 using namespace std;
@@ -39,6 +40,8 @@ void OpKelpieGetBounded::configure(faodel::internal_use_only_t iuo, LocalKV *new
  * @param[in] bucket The bucket namespace for this object
  * @param[in] key The key label for the object
  * @param[in] expected_ldo_user_size Optional expected size of the data
+ * @param[in] iom_hash Hash id of an IOM associated with this request
+ * @param[in] behavior_flags Info about how to behave in different cases
  * @param[in] cb_result Callback function invoke when success/failure known
  * @return OpKelpieGetBounded
  *
@@ -51,6 +54,8 @@ OpKelpieGetBounded::OpKelpieGetBounded(
                     const faodel::bucket_t bucket,
                     const Key &key,
                     const size_t expected_ldo_user_size,
+                    const iom_hash_t iom_hash,
+                    const pool_behavior_t behavior_flags,
                     fn_opget_result_t cb_result)
   : state(State::orig_getbounded_send),
     bucket(bucket), key(key), peer(target_ptr),
@@ -64,14 +69,11 @@ OpKelpieGetBounded::OpKelpieGetBounded(
   ldo_data = lunasa::DataObject(0, expected_ldo_user_size, lunasa::DataObject::AllocatorType::eager);
 
   //Create the outgoing message
-  exceeds = msg_direct_buffer_t::Alloc(ldo_msg,
-                                           op_id,
-                                           DirectFlags::CMD_GET_BOUNDED,
-                                           target_node,
-                                           GetAssignedMailbox(),
-                                           opbox::MAILBOX_UNSPECIFIED,
-                                           bucket, key,
-                                           &ldo_data);
+  exceeds = msg_direct_buffer_t::Alloc(ldo_msg, op_id,
+                                       DirectFlags::CMD_GET_BOUNDED, target_node,
+                                       GetAssignedMailbox(), opbox::MAILBOX_UNSPECIFIED,
+                                       bucket, key, iom_hash, behavior_flags,
+                                       &ldo_data);
 }
 
 
@@ -113,6 +115,7 @@ WaitingType OpKelpieGetBounded::smt_GetBounded_Start(OpArgs *args) {
   nbr    = imsg->net_buffer_remote;  //Copy the remote pointers
   bucket = imsg->bucket;
   key    = imsg->ExtractKey();
+  auto target_iom = imsg->iom_hash;
 
   //cout <<"OPDHT-TRG: message is get bounded for "<<key.str()<<endl;
 
@@ -125,9 +128,26 @@ WaitingType OpKelpieGetBounded::smt_GetBounded_Start(OpArgs *args) {
 
   //TODO: Provide row/col info back in ack
 
+  //When miss, see if we need to try loading from an iom
+  if((rc!=0) && (target_iom!=0)){
+
+    auto *iom = kelpie::internal::Singleton::impl.core->FindIOM(target_iom);
+    if(iom==nullptr) {
+      throw runtime_error("OpKelpieGetBounded attempted to read key "+key.str()+" to a node with a bad iom");
+    }
+    rc = iom->ReadObject(imsg->bucket, key, &ldo_data);
+
+    if(rc==0) {
+      //TODO: We need to post this, without triggering our mailbox to be sent
+      auto target_behavior_flags = PoolBehavior::ChangeRemoteToLocal(imsg->behavior_flags);
+      lkv->put(imsg->bucket, key, ldo_data, target_behavior_flags, &omsg->row_info, &omsg->col_info);
+    }
+  }
+
+
   if(rc==0){
     //cout <<"OPDHT-TRG Result is ready and am putting\n";
-    //Data is ready. Set up send
+    //Data was in memory, get ready to send it back
     //TODO: Does put check lengths at all?
     net::Put(peer, ldo_data, &nbr, AllEventsCallback(this));
     omsg->Success(true);
@@ -135,6 +155,7 @@ WaitingType OpKelpieGetBounded::smt_GetBounded_Start(OpArgs *args) {
 
   } else {
     //cout <<"OPDHT-TRG Result not ready\n";
+
 
     //Option 1: Just send a nack
     //omsg->Success(false);

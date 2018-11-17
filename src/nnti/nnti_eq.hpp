@@ -49,6 +49,7 @@ class nnti_event_queue
 private:
     class reservation_manager {
     public:
+        virtual ~reservation_manager() {}
         virtual bool get_reservation(nnti::datatype::reservation &r)    = 0;
         virtual bool return_reservation(void)                           = 0;
         virtual bool return_reservation(nnti::datatype::reservation &r) = 0;
@@ -63,13 +64,13 @@ private:
             const uint64_t max_reservations)
             : max_reservations_(max_reservations)
         {
-            outstanding_reservations_ = {0};
+            outstanding_reservations_ = 0;
             return;
         }
+
         bool
         get_reservation(
-            nnti::datatype::reservation &r)
-        {
+            nnti::datatype::reservation &r) override {
             r = outstanding_reservations_.fetch_add(1);
             if (r >= max_reservations_) {
                 outstanding_reservations_.fetch_add(-1);
@@ -79,15 +80,13 @@ private:
             return true;
         }
         bool
-        return_reservation()
-        {
+        return_reservation() override {
             outstanding_reservations_.fetch_add(-1);
             return true;
         }
         bool
         return_reservation(
-            nnti::datatype::reservation &r)
-        {
+            nnti::datatype::reservation &r) override {
             return return_reservation();
         }
 
@@ -97,13 +96,11 @@ private:
     public:
         bool
         get_reservation(
-            nnti::datatype::reservation &r)
-        {
+            nnti::datatype::reservation &r) override {
             return true;
         }
         bool
-        return_reservation()
-        {
+        return_reservation() override {
             return true;
         }
         bool
@@ -156,6 +153,8 @@ private:
             log_error("nnti_event_queue", "failed to set interrupt_pipe to nonblocking: %s", strerror(errno));
             return NNTI_EIO;
         }
+
+        return NNTI_OK;
     }
 
 public:
@@ -223,8 +222,8 @@ public:
 
         return;
     }
-    virtual ~nnti_event_queue()
-    {
+
+  ~nnti_event_queue() override {
         delete reservation_manager_;
     }
 

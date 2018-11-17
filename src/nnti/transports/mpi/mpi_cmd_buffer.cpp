@@ -95,7 +95,7 @@ mpi_cmd_buffer::teardown_command_buffer(void)
     log_debug("mpi_cmd_buffer", "teardown_command_buffer: enter");
 
     for (int i=0;i<cmd_count_;i++) {
-//        MPI_Cancel(&msgs_[i]->mpi_request());
+        MPI_Cancel(&msgs_[i]->cmd_request());
         delete msgs_[i];
     }
     delete[] cmd_buf_;

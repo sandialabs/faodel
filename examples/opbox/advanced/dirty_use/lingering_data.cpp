@@ -24,7 +24,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "common/Common.hh"
+#include "faodel-common/Common.hh"
 #include "lunasa/Lunasa.hh"
 #include "opbox/OpBox.hh"
 
@@ -41,7 +41,7 @@ Globals G;
 //The configuration used in this example (see ping example for info)
 std::string default_config_string = R"EOF(
 # Note: node_role is defined when we determine if this is a client or a server
-nnti.transport.name   mpi
+net.transport.name    mpi
 master.webhook.port   7777
 server.webhook.port   1991
 

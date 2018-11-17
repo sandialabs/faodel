@@ -79,8 +79,8 @@ public:
         const uint64_t               packed_len);
     virtual ~mpi_buffer();
 
-    virtual char*
-    payload(void);
+  char*
+    payload(void) override;
     size_t
     length(void);
     uint32_t

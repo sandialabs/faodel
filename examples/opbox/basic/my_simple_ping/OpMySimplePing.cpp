@@ -3,7 +3,7 @@
 // the U.S. Government retains certain rights in this software. 
 
 #include <assert.h>
-#include "common/Debug.hh"
+#include "faodel-common/Debug.hh"
 
 #include "OpMySimplePing.hh"
 
@@ -105,6 +105,8 @@ WaitingType OpMySimplePing::UpdateTarget(OpArgs *args) {
   case State::done:
     return WaitingType::done_and_destroy;
   }
+  KHALT("Missing state");
+  return WaitingType::done_and_destroy;
 }
 
 string OpMySimplePing::GetStateName() const {

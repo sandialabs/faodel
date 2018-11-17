@@ -55,10 +55,16 @@ std::string str(WaitingType type);
 // This is an attempt to create a hash from the op name at compile time. This
 // hash can be weak- we just want to settle on an id. See:
 // From http://stackoverflow.com/questions/2111667/compile-time-string-hashing
+// note: This hashes in reverse order, compared to the hash_dbj2 function
 unsigned constexpr const_hash(char const *input) {
   return *input ?
     static_cast<unsigned int>(*input) + 33 * const_hash(input + 1) :
     5381;
+}
+
+//Generate a 16b hash by xoring top and bottom halves of 32b hash together
+uint16_t constexpr const_hash16(char const *input) {
+  return (const_hash(input)>>16) ^ (const_hash(input) & 0x0FFFF);
 }
 
 using fn_OpCreate_t = std::function<Op * ()>;   //!< Lambda for constructing a particular Op

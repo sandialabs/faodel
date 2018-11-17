@@ -4,7 +4,7 @@ include_directories(
 )
 
 #-- Support Lib----------------------------------------------------------------
-add_library(mpi_support STATIC
+add_library(mpi_support
             support/Globals.hh
             support/Globals.cpp
             support/SimpleDataStore.hh
@@ -29,7 +29,5 @@ add_subdirectory( collectives/scatter_gather )
 
 add_subdirectory( advanced/dirty_use )
 add_subdirectory( advanced/job2job )
-
-add_subdirectory( directory_manager )
 
 add_subdirectory( benchmarks )

@@ -9,10 +9,10 @@
 #include <vector>
 #include <map>
 
-#include "common/FaodelTypes.hh"
-#include "common/Bucket.hh"
-#include "common/InfoInterface.hh"
-#include "common/MutexWrapper.hh"
+#include "faodel-common/FaodelTypes.hh"
+#include "faodel-common/Bucket.hh"
+#include "faodel-common/InfoInterface.hh"
+#include "faodel-common/MutexWrapper.hh"
 
 
 namespace faodel {
@@ -69,6 +69,14 @@ std::string str();
  *   of items instead of replacing the value. All lists of values are
  *   returned as a string with ";" delimiters.
  *
+ * - **Multiple Instances of a Variable**: Often it is necessary for
+ *   one variable name to store multiple instances (eg searching for
+ *   my_urls returns a vector containing url1, url2, url3. Appending
+ *   "[]" at the end of the name indicates that a variable is a vector
+ *   of values. Internally the variable gets renamed to name.0, name.1,
+ *   etc. Use the GetStringVector to get the vector of strings stored
+ *   with a name.
+ *
  * - **Appending from Other Sources**: Additional configuration info can be
  *   retrieved by specifying environment references. These references
  *   are specified by "config.additional_files" or
@@ -79,9 +87,13 @@ std::string str();
 class Configuration : public InfoInterface {
 
 public:
-  Configuration();
-  Configuration(const std::string &config_str);
-  ~Configuration();
+  explicit Configuration(const std::string &configuration_string,
+                         const std::string &env_variable_for_extra_settings);
+
+  explicit Configuration(const std::string &config_str) : Configuration(config_str, "FAODEL_CONFIG") {}
+  explicit Configuration()                              : Configuration("",         "FAODEL_CONFIG") {}
+
+  ~Configuration() override;
 
   //Pass in additional configuration data
   rc_t Append(const std::string &config_str);
@@ -95,7 +107,9 @@ public:
   rc_t Set(const std::string &name, int val);
   rc_t Set(const std::string &name, bool val);
   rc_t Set(const std::string &name, void *val);
-  rc_t Set(const std::string& name, unsigned int val);
+  rc_t Set(const std::string &name, unsigned int val);
+
+  rc_t Unset(const std::string &name);
 
   //Get values out of the config. Returns 0 if ok, -1 if not found
   rc_t GetString(std::string *val, const std::string &name, const std::string &default_value="") const;
@@ -105,6 +119,9 @@ public:
   rc_t GetBool(bool *val, const std::string &name, const std::string &default_value="") const;
   rc_t GetPtr(void **val, const std::string &name, void *default_value=nullptr) const;
   rc_t GetFilename(std::string *fname, const std::string &name, const std::string &default_value) const;
+
+  //Get multiple items
+  int GetStringVector(std::vector<std::string> *vals, const std::string &name) const;
 
   //Get subset of configuration info for a particular component
   rc_t GetComponentSettings(std::map<std::string,std::string> *results, const std::string &component_name) const;
@@ -126,7 +143,7 @@ public:
   faodel::MutexWrapper * GenerateComponentMutex(std::string component_name="", std::string default_mutex_type="default") const;
 
   //InfoInterface function
-  void sstr(std::stringstream &ss, int depth=0, int indent=0) const;
+  void sstr(std::stringstream &ss, int depth=0, int indent=0) const override;
 
 private:
   std::string node_role;

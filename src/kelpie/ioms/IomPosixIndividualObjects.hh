@@ -25,7 +25,7 @@ class IomPosixIndividualObjects
 public:
   IomPosixIndividualObjects() = delete;
   IomPosixIndividualObjects(std::string name, const std::map<std::string,std::string> &new_settings);
-  ~IomPosixIndividualObjects() {}
+  ~IomPosixIndividualObjects() override {}
 
   rc_t GetInfo(faodel::bucket_t bucket, const kelpie::Key &key, kv_col_info_t *col_info) override;
   void WriteObject(faodel::bucket_t bucket, const kelpie::Key &key, const lunasa::DataObject &ldo) override;
@@ -33,13 +33,13 @@ public:
 
   //WriteObjects and ReadObjects come from base class
   
+  constexpr static char type_str[] = "PosixIndividualObjects";
+  std::string Type() const override { return IomPosixIndividualObjects::type_str; };
 
-  std::string Type() const override { return "PosixIndividualObjects"; }
-
-  void AppendWebInfo(webhook::ReplyStream rs, std::string reference_link, const std::map<std::string,std::string> &args) override;
+  void AppendWebInfo(faodel::ReplyStream rs, std::string reference_link, const std::map<std::string,std::string> &args) override;
   
   //Info interface
-  void sstr(std::stringstream &ss, int depth=0, int indent=0) const;
+  void sstr(std::stringstream &ss, int depth=0, int indent=0) const override;
   
 private:
   std::string path;

@@ -73,7 +73,7 @@ else ()
 	LIST( APPEND NNTI_TRANSPORT_TARGETS ${DRC_TARGETS} )
     endif()
     if( UGNI_FOUND AND DRC_FOUND )
-        set( NNTI_BUILD_UGNI 1 )
+        set( NNTI_BUILD_UGNI 1)
     endif()
 endif()
 
@@ -84,9 +84,14 @@ else ()
     message(STATUS "MPI_C_FOUND = ${MPI_C_FOUND}")
     message(STATUS "MPI_CXX_FOUND = ${MPI_CXX_FOUND}")
     if( MPI_C_FOUND AND MPI_CXX_FOUND )
-        set( NNTI_BUILD_MPI 1 )
+        set( NNTI_BUILD_MPI 1)
     endif()
 endif()
+
+# Put these in the parent scope so they can be used in the config summary
+set(NNTI_BUILD_IBVERBS ${NNTI_BUILD_IBVERBS} PARENT_SCOPE)
+set(NNTI_BUILD_UGNI    ${NNTI_BUILD_UGNI}    PARENT_SCOPE)
+set(NNTI_BUILD_MPI     ${NNTI_BUILD_MPI}     PARENT_SCOPE)
 
 
 # Feature Tests
@@ -238,9 +243,21 @@ set(SOURCES
 )
 endif()
 
+#
+# If no transport was selected, this build of NNTI should succeed but will not
+# be usable for communication. Warn the user.
+#
+if( NOT NNTI_BUILD_UGNI AND
+    NOT NNTI_BUILD_IBVERBS AND
+    NOT NNTI_BUILD_MPI )
+  message( WARNING
+    "NNTI will be built without a network transport. While this may be useful to test the build process, NNTI won't be usable for communication. Faodel components which depend on NNTI may fail to build, as they typically assume NNTI has been built with at least one transport. You should examine your build configuration to make sure this is your intended result." )
+endif()
+
+
 LIST( APPEND NNTI_imports webhook common sbl Boost::atomic Boost::log Boost::log_setup )
-if( USE_MPI )
-  LIST( APPEND NNTI_imports MPI_CXX )
+if( Faodel_ENABLE_MPI_SUPPORT )
+  LIST( APPEND NNTI_imports MPI::MPI_CXX )
 endif()
 LIST( APPEND NNTI_imports ${NNTI_TRANSPORT_TARGETS} )
 
@@ -248,7 +265,7 @@ nntiProcessXDR(${CMAKE_CURRENT_SOURCE_DIR}/nnti_packable.x ${CMAKE_CURRENT_SOURC
 
 set_source_files_properties(transport_factory.cpp PROPERTIES COMPILE_FLAGS "-O0 -g")
 
-add_library(nnti STATIC ${HEADERS} ${SOURCES})
+add_library(nnti ${HEADERS} ${SOURCES})
 target_link_libraries( nnti ${NNTI_imports} )
 add_dependencies(nnti generate-nnti_packable)
 
@@ -257,6 +274,7 @@ install(TARGETS nnti
   EXPORT        FaodelTargets
   RUNTIME       DESTINATION "${BINARY_INSTALL_DIR}" COMPONENT bin
   ARCHIVE       DESTINATION "${LIBRARY_INSTALL_DIR}" COMPONENT lib
+  LIBRARY       DESTINATION "${LIBRARY_INSTALL_DIR}" COMPONENT lib
   INCLUDES      DESTINATION "${INCLUDE_INSTALL_DIR}"
   )
 
@@ -267,12 +285,12 @@ install( FILES ${HEADERS_PUBLIC}
 # Create header with flags that can be used by NessieShim
 #
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/nntiConfig.h.in
-    "${CMAKE_CURRENT_SOURCE_DIR}/nntiConfig.h"
+    "${CMAKE_CURRENT_BINARY_DIR}/nntiConfig.h"
     @ONLY
     )
 
 # ... puts nntiConfig.h in include/${PROJECT_NAME}
-install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/nntiConfig.h"
+install(FILES "${CMAKE_CURRENT_BINARY_DIR}/nntiConfig.h"
     DESTINATION include/faodel/nnti
     )
 #-----------------------------------------

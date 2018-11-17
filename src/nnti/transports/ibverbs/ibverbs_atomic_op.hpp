@@ -88,8 +88,8 @@ public:
 
         return;
     }
-    virtual ~ibverbs_atomic_op()
-    {
+
+  ~ibverbs_atomic_op() override {
         return;
     }
 
@@ -128,9 +128,8 @@ public:
         return &sq_wr_;
     }
 
-    virtual std::string
-    toString()
-    {
+  std::string
+    toString() override {
         std::stringstream out;
         out << "id_==" << id_;
         return out.str();

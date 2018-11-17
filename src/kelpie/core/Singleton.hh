@@ -7,8 +7,8 @@
 
 #include <memory>
 
-#include "common/Common.hh"
-#include "common/LoggingInterface.hh"
+#include "faodel-common/Common.hh"
+#include "faodel-common/LoggingInterface.hh"
 
 #include "kelpie/Kelpie.hh"
 #include "kelpie/core/KelpieCoreBase.hh"
@@ -37,17 +37,17 @@ class SingletonImpl
 public:
 
   SingletonImpl();
-  ~SingletonImpl();
+  ~SingletonImpl() override;
 
   bool IsUnconfigured();
 
   //Bootstrap API
-  void Init(const faodel::Configuration &config);
-  void Start();
-  void Finish();
+  void Init(const faodel::Configuration &config) override;
+  void Start() override;
+  void Finish() override;
   void GetBootstrapDependencies(std::string &name,
                        std::vector<std::string> &requires,
-                       std::vector<std::string> &optional) const;
+                       std::vector<std::string> &optional) const override;
 
   KelpieCoreBase *core;
   std::shared_ptr<UnconfiguredPool> unconfigured_pool;  

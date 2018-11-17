@@ -6,6 +6,7 @@
 #include <functional>
 #include <iostream>
 #include <sstream>
+#include <thread>
 
 #include <sys/unistd.h> //gethostname
 #include <cassert>
@@ -23,8 +24,8 @@
 #include "nnti/nnti_wr.hpp"
 #include "nnti/transport_factory.hpp"
 
-#include "common/Configuration.hh"
-#include "common/NodeID.hh"
+#include "faodel-common/Configuration.hh"
+#include "faodel-common/NodeID.hh"
 
 #include "webhook/Server.hh"
 
@@ -195,7 +196,7 @@ namespace NetNnti
     void setupRecvQueue()
     {
         opbox::net::Attrs attrs;
-        opbox::net::GetAttrs(attrs);
+        opbox::net::GetAttrs(&attrs);
 
         for (int i=0;i<10;i++) {
             DataObject ldo = NewMessage(attrs.max_eager_size);
@@ -309,7 +310,7 @@ namespace NetNnti
         void makeRemoteBuffer (
             size_t           remote_offset,   // in
             size_t           remote_length,   // in
-            NetBufferRemote *remote_buffer);  // out
+            NetBufferRemote *remote_buffer) override;  // out
     };
 
     void NntiBufferLocal::makeRemoteBuffer(
@@ -504,8 +505,17 @@ void Start()
 void Finish()
 {
     assert(initialized_ && "NetNnti not initialized");
+    assert(started_ && "NetNnti not started");
 
     started_=false;
+
+    auto it = peer_bimap.begin();
+    while (it != peer_bimap.end()) {
+        log_debug("NetNnti", "Disconnecting nodeid %s (%x)", it->left.GetHex().c_str(), it->right);
+        Disconnect(it->right);
+        it = peer_bimap.begin();
+    }
+
     teardownRecvQueue();
     t_->stop();
     delete dcb_;
@@ -580,12 +590,12 @@ string GetDriverName() {
 
 /**
  * @brief Get the attributes of the network module.
+ * @param[out] attrs Where attributes are copied to
  */
 void GetAttrs(
-    opbox::net::Attrs &attrs)
-{
-    attrs.mtu            = nnti_attrs_.mtu;
-    attrs.max_eager_size = nnti_attrs_.max_eager_size;
+        Attrs *attrs) {
+    attrs->mtu            = nnti_attrs_.mtu;
+    attrs->max_eager_size = nnti_attrs_.max_eager_size;
 
     char url_c[NNTI_URL_LEN];
     t_->get_url(url_c, NNTI_URL_LEN);
@@ -598,13 +608,13 @@ void GetAttrs(
     std::string hostname = url.substr(first, (second-1)-first);
     std::string port     = url.substr(second, third-second);
 
-    strcpy(attrs.bind_hostname, hostname.c_str());
-    strcpy(attrs.listen_port, port.c_str());
+    strcpy(attrs->bind_hostname, hostname.c_str());
+    strcpy(attrs->listen_port, port.c_str());
 
-    log_debug("NetNnti", "attrs.mtu            = %ld", attrs.mtu);
-    log_debug("NetNnti", "attrs.max_eager_size = %ld", attrs.max_eager_size);
-    log_debug("NetNnti", "attrs.bind_hostname  = %s", attrs.bind_hostname);
-    log_debug("NetNnti", "attrs.listen_port    = %s", attrs.listen_port);
+    log_debug("NetNnti", "attrs.mtu            = %ld", attrs->mtu);
+    log_debug("NetNnti", "attrs.max_eager_size = %ld", attrs->max_eager_size);
+    log_debug("NetNnti", "attrs.bind_hostname  = %s",  attrs->bind_hostname);
+    log_debug("NetNnti", "attrs.listen_port    = %s",  attrs->listen_port);
 
 }
 
@@ -754,7 +764,7 @@ int IncreaseOffset(
     uint32_t              addend)      // in
 {
     NntiBufferRemote *b = (NntiBufferRemote *)nbr;
-    if ((addend >= 0) && (addend < b->length)) {
+    if (addend < b->length) {
         b->offset += addend;
         b->length -= addend;
     } else {
@@ -779,7 +789,7 @@ int DecreaseLength(
     uint32_t              subtrahend)  // in
 {
     NntiBufferRemote *b = (NntiBufferRemote *)nbr;
-    if ((subtrahend >= 0) && (subtrahend < b->length)) {
+    if (subtrahend < b->length) {
         b->length -= subtrahend;
     } else {
         return -1;
@@ -804,7 +814,7 @@ int TrimToLength(
     uint32_t              length)   // in
 {
     NntiBufferRemote *b = (NntiBufferRemote *)nbr;
-    if ((length > 0) && (length < b->length)) {
+    if (length < b->length) {
         b->length = length;
     } else {
         return -1;
@@ -1048,7 +1058,6 @@ void Get(
     base_wr.trans_hdl     = nnti::transports::transport::to_hdl(t_);
     base_wr.peer          = peer_hdl;
     base_wr.local_hdl     = local_bl->nnti_buffer;
-    fflush(stdout);
     base_wr.local_offset  = local_bl_offset + local_offset;
     base_wr.remote_hdl    = remote_hdl;
     base_wr.remote_offset = nbr->offset + remote_offset;
@@ -1239,7 +1248,7 @@ void Atomic(
     NetBufferRemote     *remote_buffer,
     uint64_t             remote_offset,
     uint64_t             length,         // TODO: this param is ignored because we only do 64-bit atomics
-    uint64_t             operand,
+    int64_t              operand,
     lambda_net_update_t  user_cb)
 {
     NNTI_work_request_t base_wr = NNTI_WR_INITIALIZER;
@@ -1306,8 +1315,8 @@ void Atomic(
     NetBufferRemote     *remote_buffer,
     uint64_t             remote_offset,
     uint64_t             length,         // TODO: this param is ignored because we only do 64-bit atomics
-    uint64_t             operand1,
-    uint64_t             operand2,
+    int64_t              operand1,
+    int64_t              operand2,
     lambda_net_update_t  user_cb)
 {
     NNTI_work_request_t base_wr = NNTI_WR_INITIALIZER;

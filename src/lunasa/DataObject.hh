@@ -17,50 +17,52 @@
 #include <string>
 #include <queue>
 
-#include "common/NodeID.hh"
-#include "common/InfoInterface.hh"
+#include "faodel-common/NodeID.hh"
+#include "faodel-common/InfoInterface.hh"
 #include "lunasa/common/Types.hh"
+
+//forward refs
+namespace lunasa { namespace internal { struct Allocation; } }
+namespace lunasa { namespace internal { class AllocatorBase; } }
+
+
 
 namespace lunasa {
 
-//forward refs
-struct allocation_s;
-typedef allocation_s allocation_t;
-class AllocatorBase;
-
-
-class DataObject : public faodel::InfoInterface {
+class DataObject
+        : public faodel::InfoInterface {
 
 public:
   enum class AllocatorType { eager, lazy };
 
-  // Create an empty LDO to be filled in later (nullptr impl)
-  DataObject();                         
+  //Constructors
+  DataObject(); // Create an empty LDO to be filled in later (nullptr impl)
+  DataObject(uint32_t user_capacity,
+             uint16_t meta_capacity,  uint32_t data_capacity,
+             AllocatorType allocator,
+             dataobject_type_t tag); // Allocate memory for a new LDO
 
-  // Allocate memory for a new LDO
-  DataObject(uint16_t metaCapacity, uint32_t dataCapacity, AllocatorType allocator);
+  DataObject(uint16_t meta_capacity, uint32_t data_capacity,
+             AllocatorType allocator, dataobject_type_t tag=0)
+          : DataObject(meta_capacity+data_capacity,
+                       meta_capacity, data_capacity,
+                       allocator, tag) {}
 
-  // Shortcut for creating a new LDO
-  DataObject(uint32_t dataCapacity);
 
-  // Create an LDO from pre-allocated memory
-  DataObject(void *userMemory, uint16_t metaCapacity, uint32_t dataCapacity, void (*userCleanupFunc)(void *));
 
-  ~DataObject();
+  DataObject(uint32_t dataCapacity); // Shortcut for creating a new LDO
+  DataObject(void *userMemory,
+             uint16_t metaCapacity, uint32_t dataCapacity,
+             void (*userCleanupFunc)(void *)); // Create an LDO from pre-allocated memory
+
+  ~DataObject() override;
   
-  // shallow copies 
-  DataObject(const DataObject &);
 
-  // move
-  DataObject(DataObject &&);
+  DataObject(const DataObject &); // shallow copies
+  DataObject(DataObject &&); // move
 
-  // Establishes a new data object from an existing ptr
-  // rawLength should reflect the reality of the rawPtr,
-  // allocator should define where the DO will free the memory
-  //DataObject(void *rawPtr, uint32_t rawLength, lunasa::AllocatorBase* allocator);
-
-  lunasa::AllocatorBase* Allocator();
-  void DropReference(lunasa::AllocatorBase* allocator);
+  lunasa::internal::AllocatorBase* Allocator();
+  void DropReference(lunasa::internal::AllocatorBase *allocator);
 
   class InternalUseOnly {
     public:
@@ -68,14 +70,16 @@ public:
 
       /* METHODS that are intended for internal development use ONLY */
       int GetRefCount() const;
+      void *GetLocalHeaderPtr() const;
+      void *GetHeaderPtr() const;
 
-    private:
+  private:
       DataObject *ldo;
   };
 
   friend class InternalUseOnly;
 
-  InternalUseOnly internal_use_only;
+  InternalUseOnly internal_use_only; //Place for internal functions to live
 
   // shallow copies decrefing whatever was previously there
   DataObject& operator=(const DataObject&);
@@ -86,18 +90,9 @@ public:
   // deep copies into the existing pointer, only capacities must match
   DataObject& deepcopy(const DataObject&);
 
-  /*! @brief Write the contents of the LDO to a file.  */
-  uint32_t writeToFile(const char *filename) const;
+  uint32_t writeToFile(const char *filename) const; //Write header/meta/data to file
+  uint32_t readFromFile(const char *filename); //Read header/meta/data from file
 
-  /*! @brief Read the contents of the LDO from a file.  */
-  uint32_t readFromFile(const char *filename);
-
-#if 0
-  // NOT clear that there's a real use case for this...  [sll]
-  std::string meta() const;
-  // replaces meta with newMeta, throws an exception if the meta sizes don't match
-  void meta(const std::string& newMeta);
-#endif
 
   /*! @brief Determine whether memory is registered
    * 
@@ -105,52 +100,47 @@ public:
    *  network transport, and FALSE otherwise. */
   bool isPinned() const;
 
-  faodel::nodeid_t origin() const;
-  void fixOrigin(faodel::nodeid_t node);
+  /**
+   * @brief Determine if this object hasn't been assigned an allocation yet
+   * @retval TRUE When it is not associated with an allocation
+   * @retval FALSE When there is an allocation associated with this data object
+   */
+  bool isNull() const { return impl==nullptr; }
 
   /* GET heap address pointers */
   void *GetBasePtr() const;
   template <class T>
-  T GetBasePtr() const
-  { 
+  T GetBasePtr() const {
     return static_cast<T>(GetBasePtr());
-  }
-
-  void *GetLocalHeaderPtr() const;
-  template <class T>
-  T GetLocalHeaderPtr() const
-  { 
-    return static_cast<T>(GetLocalHeaderPtr());
-  }
-
-  void *GetHeaderPtr() const;
-  template <class T>
-  T GetHeaderPtr() const
-  { 
-    return static_cast<T>(GetHeaderPtr());
   }
 
   void *GetMetaPtr() const;
   template <class T>
-  T GetMetaPtr() const
-  { 
+  T GetMetaPtr() const {
     return static_cast<T>(GetMetaPtr());
   }
 
   void *GetDataPtr() const;
   template <class T>
-  T GetDataPtr() const
-  { 
+  T GetDataPtr() const {
     return static_cast<T>(GetDataPtr());
   }
 
+  dataobject_type_t GetTypeID() const;
+  void              SetTypeID(dataobject_type_t type_id);
+
+
   /* GET size of LDO segments */
-  uint32_t GetLocalHeaderSize() const;
-  uint32_t GetHeaderSize() const;
-  uint32_t GetMetaSize() const;
-  uint32_t GetDataSize() const;
-  uint32_t GetUserSize() const;         //Meta + Data
-  uint32_t GetTotalSize() const;        //Header + Meta + Data
+  uint32_t GetLocalHeaderSize() const;   //Size of local bookkeeping
+  uint32_t GetHeaderSize() const;        //Header (contains tag, meta, and data lengths)
+  uint32_t GetMetaSize() const;          //Meta size reported in header
+  uint32_t GetDataSize() const;          //Data size reported in header
+  uint32_t GetUserSize() const;          //Meta + Data
+  uint32_t GetWireSize() const;          //Header+Meta+Data
+  uint32_t GetRawAllocationSize() const; //Local bookkeeping's allocated bytes for header+meta+data (rare)
+  uint32_t GetUserCapacity() const;      //Maximum amount of space that user's Meta+Data can be
+
+  int ModifyUserSizes(uint16_t new_meta_size, uint32_t new_data_size); // Adjust values in header (iff fits)
 
   /* Get RDMA handles */
 
@@ -212,21 +202,23 @@ public:
   bool operator!=(const DataObject &other) const {
     return (this->impl != other.impl);
   }
-  
+
+  int DeepCompare(const DataObject &other) const;
+
   //InfoInterface
   void sstr(std::stringstream &ss, int depth=0, int indent=0) const;
 
 private:
   // Pointer to STRUCTURE that represents the "beginning" of the data object.
   // Currently, this is at least the headers and the user metadata.
-  allocation_t *impl;
+  internal::Allocation *impl;
 
   void AddUserDataSegment(void *userMemory, uint32_t metaCapacity, uint32_t dataCapacity, 
                           void (*userCleanupFunc)(void *));
 };
 
 class InstanceUninitialized : public std::exception  {
-  virtual const char* what() const throw() {
+  const char* what() const throw() override {
     return "Tried to instantiate lunasa::DataObject without a Lunasa instance";
   }
 };
@@ -238,13 +230,13 @@ class SizeMismatch : public std::exception {
 };
 
 class UserLDOAccessError : public std::exception {
-  virtual const char* what() const throw() {
+  const char* what() const throw() override {
     return "Improper access of USER LDO";
   }
 };
 
 class InvalidArgument : public std::exception {
-  virtual const char* what() const throw() {
+  const char* what() const throw() override {
     return "Invalid argument";
   }
 };

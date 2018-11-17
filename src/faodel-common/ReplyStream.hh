@@ -2,15 +2,15 @@
 // LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
 // the U.S. Government retains certain rights in this software. 
 
-#ifndef WEBHOOK_REPLYSTREAM_HH
-#define WEBHOOK_REPLYSTREAM_HH
+#ifndef FAODEL_COMMON_REPLYSTREAM_HH
+#define FAODEL_COMMON_REPLYSTREAM_HH
 
 #include <vector>
 #include <map>
 #include <sstream>
 #include <utility>
 
-namespace webhook {
+namespace faodel {
 
 enum class ReplyStreamType { TEXT, HTML, JSON };
 
@@ -53,7 +53,7 @@ private:
   std::stringstream *ss; //Reference to an external stringstream
 };
 
-} // namespace webhook
+} // namespace faodel
 
 
-#endif // WEBHOOK_REPLYSTREAM_HH
+#endif // FAODEL_COMMON_REPLYSTREAM_HH

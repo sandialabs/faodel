@@ -187,6 +187,8 @@ WaitingType OpRdmaPing::UpdateTarget(OpArgs *args) {
   case State::done:
     return WaitingType::done_and_destroy;
   }
+  KHALT("Missing state");
+  return WaitingType::done_and_destroy;
 }
 
 string OpRdmaPing::GetStateName() const {

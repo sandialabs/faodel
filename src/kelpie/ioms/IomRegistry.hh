@@ -8,9 +8,10 @@
 #include <map>
 #include <string>
 
-#include "common/InfoInterface.hh"
-#include "common/StringHelpers.hh"
-#include "common/ResourceURL.hh"
+#include "faodel-common/InfoInterface.hh"
+#include "faodel-common/LoggingInterface.hh"
+#include "faodel-common/StringHelpers.hh"
+#include "faodel-common/ResourceURL.hh"
 
 #include "kelpie/common/Types.hh"
 #include "kelpie/ioms/IomBase.hh"
@@ -31,11 +32,12 @@ namespace internal {
  *        in the Kelpie.hh file.
  */
 class IomRegistry
-  : public faodel::InfoInterface {
+  : public faodel::InfoInterface,
+    public faodel::LoggingInterface {
 
 public:
   IomRegistry();
-  ~IomRegistry();
+  ~IomRegistry() override;
 
   void init(const faodel::Configuration &config);
   void start() { finalized=true; }
@@ -45,21 +47,20 @@ public:
   void RegisterIomConstructor(std::string type, fn_IomConstructor_t ctor_function);
 
   IomBase * Find(std::string iom_name) { return Find(faodel::hash32(iom_name)); }
-  IomBase * Find(uint32_t iom_hash);
+  IomBase * Find(iom_hash_t iom_hash);
   
   //InfoInterface function
-  void sstr(std::stringstream &ss, int depth=0, int indent=0) const;
+  void sstr(std::stringstream &ss, int depth=0, int indent=0) const override;
   
 private:
   faodel::MutexWrapper *mutex;
+  int default_logging_level;
   bool finalized;
-  std::map<uint32_t, IomBase *> ioms_by_hash_pre;
-  std::map<uint32_t, IomBase *> ioms_by_hash_post;
+  std::map<iom_hash_t, IomBase *> ioms_by_hash_pre;
+  std::map<iom_hash_t, IomBase *> ioms_by_hash_post;
   
   std::map<std::string, fn_IomConstructor_t> iom_ctors;
 
-  void registerIom(IomBase *iom);
-  
   void HandleWebhookStatus(const std::map<std::string, std::string> &args, std::stringstream &results);
 };
 

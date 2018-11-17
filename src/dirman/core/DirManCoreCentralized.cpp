@@ -5,15 +5,14 @@
 
 #include "opbox/OpBox.hh"
 #include "opbox/net/net.hh"
-#include "opbox/services/dirman/core/DirManCoreCentralized.hh"
-#include "opbox/services/dirman/ops/OpDirManCentralized.hh"
+#include "dirman/core/DirManCoreCentralized.hh"
+#include "dirman/ops/OpDirManCentralized.hh"
 
 #include "webhook/Server.hh"
 
 using namespace std;
 using namespace faodel;
 
-namespace opbox {
 namespace dirman {
 namespace internal {
 
@@ -22,34 +21,49 @@ DirManCoreCentralized::DirManCoreCentralized(const faodel::Configuration &config
   : DirManCoreBase(config, "Centralized"), 
     am_root(false) {
 
+
   string root_node_hex;
-  bool dbg_am_root;
+  config.GetBool(&am_root,                     "dirman.host_root",            "false");
+  config.GetLowercaseString(&root_node_hex,    "dirman.root_node",            "");
 
-  config.GetBool(&am_root,                  "dirman.host_root",            "false");
-  config.GetLowercaseString(&root_node_hex, "dirman.root_node",            "");
-  config.GetBool(&dbg_am_root,              "dirman.testing_mode.am_root", "false");
+  my_node = webhook::Server::GetNodeID();
 
-
-  if(dbg_am_root){
-    //This is a special testing mode that allows tests to bring up node without any net ops
-    am_root=true;
-    my_node = faodel::nodeid_t(0x19901990,internal_use_only);
-    root_id = my_node;
-    dbg("Enabling testing mode. This node functions as the root");
-
-  } else if (!root_node_hex.empty()){
+  if (!root_node_hex.empty()){
     //Query to find the root node
     root_id = nodeid_t(root_node_hex);
+    am_root = (root_id == my_node);
+    dbg("Setting root node to "+root_id.GetHex());
 
-  } else if (am_root){
+  } else if(am_root){
     dbg("Am hosting root");
+    root_id = my_node;
     //root_id can't be set here because network not up yet
 
   } else if (root_node_hex.empty()){
     error("DirManCoreCentralized: no dirman.root_node provided in configuration");
     KTODO("DMCC handle no root node in config");
   }
-  //Note: my_node isn't set until net is ready, during start
+
+
+
+  //The base class may have plugged a bunch of urls from config into dc_others. The root
+  //node needs these moved to dc_mine because root will only look there.
+  vector<ResourceURL> predefined_urls;
+  vector<DirectoryInfo> dirs;
+  dc_others.GetAllURLs(&predefined_urls);
+  dc_others.Lookup(predefined_urls, &dirs);
+  for(auto &d : dirs){
+    if(am_root) {
+      dbg("Root Transplanting "+d.url.GetFullURL());
+      HostNewDir(d);
+      dc_others.Remove(d.url);
+    } else {
+      dc_others.Remove(d.url);
+      d.url = localizeURL(d.url, true);
+      d.url.reference_node = root_id;
+      dc_others.Update(d);
+    }
+  }
 
   //Register our Op
   opbox::RegisterOp<OpDirManCentralized>();
@@ -61,13 +75,9 @@ DirManCoreCentralized::~DirManCoreCentralized() {
 }
 
 void DirManCoreCentralized::start(){
-  my_node = opbox::net::GetMyID();
-  if(am_root) root_id=my_node;
-  else        am_root = (root_id == my_node);
 }
 
 void DirManCoreCentralized::finish(){
-  KTODO("DirManCoreCentralized Finish");
 }
 
 /**
@@ -91,34 +101,51 @@ bool DirManCoreCentralized::Locate(const ResourceURL &search_url, nodeid_t *refe
  * @retval FALSE The entry was no found
  */
 bool DirManCoreCentralized::GetDirectoryInfo(const faodel::ResourceURL &url, bool check_local, bool check_remote, DirectoryInfo *dir_info) {
-  dbg("GetDirInfo Requesting "+url.GetURL());
+
+  dbg("GetDirInfo request to (local="+to_string(check_local)+",remote="+to_string(check_remote)+ ") requesting resource"+url.GetURL());
 
   //Fixup the url by filling in the bucket
   faodel::ResourceURL url_mod = localizeURL(url, false);
 
   if(am_root){
-    return dc_mine.Lookup(url_mod, dir_info);
+    //We're the root node. Just query local structures to find answer
+    bool found = dc_mine.Lookup(url_mod, dir_info);
+    dbg("On-Root local query found: "+to_string(found));
+    return found;
 
   } else {
 
+    //We're not the root. Check our cache first
     if(check_local){
       bool found = dc_others.Lookup(url_mod, dir_info);
+      dbg("Off-Root local cache query found: "+to_string(found));
       if(found) return found;
     }
-    if(!check_remote) return false;
+    //Didn't find. Bail out if remote search not enabled
+    if(!check_remote) {
+      dbg("Off-Root local didn't find. Remote search not enabled. Returning false\n");
+      return false;
+    }
 
+    dbg("Off-Root missed local cache. Issue request to root "+root_id.GetHex()+" for "+url_mod.GetPathName());
     //Launch a message
     OpDirManCentralized *op = new OpDirManCentralized(OpDirManCentralized::RequestType::GetInfo, root_id, url_mod);
     future<DirectoryInfo> fut1 = op->GetFuture();
     opbox::LaunchOp(op);
 
-    //Block until get result
+    //Block until get a result (could be good or bad)
     DirectoryInfo di2 = fut1.get();
-    dbg("GetDirInfo Got result back: "+di2.to_string());
+
+    //Skip out if the dirinfo we got back is empty
+    if(di2.IsEmpty()) {
+      dbg("GetDirInfo did not get a valid result from root node");
+      return false;
+    }
+
+    //Pass valid result back
+    dbg("GetDirInfo Got remote result back: " + di2.to_string() + " children " + to_string(di2.children.size()));
     dc_others.CreateAndLinkParents(di2);
-
     if(dir_info) *dir_info = di2;
-
     return true;
 
   }
@@ -263,6 +290,10 @@ faodel::ResourceURL DirManCoreCentralized::localizeURL(const faodel::ResourceURL
   return url_mod;
 }
 
+void DirManCoreCentralized::appendWebhookParameterTable(faodel::ReplyStream *rs){
+  rs->tableRow({"Root Node", root_id.GetHtmlLink()});
+  rs->tableRow({"Am Root",  std::to_string(am_root)});
+}
 
 void DirManCoreCentralized::sstr(stringstream &ss, int depth, int indent) const {
   if(depth<0) return;
@@ -271,9 +302,14 @@ void DirManCoreCentralized::sstr(stringstream &ss, int depth, int indent) const 
      << " Root ID: "<<root_id.GetHex()
      << endl;
 
+  if(depth>0) {
+    dc_mine.sstr(ss, depth-1, indent+2);
+    dc_others.sstr(ss, depth-1, indent+2);
+    doc.sstr(ss,depth-1, indent+2);
+  }
+
 }
 
 } // namespace internal
 } // namespace dirman
-} // namespace opbox
 

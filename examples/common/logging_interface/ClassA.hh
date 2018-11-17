@@ -9,7 +9,7 @@
 #include <string>
 #include <vector>
 
-#include "common/Common.hh"
+#include "faodel-common/Common.hh"
 
 using namespace std;
 

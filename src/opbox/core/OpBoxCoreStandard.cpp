@@ -5,8 +5,9 @@
 #include <iostream>
 #include <chrono>
 #include <thread>
+#include <stdexcept>
 
-#include "common/Debug.hh"
+#include "faodel-common/Debug.hh"
 
 #include "webhook/WebHook.hh"
 #include "webhook/Server.hh"
@@ -197,7 +198,7 @@ int OpBoxCoreStandard::HandleIncomingMessage(opbox::net::peer_ptr_t peer, messag
         << std::hex<<incoming_message->op_id
         << " failed because Op was not known. Known Ops:\n";
 
-      opbox::internal::Singleton::impl_ob.registry.sstr(ss, 100, 4);
+      opbox::internal::Singleton::impl.registry.sstr(ss, 100, 4);
 
     } else{
       ss<<" existing Op (mailbox "<<my_mailbox<<") failed because Op not active.\n";
@@ -359,12 +360,12 @@ void OpBoxCoreStandard::HandleWebhookStatus(
                     const std::map<std::string,std::string> &args,
                     std::stringstream &results) {
 
-    webhook::ReplyStream rs(args, "OpBox Status", &results);
+    faodel::ReplyStream rs(args, "OpBox Status", &results);
 
     vector<pair<string,string>> stats;
     stats.push_back(pair<string,string>("Core Type", GetType()));
     rs.mkTable(stats, "OpBox Status");
-    opbox::internal::Singleton::impl_ob.webhookInfoRegistry(rs);
+    opbox::internal::Singleton::impl.webhookInfoRegistry(rs);
     rs.Finish();
 }
 

@@ -155,7 +155,7 @@ class MemalignSysAllocator : public SysAllocator {
 public:
   MemalignSysAllocator() : SysAllocator() {
   }
-  void* Alloc(size_t size, size_t *actual_size, size_t alignment);
+  void* Alloc(size_t size, size_t *actual_size, size_t alignment) override;
 };
 static char memalign_space[sizeof(MemalignSysAllocator)];
 
@@ -163,7 +163,7 @@ class MmapSysAllocator : public SysAllocator {
 public:
   MmapSysAllocator() : SysAllocator() {
   }
-  void* Alloc(size_t size, size_t *actual_size, size_t alignment);
+  void* Alloc(size_t size, size_t *actual_size, size_t alignment) override;
 };
 static char mmap_space[sizeof(MmapSysAllocator)];
 
@@ -171,7 +171,7 @@ class DevMemSysAllocator : public SysAllocator {
 public:
   DevMemSysAllocator() : SysAllocator() {
   }
-  void* Alloc(size_t size, size_t *actual_size, size_t alignment);
+  void* Alloc(size_t size, size_t *actual_size, size_t alignment) override;
 };
 
 class DefaultSysAllocator : public SysAllocator {
@@ -191,7 +191,7 @@ class DefaultSysAllocator : public SysAllocator {
       names_[index] = name;
     }
   }
-  void* Alloc(size_t size, size_t *actual_size, size_t alignment);
+  void* Alloc(size_t size, size_t *actual_size, size_t alignment) override;
 
  private:
   static const int kMaxAllocators = 2;

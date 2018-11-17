@@ -5,10 +5,10 @@
 #ifndef KELPIE_KELPIECOREBASE_HH
 #define KELPIE_KELPIECOREBASE_HH
 
-#include "common/FaodelTypes.hh"
-#include "common/InfoInterface.hh"
-#include "common/LoggingInterface.hh"
-#include "common/Configuration.hh"
+#include "faodel-common/FaodelTypes.hh"
+#include "faodel-common/InfoInterface.hh"
+#include "faodel-common/LoggingInterface.hh"
+#include "faodel-common/Configuration.hh"
 
 #include "kelpie/common/Types.hh"
 
@@ -33,7 +33,8 @@ class KelpieCoreBase :
     public faodel::LoggingInterface {
 public:
   KelpieCoreBase();
-  virtual ~KelpieCoreBase();
+
+  ~KelpieCoreBase() override;
 
   virtual void init(const faodel::Configuration &config) = 0;
   virtual void start()=0;
@@ -49,7 +50,7 @@ public:
   //IOM Management
   virtual void RegisterIomConstructor(std::string type, fn_IomConstructor_t ctor_function) = 0;
   internal::IomBase * FindIOM(std::string iom_name) { return FindIOM(faodel::hash32(iom_name)); }
-  virtual internal::IomBase * FindIOM(uint32_t iom_hash) = 0;
+  virtual internal::IomBase * FindIOM(iom_hash_t iom_hash) = 0;
 
 protected:
 

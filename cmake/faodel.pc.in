@@ -3,12 +3,34 @@ exec_prefix=${prefix}
 libdir=${exec_prefix}/lib
 includedir=${prefix}/include
 
+# Warning: FAODEL does not support pkg-config correctly. For Reference Only.
+#
+#  FAODEL uses cmake for all lib dependencies, not pkg-config. However, one
+#  can use the below to make it easier to add FAODEL's libs to a makefile.
+#  This pkg-config provides the list of FAODEL libs and includes. If you're
+#  rolling your own Makefile, you'll also need to append our dependencies
+#  to your build. Those dependencies are (at least):
+#
+#   - Pthreads  : add -lpthread 
+#   - Boost     : add -L$BOOST_ROOT -lboost_log -lboost_thread
+#                      -lboost_system -lboost_serialization and others(?)
+#   - mpi       : add -L$MPI_ROOT -lmpi -lmpi_cxx
+#
+# Example compile:
+#   g++ -std=c++11 foo.cpp \
+#    $(PKG_CONFIG_PATH=install/lib/pkg-config --cflags --libs) \
+#    -lpthread \
+#    -L$BOOST_ROOT -lboost_log -lboost_thread -lboost_serialization -lboost_system \
+#    -L$MPI_ROOT   -lmpi -lmpi_cxx
+
 Name: Faodel
-Description:
-Version: 0.2
+Description: Collection of libraries for managing data in distributed memory/storage
+Version: @PROJECT_VERSION@
 Requires: @PKGCONFIG_REQUIRES@
-Libs: -L${libdir} -lkelpie -lopbox -llunasa @PKGCONFIG_NNTI@ -lwebhook -lcommon -lsbl
+Libs: -L${libdir} -lkelpie -ldirman -lopbox -llunasa @PKGCONFIG_NNTI@ -lfaodel-services -lwebhook -lfaodel-common -lsbl @PKGCONFIG_TCMALLOC@ 
 Libs.private: @PKGCONFIG_LIBS_PRIVATE@
-Cflags: -I${includedir} -I${includedir}/faodel @PKGCONFIG_CFLAGS@
+Cflags: @PKGCONFIG_CFLAGS@ -I${includedir} -I${includedir}/faodel @PKGCONFIG_CFLAGS@
+
+
 
 

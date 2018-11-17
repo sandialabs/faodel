@@ -21,7 +21,7 @@
 #include <list>
 #include <thread>
 
-#include "common/Configuration.hh"
+#include "faodel-common/Configuration.hh"
 
 #include "nnti/nntiConfig.h"
 
@@ -142,6 +142,7 @@ private:
     struct ibv_cq                  *long_get_cq_;
     struct ibv_srq                 *long_get_srq_;
 
+    bool                            have_exp_qp_;
     bool                            byte_swap_atomic_result_;
 
     uint32_t                        active_mtu_bytes_;
@@ -199,13 +200,13 @@ public:
      *
      * \return A result code (NNTI_OK or an error)
      */
-    ~ibverbs_transport();
+    ~ibverbs_transport() override;
 
     NNTI_result_t
-    start(void);
+    start(void) override;
 
     NNTI_result_t
-    stop(void);
+    stop(void) override;
 
     /**
      * @brief Indicates if a transport has been initialized.
@@ -216,7 +217,7 @@ public:
      *
      */
     bool
-    initialized(void);
+    initialized(void) override;
 
     /**
      * @brief Return the URL field of this transport.
@@ -228,7 +229,7 @@ public:
     NNTI_result_t
     get_url(
         char           *url,
-        const uint64_t  maxlen);
+        const uint64_t  maxlen) override;
 
     /**
      * @brief Get the process ID of this process.
@@ -248,7 +249,7 @@ public:
      *
      */
     NNTI_result_t
-    attrs(NNTI_attrs_t *attrs);
+    attrs(NNTI_attrs_t *attrs) override;
 
     /**
      * @brief Prepare for communication with the peer identified by url.
@@ -262,7 +263,7 @@ public:
     connect(
         const char  *url,
         const int    timeout,
-        NNTI_peer_t *peer_hdl);
+        NNTI_peer_t *peer_hdl) override;
 
     /**
      * @brief Terminate communication with this peer.
@@ -272,7 +273,7 @@ public:
      */
     NNTI_result_t
     disconnect(
-        NNTI_peer_t peer_hdl);
+        NNTI_peer_t peer_hdl) override;
 
     /**
      * @brief Create an event queue.
@@ -286,7 +287,7 @@ public:
     eq_create(
         uint64_t            size,
         NNTI_eq_flags_t     flags,
-        NNTI_event_queue_t *eq);
+        NNTI_event_queue_t *eq) override;
 
     NNTI_result_t
     eq_create(
@@ -294,7 +295,7 @@ public:
         NNTI_eq_flags_t                      flags,
         nnti::datatype::nnti_event_callback  cb,
         void                                *cb_context,
-        NNTI_event_queue_t                  *eq);
+        NNTI_event_queue_t                  *eq) override;
 
     /**
      * @brief Destroy an event queue.
@@ -321,7 +322,7 @@ public:
         const uint32_t      eq_count,
         const int           timeout,
         uint32_t           *which,
-        NNTI_event_t       *event);
+        NNTI_event_t       *event) override;
 
     /**
      * @brief Retrieves the next message from the unexpected list.
@@ -335,7 +336,7 @@ public:
     next_unexpected(
         NNTI_buffer_t  dst_hdl,
         uint64_t       dst_offset,
-        NNTI_event_t  *result_event);
+        NNTI_event_t  *result_event) override;
 
     /**
      * @brief Retrieves a specific message from the unexpected list.
@@ -351,7 +352,7 @@ public:
         NNTI_event_t  *unexpected_event,
         NNTI_buffer_t  dst_hdl,
         uint64_t       dst_offset,
-        NNTI_event_t  *result_event);
+        NNTI_event_t  *result_event) override;
 
     /**
      * @brief Marks a send operation as complete.
@@ -361,7 +362,7 @@ public:
      */
     NNTI_result_t
     event_complete(
-        NNTI_event_t *event);
+        NNTI_event_t *event) override;
 
     /**
      * @brief Decode an array of bytes into an NNTI datatype.
@@ -375,7 +376,7 @@ public:
     dt_unpack(
         void           *nnti_dt,
         char           *packed_buf,
-        const uint64_t  packed_len);
+        const uint64_t  packed_len) override;
 
     /**
      * @brief Allocate a block of memory and prepare it for network operations.
@@ -407,7 +408,7 @@ public:
      */
     NNTI_result_t
     free(
-        NNTI_buffer_t reg_buf);
+        NNTI_buffer_t reg_buf) override;
 
     /**
      * @brief Prepare a block of memory for network operations.
@@ -429,7 +430,7 @@ public:
         NNTI_event_queue_t                   eq,
         nnti::datatype::nnti_event_callback  cb,
         void                                *cb_context,
-        NNTI_buffer_t                       *reg_buf);
+        NNTI_buffer_t                       *reg_buf) override;
 
     /**
      * @brief Disables network operations on a memory buffer.
@@ -439,7 +440,7 @@ public:
      */
     NNTI_result_t
     unregister_memory(
-        NNTI_buffer_t reg_buf);
+        NNTI_buffer_t reg_buf) override;
 
     /**
      * @brief Convert an NNTI peer to an NNTI_process_id_t.
@@ -451,7 +452,7 @@ public:
     NNTI_result_t
     dt_peer_to_pid(
         NNTI_peer_t        peer_hdl,
-        NNTI_process_id_t *pid);
+        NNTI_process_id_t *pid) override;
 
     /**
      * @brief Convert an NNTI_process_id_t to an NNTI peer.
@@ -463,7 +464,7 @@ public:
     NNTI_result_t
     dt_pid_to_peer(
         NNTI_process_id_t  pid,
-        NNTI_peer_t       *peer_hdl);
+        NNTI_peer_t       *peer_hdl) override;
 
     /**
      * @brief Send a message to a peer.
@@ -487,7 +488,7 @@ public:
     NNTI_result_t
     put(
         nnti::datatype::nnti_work_request *wr,
-        NNTI_work_id_t                    *wid);
+        NNTI_work_id_t                    *wid) override;
 
     /**
      * @brief Transfer data from a peer.
@@ -499,7 +500,7 @@ public:
     NNTI_result_t
     get(
         nnti::datatype::nnti_work_request *wr,
-        NNTI_work_id_t                    *wid);
+        NNTI_work_id_t                    *wid) override;
 
     /**
      * perform a 64-bit atomic operation with GET semantics
@@ -511,7 +512,7 @@ public:
     NNTI_result_t
     atomic_fop(
         nnti::datatype::nnti_work_request *wr,
-        NNTI_work_id_t                    *wid);
+        NNTI_work_id_t                    *wid) override;
 
     /**
      * perform a 64-bit compare-and-swap operation
@@ -523,7 +524,7 @@ public:
     NNTI_result_t
     atomic_cswap(
         nnti::datatype::nnti_work_request *wr,
-        NNTI_work_id_t                    *wid);
+        NNTI_work_id_t                    *wid) override;
 
     /**
      * @brief Attempts to cancel an NNTI operation.
@@ -533,7 +534,7 @@ public:
      */
     NNTI_result_t
     cancel(
-        NNTI_work_id_t wid);
+        NNTI_work_id_t wid) override;
 
 
     /**
@@ -546,7 +547,7 @@ public:
     NNTI_result_t
     cancelall(
         NNTI_work_id_t *wid_list,
-        const uint32_t  wid_count);
+        const uint32_t  wid_count) override;
 
 
     /**
@@ -555,7 +556,7 @@ public:
      * \return A result code (NNTI_OK or an error)
      */
     NNTI_result_t
-    interrupt();
+    interrupt() override;
 
 
     /**
@@ -570,7 +571,7 @@ public:
     wait(
         NNTI_work_id_t  wid,
         const int64_t   timeout,
-        NNTI_status_t  *status);
+        NNTI_status_t  *status) override;
 
     /**
      * @brief Wait for any operation (wid_list) in the list to complete.
@@ -588,7 +589,7 @@ public:
         const uint32_t  wid_count,
         const int64_t   timeout,
         uint32_t       *which,
-        NNTI_status_t  *status);
+        NNTI_status_t  *status) override;
 
     /**
      * @brief Waits for all the operations (wid_list) in the list to complete.
@@ -604,7 +605,7 @@ public:
         NNTI_work_id_t *wid_list,
         const uint32_t  wid_count,
         const int64_t   timeout,
-        NNTI_status_t  *status);
+        NNTI_status_t  *status) override;
 
 public:
     static ibverbs_transport*
@@ -612,6 +613,10 @@ public:
         faodel::Configuration &config);
 
 private:
+    bool
+    have_exp_qp(void);
+    bool
+    atomic_result_is_be(void);
     NNTI_result_t
     setup_command_channel(void);
     NNTI_result_t

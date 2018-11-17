@@ -11,8 +11,8 @@
 #include <set>
 #include <memory>
 
-#include "common/FaodelTypes.hh"
-#include "common/InfoInterface.hh"
+#include "faodel-common/FaodelTypes.hh"
+#include "faodel-common/InfoInterface.hh"
 
 #include "opbox/ops/Op.hh"
 
@@ -42,9 +42,7 @@ public:
   size_t getUserSize() {
     return ldo.GetUserSize();
   }
-  
-  int  evict(const Key &key, std::string fileio_tbd);
-  
+
   Availability              availability;   //!< Where this data resides
   uint32_t                  hold_until;     //!< Hold at least until this point in time
 
@@ -71,7 +69,7 @@ public:
   void     getInfo(kv_col_info_t *col_info);
 
   //InfoInterface function
-  void   sstr(std::stringstream &ss, int depth=0, int indent=0) const;
+  void   sstr(std::stringstream &ss, int depth=0, int indent=0) const override;
 
 
 private:

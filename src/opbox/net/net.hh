@@ -19,10 +19,10 @@
 
 
 
-#include "common/Configuration.hh"
-#include "common/Bootstrap.hh"
-#include "common/BootstrapInterface.hh"
-#include "common/NodeID.hh"
+#include "faodel-common/Configuration.hh"
+#include "faodel-common/Bootstrap.hh"
+#include "faodel-common/BootstrapInterface.hh"
+#include "faodel-common/NodeID.hh"
 
 #include "lunasa/DataObject.hh"
 
@@ -156,8 +156,9 @@ opbox::net::peer_ptr_t   ConvertNodeIDToPeer(faodel::nodeid_t nodeid);
 
 /**
  * @brief Get the attributes of the network module.
+ * @param[out] attrs Where attribute info is copied to
  */
-void GetAttrs(Attrs &attrs);
+void GetAttrs(Attrs *attrs);
 
 /**
  * @brief Prepare for communication with the peer identified by peer_addr and peer_port.
@@ -401,7 +402,7 @@ void Atomic(
     NetBufferRemote     *remote_buffer,
     uint64_t             remote_offset,
     uint64_t             length,
-    uint64_t             operand,
+    int64_t              operand,
     lambda_net_update_t  user_cb);
 
 /**
@@ -429,8 +430,8 @@ void Atomic(
     NetBufferRemote     *remote_buffer,
     uint64_t             remote_offset,
     uint64_t             length,
-    uint64_t             operand1,
-    uint64_t             operand2,
+    int64_t              operand1,
+    int64_t              operand2,
     lambda_net_update_t  user_cb);
 
 } // namespace net

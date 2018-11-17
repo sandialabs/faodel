@@ -79,12 +79,13 @@ test_setup(int                           argc,
            nnti::transports::transport *&t);
 
 NNTI_result_t
-get_num_procs(uint32_t &num_procs);
+get_num_procs(int &num_procs);
 NNTI_result_t
-get_rank(uint32_t &my_rank);
+get_rank(int &my_rank);
 NNTI_result_t
 find_server_urls(int num_servers,
                  uint32_t my_rank,
+                 uint32_t num_procs,
                  char *my_url,
                  char server_url[][NNTI_URL_LEN],
                  bool &i_am_server);

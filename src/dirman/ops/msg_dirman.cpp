@@ -4,31 +4,32 @@
 
 #include <stdexcept>
 
-#include "common/SerializationHelpers.hh"
+#include "faodel-common/SerializationHelpers.hh"
 
 #include "opbox/common/MessageHelpers.hh"
 
 
-#include "opbox/services/dirman/ops/msg_dirman.hh"
+#include "dirman/ops/msg_dirman.hh"
 
 #include <boost/serialization/vector.hpp>
 
 using namespace std;
-using namespace opbox;
+using namespace faodel;
 
+namespace dirman {
 
 /**
  * @brief Determine if this message has a DirInfo embedded in it
  */
-bool msg_dirman::hasDirInfo(){
-  return ((hdr.op_id == OpDirManCentralized::op_id) && (hdr.user_flags & 0x10) );
+bool msg_dirman::hasDirInfo() {
+  return ((hdr.op_id == OpDirManCentralized::op_id) && (hdr.user_flags & 0x10));
 }
 
 /**
  * @brief Determine if this message has a URL embedded in it
  */
-bool msg_dirman::hasURL(){
-  return ((hdr.op_id == OpDirManCentralized::op_id) && !(hdr.user_flags & 0x10) );
+bool msg_dirman::hasURL() {
+  return ((hdr.op_id == OpDirManCentralized::op_id) && !(hdr.user_flags & 0x10));
 }
 
 /**
@@ -43,16 +44,16 @@ bool msg_dirman::hasURL(){
  * @retval False This was larger than an MTU
  */
 bool msg_dirman::AllocateRequest(lunasa::DataObject &new_ldo,
-                       const OpDirManCentralized::RequestType &req_type,
-                       const faodel::nodeid_t &dst_node,
-                       const mailbox_t &src_mailbox,
-                       const faodel::ResourceURL &url ){
+                                 const OpDirManCentralized::RequestType &req_type,
+                                 const faodel::nodeid_t &dst_node,
+                                 const mailbox_t &src_mailbox,
+                                 const faodel::ResourceURL &url) {
 
-  return AllocateStringRequestMessage( new_ldo,
-                                       dst_node, src_mailbox,
-                                       OpDirManCentralized::op_id,
-                                       static_cast<uint16_t>(req_type),
-                                       url.GetFullURL() );
+  return AllocateStringRequestMessage(new_ldo,
+                                      dst_node, src_mailbox,
+                                      OpDirManCentralized::op_id,
+                                      static_cast<uint16_t>(req_type),
+                                      url.GetFullURL());
 }
 
 /**
@@ -61,9 +62,9 @@ bool msg_dirman::AllocateRequest(lunasa::DataObject &new_ldo,
  * @return url The URL in the message
  * @throws runtime_error if message does not have a url
  */
-faodel::ResourceURL msg_dirman::ExtractURL(message_t *hdr){
+faodel::ResourceURL msg_dirman::ExtractURL(message_t *hdr) {
 
-  if( ! (reinterpret_cast<msg_dirman_t *>(hdr))->hasURL() ){
+  if (!(reinterpret_cast<msg_dirman_t *>(hdr))->hasURL()) {
     throw std::runtime_error("ExtractURL called on a message that didn't contain a URL");
   }
   string s = UnpackStringMessage(hdr);
@@ -76,8 +77,8 @@ faodel::ResourceURL msg_dirman::ExtractURL(message_t *hdr){
  * @return DirInfo A DirInfo extracted from the message
  * @throws runtime_error if message does not have a url
  */
-DirectoryInfo msg_dirman::ExtractDirInfo(message_t *hdr){
-  if( ! (reinterpret_cast<msg_dirman_t *>(hdr))->hasDirInfo() ){
+DirectoryInfo msg_dirman::ExtractDirInfo(message_t *hdr) {
+  if (!(reinterpret_cast<msg_dirman_t *>(hdr))->hasDirInfo()) {
     throw std::runtime_error("ExtractURL called on a message that didn't contain a URL");
   }
   return UnpackBoostMessage<DirectoryInfo>(hdr);
@@ -94,18 +95,18 @@ DirectoryInfo msg_dirman::ExtractDirInfo(message_t *hdr){
  * @retval False This was larger than an MTU
  */
 bool msg_dirman::AllocateRequest(lunasa::DataObject &new_ldo,
-                                  const OpDirManCentralized::RequestType &req_type,
-                                  const faodel::nodeid_t &dst_node,
-                                  const mailbox_t &src_mailbox,
-                                  const DirectoryInfo &dir_info){
+                                 const OpDirManCentralized::RequestType &req_type,
+                                 const faodel::nodeid_t &dst_node,
+                                 const mailbox_t &src_mailbox,
+                                 const DirectoryInfo &dir_info) {
 
 
   return AllocateBoostRequestMessage<DirectoryInfo>(
-                                  new_ldo,
-                                  dst_node, src_mailbox,
-                                  OpDirManCentralized::op_id,
-                                  static_cast<uint16_t>(req_type),
-                                  dir_info);
+          new_ldo,
+          dst_node, src_mailbox,
+          OpDirManCentralized::op_id,
+          static_cast<uint16_t>(req_type),
+          dir_info);
 }
 
 /**
@@ -118,13 +119,16 @@ bool msg_dirman::AllocateRequest(lunasa::DataObject &new_ldo,
  * @retval False This was larger than an MTU
  */
 bool msg_dirman::AllocateReply(lunasa::DataObject &new_ldo,
-                                const OpDirManCentralized::RequestType &req_type,
-                                const message_t *request_msg,
-                                const DirectoryInfo &dir_info){
+                               const OpDirManCentralized::RequestType &req_type,
+                               const message_t *request_msg,
+                               const DirectoryInfo &dir_info) {
 
   return AllocateBoostReplyMessage<DirectoryInfo>(
-                                  new_ldo,
-                                  request_msg,
-                                  static_cast<uint16_t>(req_type),
-                                  dir_info);
+          new_ldo,
+          request_msg,
+          static_cast<uint16_t>(req_type),
+          dir_info);
 }
+
+
+} // namespace dirman

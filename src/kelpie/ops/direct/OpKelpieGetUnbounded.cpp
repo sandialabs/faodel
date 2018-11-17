@@ -3,8 +3,9 @@
 // the U.S. Government retains certain rights in this software. 
 
 #include <iostream>
+#include <stdexcept>
 
-#include "common/Debug.hh"
+#include "faodel-common/Debug.hh"
 #include "kelpie/common/OpArgsObjectAvailable.hh"
 
 #include "kelpie/ops/direct/OpKelpieGetUnbounded.hh"
@@ -39,6 +40,8 @@ void OpKelpieGetUnbounded::configure(faodel::internal_use_only_t iuo, LocalKV *n
  * @param[in] target_ptr The target node's peer pointer
  * @param[in] bucket The bucket namespace for this object
  * @param[in] key The key label for the object
+ * @param[in] iom_hash Hash id of an IOM associated with this request
+ * @param[in] behavior_flags Info about how to behave in different cases
  * @param[in] cb_result Callback function invoke when success/failure known
  * @return OpKelpieGetUnbounded
  *
@@ -50,6 +53,8 @@ OpKelpieGetUnbounded::OpKelpieGetUnbounded(
                     const net::peer_ptr_t target_ptr,
                     const faodel::bucket_t bucket,
                     const Key &key,
+                    const iom_hash_t iom_hash,
+                    const pool_behavior_t behavior_flags,
                     fn_opget_result_t cb_result)
   : state(State::orig_getunbounded_send),
     bucket(bucket), key(key), peer(target_ptr),
@@ -58,14 +63,11 @@ OpKelpieGetUnbounded::OpKelpieGetUnbounded(
   bool exceeds;
 
   //Create the outgoing message
-  exceeds = msg_direct_buffer_t::Alloc(ldo_msg,
-                                           op_id,
-                                           DirectFlags::CMD_GET_UNBOUNDED,
-                                           target_node,
-                                           GetAssignedMailbox(),
-                                           opbox::MAILBOX_UNSPECIFIED,
-                                           bucket, key,
-                                           nullptr);
+  exceeds = msg_direct_buffer_t::Alloc(ldo_msg, op_id,
+                                       DirectFlags::CMD_GET_UNBOUNDED, target_node,
+                                       GetAssignedMailbox(), opbox::MAILBOX_UNSPECIFIED,
+                                       bucket, key, iom_hash, behavior_flags,
+                                       nullptr);
 }
 
 
@@ -115,15 +117,9 @@ WaitingType OpKelpieGetUnbounded::smt_GetUnbounded_Start(OpArgs *args) {
   //Lookup the item
   rc_t rc = lkv->get(imsg->bucket, key, mailbox, &ldo_data, nullptr, nullptr);
   if(rc==0) {
-    //Item is ready. Send the origin the pointers to its data
-    msg_direct_buffer_t::Alloc(ldo_msg,
-                                   op_id,
-                                   DirectFlags::CMD_GET_UNBOUNDED,
-                                   imsg->hdr.src,
-                                   GetAssignedMailbox(),
-                                   imsg->hdr.src_mailbox,
-                                   bucket, key,
-                                   &ldo_data); //We have the ldo
+    //Item is ready. Send the origin the pointers to its data. No need for IOM or behavior
+    msg_direct_buffer_t::Alloc(ldo_msg, op_id, DirectFlags::CMD_GET_UNBOUNDED, imsg->hdr.src, GetAssignedMailbox(),
+                               imsg->hdr.src_mailbox, bucket, key, 0, PoolBehavior::NoAction, &ldo_data); //We have the ldo
 
     net::SendMsg(peer, std::move(ldo_msg));
 
@@ -132,14 +128,8 @@ WaitingType OpKelpieGetUnbounded::smt_GetUnbounded_Start(OpArgs *args) {
   } else {
     //Object was not here. We need to nack or wait
 
-    msg_direct_buffer_t::Alloc(ldo_msg,
-                                   op_id,
-                                   DirectFlags::CMD_GET_UNBOUNDED,
-                                   imsg->hdr.src,
-                                   GetAssignedMailbox(),
-                                   imsg->hdr.src_mailbox,
-                                   bucket, key,
-                                   nullptr); //We don't know the ldo yet
+    msg_direct_buffer_t::Alloc(ldo_msg, op_id, DirectFlags::CMD_GET_UNBOUNDED, imsg->hdr.src, GetAssignedMailbox(),
+                               imsg->hdr.src_mailbox, bucket, key, 0, PoolBehavior::NoAction, nullptr); //We don't know the ldo yet
 
     return updateState(State::trgt_getunbounded_wait_for_data, WaitingType::wait_on_user);
     KTODO("WaitOnUser states?");
@@ -212,7 +202,10 @@ WaitingType OpKelpieGetUnbounded::smt_GetUnbounded_WaitAck(OpArgs *args) {
 
 
 WaitingType OpKelpieGetUnbounded::Update(opbox::OpArgs *args) {
-  //cout <<"OPGETU-Update "<< GetStateName()<<" Args: "<<args->str(2,1)<<endl;
+//  stringstream ss;
+//  args->print(ss,2,1);
+//  cout <<"OPGETU-Update "<< GetStateName()<<" Args: "<<ss.str()<<endl;
+//  fflush(stdout);
   switch(state){
   case State::orig_getunbounded_send:            return smo_GetUnbounded_Send();
   case State::trgt_getunbounded_start:           return smt_GetUnbounded_Start(args);

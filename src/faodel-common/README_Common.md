@@ -10,6 +10,8 @@ interest are:
     - nodeid_t: Concise id for connecting to any node in the system
     - bucket_t: Hashed value of a string, used for data namespaces
     - ResourceURL: String for referencing different system resources
+    - DirectoryInfo: Provides a way to describe info about a FAODEL
+      resource (eg, url and info, plus any children of this resource).
 
 - **Configuration**: Configuration is a class for defining how to
     configure different components in a runtime. It uses a key/value
@@ -29,7 +31,7 @@ interest are:
 
 - **LoggingInterface**: An interface for passing debug/information
     info back to the user. This interface is configured at compile time
-    to route information to either the screen or the Simple Boost
+    to route information to either stdout or the Simple Boost
     Library (SBL).
 
 - **MutexWrapper**: MutexWrapper provides a simple way to implement
@@ -66,10 +68,10 @@ Compile-Time Options
 
 Common uses the following flags at compile time.
 
-| CMake Flag                        | Description                                                      |
-| --------------------------------- | ---------------------------------------------------------------- |
-| FAODEL_LOGGINGINTERFACE_DISABLED  | When true, the logging interfces do not record incoming messages |
-| FAODEL_LOGGINGINTERFACE_USE_SBL   | When true, use SBL to handle all logging messages                |
+| CMake Flag             | Values                 |Description                                                                      |
+| ---------------------- | -----------------------|-------------------------------------------------------------------------------- |
+| Faodel_LOGGING_METHOD  | stdout, sbl, disabled  | Determines where the logging interface writes. Select disabled to optimize away |
+| Faodel_THREADING_MODEL | pthreads, openmp       | Selects how mutexes are implemented. For future use. Only select PTHREADS       |
 
 
 Run-Time Options

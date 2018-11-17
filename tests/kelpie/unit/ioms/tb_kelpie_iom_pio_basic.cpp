@@ -20,19 +20,14 @@ using namespace kelpie;
 //The configuration used in this example
 std::string default_config_string = R"EOF(
 
-# Note: node_role is defined when we determine if this is a client or a server
-nnti.transport.name   mpi
-config.additional_files.env_name.if_defined   FAODEL_CONFIG
-
-# For local testing, tell kelpie to use the nonet implementation
-kelpie.type nonet
-
 # Uncomment these options to get debug info for each component
 #bootstrap.debug true
 #webhook.debug   true
 #opbox.debug     true
 #dirman.debug    true
 #kelpie.debug    true
+
+kelpie.iom_registry.debug true
 
 # We start/stop multiple times (which lunasa's tcmalloc does not like), so
 # we have to switch to a plain malloc allocator
@@ -44,19 +39,22 @@ lunasa.eager_memory_manager malloc
 
 class IomPosixIOSimple : public testing::Test {
 protected:
-  virtual void SetUp() {
+  void SetUp() override {
     config.Append(default_config_string);
-    lunasa::Init(config);
-    lkv.Init(config);
+    bootstrap::Init(config, lunasa::bootstrap);
+    lkv = new LocalKV();
+    lkv->Init(config);
+    bootstrap::Start();
   }
-  virtual void TearDown() {
-    lkv.wipeAll(iuo); //Get rid of all entries
-    lunasa::Finish();
+
+  void TearDown() override {
+    delete lkv;
+    bootstrap::Finish();
   }
 
   internal_use_only_t iuo;
   Configuration config;
-  LocalKV lkv;
+  LocalKV *lkv;
 };
 
 struct test_data_t {
@@ -109,7 +107,8 @@ bool checkLDO(const lunasa::DataObject &ldo, int id) {
   for(int i=0; i<dptr->data_bytes; i++)
     if( dptr->data[i] != (i&0x0FF) ) bad_count++;
   EXPECT_EQ(0, bad_count);
-  
+
+  return true;
 }
 
 //Make sure generators are working ok
@@ -152,6 +151,7 @@ TEST_F(IomPosixIOSimple, write_direct) {
       EXPECT_TRUE(false);
     }
   }
+  delete iom;
 }
 TEST_F(IomPosixIOSimple, UsingConfigurationByRole){
 
@@ -161,13 +161,14 @@ TEST_F(IomPosixIOSimple, UsingConfigurationByRole){
   string p2 = mkdtemp(px2);
 
   //Create two ioms for this node only
-  faodel::Configuration config;
+  faodel::Configuration config(default_config_string);
   config.Append("myrole.iom.myiom1.type PosixIndividualObjects");
   config.Append("myrole.iom.myiom2.type PosixIndividualObjects");
   config.Append("myrole.iom.myiom1.path",p1);
   config.Append("myrole.iom.myiom2.path",p2);
   config.Append("myrole.ioms", "myiom1;myiom2");
   config.Append("node_role", "myrole");
+  config.AppendFromReferences();
   
   internal::IomRegistry registry;
   registry.init(config);
@@ -222,7 +223,6 @@ TEST_F(IomPosixIOSimple, iom_registry) {
 
   //See if we can locate each one
   kelpie::internal::IomBase * ioms[3];
-  cout<<"About to look\n";
   ioms[0] = registry.Find("myiom1"); ASSERT_NE(nullptr, ioms[0]);
   ioms[1] = registry.Find("myiom2"); ASSERT_NE(nullptr, ioms[1]);
   ioms[2] = registry.Find("myiom3"); ASSERT_NE(nullptr, ioms[2]);
@@ -248,8 +248,7 @@ TEST_F(IomPosixIOSimple, iom_registry) {
     rc_t rc = ioms[i]->ReadObject(buckets[0], keys[i], &ldo);
     EXPECT_EQ(KELPIE_OK, rc);
     checkLDO(ldo, i);
-    
   }
-  
-  
+
+  registry.finish();
 }

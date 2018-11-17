@@ -64,8 +64,8 @@ public:
 
         return;
     }
-    virtual ~nnti_work_request()
-    {
+
+  ~nnti_work_request() override {
         return;
     }
 

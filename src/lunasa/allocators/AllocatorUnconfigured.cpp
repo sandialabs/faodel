@@ -8,17 +8,21 @@
 using namespace std;
 
 namespace lunasa {
+namespace internal {
+
+
 AllocatorUnconfigured::AllocatorUnconfigured()
-  : AllocatorBase(faodel::Configuration(), "Unconfigured", false) {
+        : AllocatorBase(faodel::Configuration(), "Unconfigured", false) {
 }
+
 void AllocatorUnconfigured::Panic(std::string fname) const {
-  fatal("Lunasa used "+fname+"() before calling Init()");
+  fatal("Lunasa used " + fname + "() before calling Init()");
 }
 
 void AllocatorUnconfigured::sstr(std::stringstream &ss, int depth, int indent) const {
-  if(depth<0) return;
-  ss << std::string(indent,' ') << "[Allocator] Type: Unconfigured" <<endl;
+  if(depth < 0) return;
+  ss << std::string(indent, ' ') << "[Allocator] Type: Unconfigured" << endl;
 }
 
-
+} // namespace internal
 } // namespace lunasa

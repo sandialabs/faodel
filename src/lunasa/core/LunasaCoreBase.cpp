@@ -24,11 +24,18 @@ LunasaCoreBase::~LunasaCoreBase()
 void LunasaCoreBase::init(const faodel::Configuration &config)
 {
   assert(!configured && "Attempted to Init() LunasaCore multiple times");
+
+  //Use tcmalloc by default, but automatically switch to malloc if no build support
+  #ifdef Faodel_ENABLE_TCMALLOC
+    const string default_eager_memory_manager = "tcmalloc";
+  #else
+    const string default_eager_memory_manager = "malloc";
+  #endif
   
   string lmm_name, emm_name, def_mm;
   bool use_webhook;
   config.GetLowercaseString(&lmm_name,        "lunasa.lazy_memory_manager",  "malloc");
-  config.GetLowercaseString(&emm_name,        "lunasa.eager_memory_manager", "tcmalloc");
+  config.GetLowercaseString(&emm_name,        "lunasa.eager_memory_manager",  default_eager_memory_manager);
   config.GetLowercaseString(&def_mm,          "lunasa.default_mm_style",     "lazy");
   config.GetBool(&use_webhook,                "lunasa.use_webhook",          "true");
 

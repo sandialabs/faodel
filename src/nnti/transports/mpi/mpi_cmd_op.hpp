@@ -102,8 +102,8 @@ public:
     {
         return;
     }
-    virtual ~mpi_cmd_op()
-    {
+
+  ~mpi_cmd_op() override {
         return;
     }
 
@@ -180,17 +180,16 @@ public:
     char *
     cmd_msg(void)
     {
-        cmd_msg_.buf();
+        return cmd_msg_.buf();
     }
     uint32_t
     cmd_msg_size(void)
     {
-        cmd_msg_.size();
+        return cmd_msg_.size();
     }
 
-    virtual std::string
-    toString(void)
-    {
+  std::string
+    toString(void) override {
         std::stringstream out;
         out << "id_==" << id_;
         return out.str();

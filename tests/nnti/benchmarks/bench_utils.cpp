@@ -7,6 +7,8 @@
 
 #include "nnti/nntiConfig.h"
 
+#include <mpi.h>
+
 #include <unistd.h>
 #include <glob.h>
 #include <string.h>
@@ -21,9 +23,9 @@
 
 #include <chrono>
 
-#include "common/Configuration.hh"
-#include "common/Bootstrap.hh"
-#include "common/NodeID.hh"
+#include "faodel-common/Configuration.hh"
+#include "faodel-common/Bootstrap.hh"
+#include "faodel-common/NodeID.hh"
 
 #include "webhook/Server.hh"
 
@@ -65,8 +67,8 @@ test_setup(int                           argc,
         config.Append(s);
     }
 
-    uint32_t num_procs = mpi_size;
-    uint32_t my_rank   = mpi_rank;
+    int num_procs = mpi_size;
+    int my_rank   = mpi_rank;
 
     num_clients = num_procs - num_servers;
 
@@ -79,13 +81,15 @@ test_setup(int                           argc,
     char my_url[NNTI_URL_LEN];
     t->get_url(my_url, NNTI_URL_LEN);
 
-    find_server_urls(num_servers, my_rank, my_url, server_url, i_am_server);
+    find_server_urls(num_servers, my_rank, num_procs, my_url, server_url, i_am_server);
 
     nnti::core::logger::get_instance()->set_channel_severity("BenchPingPong chrono", sbl::severity_level::debug);
 
     std::stringstream ss;
     config.sstr(ss, 0, 0);
     log_debug_stream("test_setup") << ss.str() << std::endl;
+
+    return 0;
 }
 
 int
@@ -105,8 +109,8 @@ test_setup(int                           argc,
         config.Append(s);
     }
 
-    uint32_t num_procs=0;
-    uint32_t my_rank=0;
+    int num_procs=0;
+    int my_rank=0;
     get_num_procs(num_procs);
     get_rank(my_rank);
 
@@ -121,13 +125,15 @@ test_setup(int                           argc,
     char my_url[NNTI_URL_LEN];
     t->get_url(my_url, NNTI_URL_LEN);
 
-    find_server_urls(num_servers, my_rank, my_url, server_url, i_am_server);
+    find_server_urls(num_servers, my_rank, num_procs, my_url, server_url, i_am_server);
 
     nnti::core::logger::get_instance()->set_channel_severity("BenchPingPong chrono", sbl::severity_level::debug);
 
     std::stringstream ss;
     config.sstr(ss, 0, 0);
     log_debug_stream("test_setup") << ss.str() << std::endl;
+
+    return 0;
 }
 
 int
@@ -154,123 +160,52 @@ test_setup(int                           argc,
     std::stringstream ss;
     config.sstr(ss, 0, 0);
     log_debug_stream("test_setup") << ss.str() << std::endl;
+
+    return 0;
 }
 
 NNTI_result_t
-get_num_procs(uint32_t &num_procs)
+get_num_procs(int &num_procs)
 {
-    char *ompi_world_size = getenv("OMPI_COMM_WORLD_SIZE");
-    char *slurm_nprocs    = getenv("SLURM_NPROCS");
-    char *pmi_size        = getenv("PMI_SIZE");
+    MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
+    log_debug("test_utils", "MPI says job size is %u", num_procs);
 
-    log_debug("test_utils", "OMPI_COMM_WORLD_SIZE=%s", ompi_world_size);
-    log_debug("test_utils", "SLURM_NPROCS        =%s", slurm_nprocs);
-    log_debug("test_utils", "PMI_SIZE            =%s", pmi_size);
-
-    if (ompi_world_size != nullptr) {
-        // this job was launched by Open MPI mpirun
-        num_procs = nnti::util::str2uint32(ompi_world_size);
-    } else if (slurm_nprocs != nullptr) {
-        // this job was launched by srun
-        num_procs = nnti::util::str2uint32(slurm_nprocs);
-    } else if (pmi_size != nullptr) {
-        // this job was launched by mpich
-        num_procs = nnti::util::str2uint32(pmi_size);
-    }
-    log_debug("test_utils", "launcher says job size is %u", num_procs);
+    return NNTI_OK;
 }
 
 NNTI_result_t
-get_rank(uint32_t &my_rank)
+get_rank(int &my_rank)
 {
-    char *ompi_world_rank = getenv("OMPI_COMM_WORLD_RANK");
-    char *slurm_procid    = getenv("SLURM_PROCID");
-    char *pmi_rank        = getenv("PMI_RANK");
-    char *pmi_fork_rank   = getenv("PMI_FORK_RANK");
+    MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
+    log_debug("test_utils", "MPI says my rank is %u", my_rank);
 
-    log_debug("test_utils", "OMPI_COMM_WORLD_RANK=%s", ompi_world_rank);
-    log_debug("test_utils", "SLURM_PROCID        =%s", slurm_procid);
-    log_debug("test_utils", "PMI_RANK            =%s", pmi_rank);
-    log_debug("test_utils", "PMI_FORK_RANK       =%s", pmi_fork_rank);
-
-//    system("env");
-
-    if (ompi_world_rank != nullptr) {
-        // this job was launched by Open MPI mpirun
-        my_rank = nnti::util::str2uint32(ompi_world_rank);
-    } else if (slurm_procid != nullptr) {
-        // this job was launched by srun
-        my_rank = nnti::util::str2uint32(slurm_procid);
-    } else if (pmi_rank != nullptr) {
-        // this job was launched by mpich
-        my_rank = nnti::util::str2uint32(pmi_rank);
-    } else if (pmi_fork_rank != nullptr) {
-        // this job was launched by Cray ALPS
-        my_rank = nnti::util::str2uint32(pmi_fork_rank);
-    }
-    log_debug("test_utils", "launcher says my rank is %u", my_rank);
+    return NNTI_OK;
 }
 
 NNTI_result_t
 find_server_urls(int num_servers,
                  uint32_t my_rank,
+                 uint32_t num_procs,
                  char *my_url,
                  char server_url[][NNTI_URL_LEN],
                  bool &i_am_server)
 {
-    std::stringstream ss;
+    char *all_urls;
 
-    char *rankfile_path=nullptr;
-    rankfile_path = getenv("RANKFILEPATH");
+    all_urls = (char*)malloc(sizeof(char) * NNTI_URL_LEN * num_procs);
+
+    MPI_Allgather(my_url, NNTI_URL_LEN, MPI_CHAR,
+                  all_urls, NNTI_URL_LEN, MPI_CHAR,
+                  MPI_COMM_WORLD);
+    for (int i=0;i<num_servers;i++) {
+        memcpy(server_url[i], &all_urls[i*NNTI_URL_LEN], NNTI_URL_LEN);
+    }
 
     if (my_rank < num_servers) {
-        char tmp_filename[1024];
-        char filename[1024];
-        if (rankfile_path) {
-            sprintf(tmp_filename, "%s/tmp_rank%08u_url", rankfile_path, my_rank);
-            sprintf(filename, "%s/rank%08u_url", rankfile_path, my_rank);
-        } else {
-            sprintf(tmp_filename, "tmp_rank%08u_url", my_rank);
-            sprintf(filename, "rank%08u_url", my_rank);
-        }
-        std::ofstream out(tmp_filename);
-        out << my_url;
-        out.close();
-        rename(tmp_filename, filename);
-
         i_am_server = true;
     } else {
         i_am_server = false;
     }
-
-    sync();
-
-    // loop until all servers have written a URL
-    glob_t glob_result;
-    glob_result.gl_pathc = 0;
-    do {
-        char rankfile_pattern[1024];
-        if (rankfile_path) {
-            sprintf(rankfile_pattern, "%s/rank*_url", rankfile_path, my_rank);
-        } else {
-            sprintf(rankfile_pattern, "rank*_url", my_rank);
-        }
-        int rc = glob(rankfile_pattern, 0, NULL , &glob_result);
-        if (rc != 0) {
-            log_error("test_utils", "glob failed (rc=%d).  trying to recover by syncing the filesystem.", rc);
-            sync();
-            nnti::util::sleep(100);
-        }
-        log_debug("test_utils", "found %d url files", glob_result.gl_pathc);
-    } while (glob_result.gl_pathc < num_servers);
-
-    for(unsigned int i=0;i<glob_result.gl_pathc;++i){
-        std::ifstream in(glob_result.gl_pathv[i]);
-        in.read(server_url[i], NNTI_URL_LEN);
-        server_url[i][in.gcount()]='\0';
-        in.close();
-    }
-    globfree(&glob_result);
 
     return NNTI_OK;
 }

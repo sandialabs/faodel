@@ -8,7 +8,7 @@
 #include <vector>
 #include <thread>
 
-#include "common/LoggingInterface.hh"
+#include "faodel-common/LoggingInterface.hh"
 
 #include "lunasa/DataObject.hh"
 #include "opbox/ops/Op.hh"

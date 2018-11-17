@@ -6,12 +6,12 @@
 #include <assert.h>
 #include <mpi.h>
 
-#include "common/Common.hh"
+#include "faodel-common/Common.hh"
 #include "lunasa/Lunasa.hh"
 #include "lunasa/DataObject.hh"
 
-#include "common/Configuration.hh"
-#include "common/NodeID.hh"
+#include "faodel-common/Configuration.hh"
+#include "faodel-common/NodeID.hh"
 
 #include "nnti/nnti.h"
 #include "nnti/nnti_logger.hpp"
@@ -34,10 +34,6 @@ const int URL_SIZE=128;
 string default_config = R"EOF(
 
 server.mutex_type rwlock
-
-# default to using mpi, but allow override in config file pointed to by CONFIG
-nnti.transport.name                           mpi
-config.additional_files.env_name.if_defined   FAODEL_CONFIG
 
 # In this example, the default allocator is lunasa::AllocatorTcmalloc
 lunasa.eager_memory_manager tcmalloc

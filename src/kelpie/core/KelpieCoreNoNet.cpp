@@ -27,11 +27,9 @@ void KelpieCoreNoNet::init(const faodel::Configuration &config) {
   rc_t rc = lkv.Init(config);
   kassert(rc==KELPIE_OK, "lkv init failed");
 
-  bucket_t bucket;
-  config.GetDefaultSecurityBucket(&bucket);
-  //Setup any ioms that are part of the Configuration
-  iom_registry.init(config);
-  pool_registry.init(bucket);
+
+  iom_registry.init(config);  //Setup any ioms that are part of the Configuration
+  pool_registry.init(config); //Setup logging/default bucket
   
   //Register built-in resource creators
   pool_registry.RegisterPoolConstructor("local", &LocalPoolCreate);
@@ -69,7 +67,7 @@ void KelpieCoreNoNet::RegisterIomConstructor(std::string type, fn_IomConstructor
 
 void KelpieCoreNoNet::HandleWebhookStatus(const std::map<std::string,std::string> &args, std::stringstream &results) {
 
-    webhook::ReplyStream rs(args, "Kelpie Status", &results);
+    faodel::ReplyStream rs(args, "Kelpie Status", &results);
 
     vector<pair<string,string>> stats;
     stats.push_back({"Parameter", "Setting"});

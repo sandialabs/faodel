@@ -11,9 +11,9 @@
 #include <sstream>
 #include <stdexcept>
 
-#include "common/Bucket.hh"
-#include "common/NodeID.hh"
-#include "common/StringHelpers.hh"
+#include "faodel-common/Bucket.hh"
+#include "faodel-common/NodeID.hh"
+#include "faodel-common/StringHelpers.hh"
 
 using namespace std;
 
@@ -105,7 +105,7 @@ NodeID::NodeID(const char *hex_string) {
   //set an integer value, but the compiler thinks the 0 is a null
   //string. explicit won't catch this, and the error message is
   //hard to track down.
-  if(hex_string==0) {
+  if(hex_string==nullptr) {
     throw std::invalid_argument("nodeid_t ctor was given a '0' for input. This is usually due to a mistake where the user "
                                 "intended to set the nodeid to an integer value, but it is interpreted as a nullpointer.");
   }
@@ -126,6 +126,22 @@ NodeID::NodeID(const std::string &hostname, const std::string &port) : nid(0) {
 NodeID::NodeID(uint32_t ip, uint16_t port) {
   nid = internal::makeNodeID(ip,port);
 }
+
+/**
+ * @brief Verify that the IP address of nodeid is not zero
+ * @retval TRUE When IP is not 0.0.0.0
+ */
+bool NodeID::ValidIP() const {
+  return ((nid & 0x0FFFFFFFFULL) != 0);
+}
+
+/**
+ * @brief Verify the port id of nodeid is not zero
+ */
+bool NodeID::ValidPort() const {
+  return (((nid>>32)&0x0FFFF) != 0);
+}
+
 /**
  * @brief Extract the node id's IP address into a dotted string notation
  * @return String with the dot-encoded ip address (eg "192.168.1.1")
@@ -157,7 +173,7 @@ string NodeID::GetPort() const {
  * @param[out] port       16b binary value
  */
 void NodeID::GetIPPort(uint32_t *ip_address, uint16_t *port) const {
-  if(ip_address) *ip_address = (nid & 0x0FFFFFFFF);
+  if(ip_address) *ip_address = (nid & 0x0FFFFFFFFULL);
   if(port)       *port       = ((nid>>32) & 0x0FFFF);
 }
 
@@ -182,7 +198,7 @@ string NodeID::GetHttpLink(std::string extra_path) const {
 
   stringstream ss;
   ss<<"http://"<<GetIP()<<":"<<GetPort();
-  if(extra_path!="") {
+  if(!extra_path.empty()) {
     if(extra_path[0]!='/') ss <<"/";
     ss<<extra_path;
   }
@@ -202,7 +218,7 @@ string NodeID::GetHtmlLink(string extra_path, string link_text) const {
   ss<< "<a href=\""<<GetHttpLink(extra_path)<<"\">";
 
   //Fill in the human link text
-  ss<< ((link_text!="") ? link_text : GetHex());
+  ss<< ((!link_text.empty()) ? link_text : GetHex());
 
   //Close out link
   ss<<"</a>\n";

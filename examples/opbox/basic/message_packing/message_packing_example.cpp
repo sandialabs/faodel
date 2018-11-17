@@ -6,10 +6,10 @@
 #include <unistd.h>
 #include <assert.h>
 
-#include "common/Common.hh"
+#include "faodel-common/Common.hh"
 #include "opbox/OpBox.hh"
 
-#include "opbox/services/dirman/DirectoryManager.hh"
+#include "dirman/DirMan.hh"
 
 
 #include "../../support/Globals.hh"
@@ -24,8 +24,7 @@ Globals G;
 
 std::string default_config_string = R"EOF(
 # Select a transport to use for nnti (laptop tries ib if not forced to mpi)
-nnti.transport.name   mpi
-config.additional_files.env_name.if_defined   FAODEL_CONFIG
+net.transport.name   mpi
 
 # Put the 'master' node on a separate port so it won't get bumped around by
 # the others on a single-node multi-rank run.

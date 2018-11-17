@@ -5,12 +5,13 @@
 #ifndef LUNASA_SINGLETON_HH
 #define LUNASA_SINGLETON_HH
 
-#include "common/Common.hh"
-#include "common/LoggingInterface.hh"
+#include "faodel-common/Common.hh"
+#include "faodel-common/LoggingInterface.hh"
+
+#include "lunasa/common/DataObjectTypeRegistry.hh"
 
 #include "lunasa/core/LunasaCoreBase.hh"
 #include "lunasa/core/LunasaCoreUnconfigured.hh"
-
 
 namespace lunasa {
 
@@ -24,30 +25,31 @@ class SingletonImpl;
 namespace internal {
 
 
-class SingletonImpl 
-  : public faodel::bootstrap::BootstrapInterface,
-    public faodel::LoggingInterface {
+class SingletonImpl
+        : public faodel::bootstrap::BootstrapInterface,
+          public faodel::LoggingInterface {
   
 public:
 
   SingletonImpl();
-  ~SingletonImpl();
+  ~SingletonImpl() override;
   
   bool IsUnconfigured();
   
   //Bootstrap API
-  void Init(const faodel::Configuration &config);
-  void Start();
-  void Finish();
+  void Init(const faodel::Configuration &config) override;
+  void Start() override;
+  void Finish() override;
   void GetBootstrapDependencies(std::string &name, 
                        std::vector<std::string> &requires,
-                       std::vector<std::string> &optional) const;
+                       std::vector<std::string> &optional) const override;
 
   void RegisterPinUnpin(net_pin_fn pin, net_unpin_fn unpin);
-  
+
+  DataObjectTypeRegistry dataobject_type_registry; //!< Registry for dumping info about each DataObject type
+
   LunasaCoreBase *core; //!< Pointer to the current, active core
 
-  
 private:
   LunasaCoreUnconfigured unconfigured; //!< Core to use when not started
 
@@ -56,6 +58,8 @@ private:
   net_unpin_fn registered_unpin_function;
 
   bool used_tcmalloc_before; //!< tcmalloc code doesn't allow restarts
+
+
 };
 
 

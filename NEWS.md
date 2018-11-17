@@ -6,6 +6,39 @@ faodel tools. Releases are named alphabetically and have a
 4-digit ID associated with them that designates the year and month of
 the release.
 
+DIO (1.1811.1)
+--------------
+- Summary: Build improvements to make FAODEL compatible with EMPIRE
+- Release Improvements:
+  - Kelpie has rank-folding table (RFT) pool
+  - Kelpie has new experimental IOMs (IomHDF5, IomLevelDB)
+  - New MPISyncStart service for auto-filling node ids in configurations
+  - DirMan is now its own service (previously a child of opbox)
+  - Lunasa has templated containers for storing a bundle of items in an LDO
+    - GenericSequentialDataBundle : When data is accessed in order
+    - GenericRandomDataBundle     : When data is accessed out of order
+  - Users can now define webhooks for rendering specific DataObject types
+  - Bootstrap Start/Stops are much more robust
+  - General build fixes for use with EMPIRE
+- Significant User Visible Changes:
+  - Common and services directories renamed to faodel-common and faodel-services
+  - Kelpie pools now have a "behavior" that controls how data is copied
+  - Some components/tools changed directories. Check your includes
+- Known Issues
+  - Kelpie behavior setting may not be fully implemented on remote operations
+  - Some tests hang when using OpenMPI with the openib BTL. Given that
+    this BTL is deprecated, we recommend using OpenMPI with a different
+    network component.  FAODEL has been tested with the TCP BTL and the
+    psm, psm2, and libfabric MTLs.
+  - FAODEL's libfabric transport is still experimental. It does not fully
+    implement Atomics or Long Sends. While Kelpie does not require
+    these operations, other OpBox-based applications may break
+    without this support.
+  - On Cray machines with the Aries interconnect, FAODEL can be overwhelmed
+    by a sustrained stream of sends larger than the MTU. To avoid this problem,
+    the sender should limit itself to bursts of 32 long sends at a time.
+  - This version does not have support for ARM8 or POWER cpus.
+
 Cachet (1.1803.1)
 -----------------
 - Summary: Flattened repos, simplify builds, and do external release

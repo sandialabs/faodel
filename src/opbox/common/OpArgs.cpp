@@ -2,7 +2,9 @@
 // LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
 // the U.S. Government retains certain rights in this software. 
 
-#include "common/Debug.hh"
+#include <stdexcept>
+
+#include "faodel-common/Debug.hh"
 #include "opbox/common/OpArgs.hh"
 
 using namespace std;
@@ -18,6 +20,8 @@ namespace opbox {
  */
 void OpArgs::VerifyTypeOrDie(UpdateType expected_type, string op_name){
   if(type!=expected_type){
+//    cerr << "OpArg.VerifyType fail: Op "+op_name+" got '"+opbox::str(type)+"' when expected '"+opbox::str(expected_type)+"'" << endl;
+//    abort();
     throw std::runtime_error("OpArg.VerifyType fail: Op "+op_name+" got '"+opbox::str(type)+"' when expected '"+opbox::str(expected_type)+"'");
   }
 }
@@ -58,6 +62,11 @@ void SanityCheck(OpArgs *args, const char *src_file, int line ) {
   }
 }
 #endif
+
+void OpArgs::print(std::stringstream &ss, int depth, int indent) const {
+    if(depth<0) return;
+    ss <<string(indent,' ')<<"[OpboxArg] Type: "+opbox::str(type);
+}
 
 void OpArgs::sstr(std::stringstream &ss, int depth, int indent) const {
   if(depth<0) return;

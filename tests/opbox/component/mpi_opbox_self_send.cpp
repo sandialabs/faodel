@@ -12,21 +12,17 @@
 #include <atomic>
 #include <future>
 
-#include "common/Common.hh"
+#include "faodel-common/Common.hh"
 #include "opbox/OpBox.hh"
 
 using namespace std;
 using namespace faodel;
 using namespace lunasa;
 
+//Note: Additional configuration settings will be loaded the file specified by FAODEL_CONFIG
 string default_config_string = R"EOF(
 # Note: node_role is defined when we determine if this is a client or a server
 
-# default to using mpi, but allow override in config file pointed to by CONFIG
-nnti.transport.name                           mpi
-config.additional_files.env_name.if_defined   FAODEL_CONFIG
-
-#
 security_bucket                       bobbucket
 
 # Tester: Run a dedicated tester that has a resource manager tester named /
@@ -52,141 +48,143 @@ protected:
   std::atomic<int> send_count;
   std::atomic<int> recv_count;
   std::promise<int> send_promise, recv_promise;
-  std::future<int>  send_future, recv_future;
+  std::future<int> send_future, recv_future;
 
   const int threshold = 500;
 
-  class recv_callback
-  {
+  class recv_callback {
   public:
-      OpboxSelfSendTest &parent;
+    OpboxSelfSendTest &parent;
   public:
-      recv_callback(OpboxSelfSendTest &p): parent(p) {}
+    recv_callback(OpboxSelfSendTest &p) : parent(p) {}
 
-      void operator() (opbox::net::peer_ptr_t peer, message_t *message)
-      {
-          opbox::net::Attrs attrs;
-          opbox::net::GetAttrs(attrs);
+    void operator()(opbox::net::peer_ptr_t peer, message_t *message) {
+      opbox::net::Attrs attrs;
+      opbox::net::GetAttrs(&attrs);
 
-          char *payload = (char *)message;
-          uint32_t seed = *(uint32_t*)(payload+4); // the salt
+      char *payload = (char *) message;
+      uint32_t seed = *(uint32_t *) (payload + 4); // the salt
 
-          uLong crc = crc32(0L, Z_NULL, 0);
-          crc = crc32(crc, ((Bytef*)payload)+4, attrs.max_eager_size-4); // the checksum
+      uLong crc = crc32(0L, Z_NULL, 0);
+      crc = crc32(crc, ((Bytef *) payload) + 4, attrs.max_eager_size - 4); // the checksum
 
-          fprintf(stderr, "receiver: seed=0x%x  payload[0]=0x%08x  crc=0x%08x\n", seed, *(uint32_t*)payload, crc);
+      fprintf(stderr, "receiver: seed=0x%x  payload[0]=0x%08x  crc=0x%08x\n", seed, *(uint32_t *) payload,
+              (uint32_t) crc);
 
-          if (*(uint32_t*)payload != crc) {
-              fprintf(stderr, "receiver: crc mismatch (expected=0x%08x  actual=0x%08x)\n", *(uint32_t*)payload, (uint32_t)crc);
-          }
-          EXPECT_EQ(*(uint32_t*)payload, crc);
-
-          parent.recv_count++;
-          if (parent.recv_count == parent.threshold) {
-              parent.recv_promise.set_value(1);
-          }
-          return;
+      if(*(uint32_t *) payload != crc) {
+        fprintf(stderr, "receiver: crc mismatch (expected=0x%08x  actual=0x%08x)\n", *(uint32_t *) payload,
+                (uint32_t) crc);
       }
-  };
-  class send_callback
-  {
-  public:
-      OpboxSelfSendTest &parent;
-  public:
-      send_callback(OpboxSelfSendTest &p): parent(p) {}
+      EXPECT_EQ(*(uint32_t *) payload, crc);
 
-      WaitingType operator() (OpArgs *args)
-      {
-          parent.send_count++;
-          if (parent.send_count == parent.threshold) {
-              parent.send_promise.set_value(1);
-          }
-          return opbox::WaitingType::done_and_destroy;
+      parent.recv_count++;
+      if(parent.recv_count == parent.threshold) {
+        parent.recv_promise.set_value(1);
       }
+      return;
+    }
   };
 
-  virtual void SetUp () {
-      MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank);
-      MPI_Comm_size(MPI_COMM_WORLD, &mpi_size);
-      root_rank = 0;
+  class send_callback {
+  public:
+    OpboxSelfSendTest &parent;
+  public:
+    send_callback(OpboxSelfSendTest &p) : parent(p) {}
 
-      opbox::net::RegisterRecvCallback(recv_callback(*this));
-      bootstrap::Start();
+    WaitingType operator()(OpArgs *args) {
+      parent.send_count++;
+      if(parent.send_count == parent.threshold) {
+        parent.send_promise.set_value(1);
+      }
+      return opbox::WaitingType::done_and_destroy;
+    }
+  };
 
-      send_count = 0;
-      recv_count = 0;
+  void SetUp() override {
+    MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &mpi_size);
+    root_rank = 0;
 
-      recv_future = recv_promise.get_future();
-      send_future = send_promise.get_future();
+    opbox::net::RegisterRecvCallback(recv_callback(*this));
+    bootstrap::Start();
+
+    send_count = 0;
+    recv_count = 0;
+
+    recv_future = recv_promise.get_future();
+    send_future = send_promise.get_future();
   }
-  virtual void TearDown () {
+
+  virtual void TearDown() {
   }
 };
 
 TEST_F(OpboxSelfSendTest, start1) {
-    int rc;
+  int rc;
 
-    std::cout << "Our MPI rank is " << mpi_rank << std::endl;
+  std::cout << "Our MPI rank is " << mpi_rank << std::endl;
 
-    faodel::nodeid_t myid = opbox::GetMyID();
-    std::cout << "Our nodeid is " << myid.GetHex() << std::endl;
+  faodel::nodeid_t myid = opbox::GetMyID();
+  std::cout << "Our nodeid is " << myid.GetHex() << std::endl;
 
-    opbox::net::Attrs attrs;
-    opbox::net::GetAttrs(attrs);
+  opbox::net::Attrs attrs;
+  opbox::net::GetAttrs(&attrs);
 
-    opbox::net::peer_t *peer;
-    rc = opbox::net::Connect(&peer, myid);
-    EXPECT_EQ(rc, 0);
+  opbox::net::peer_t *peer;
+  rc = opbox::net::Connect(&peer, myid);
+  EXPECT_EQ(rc, 0);
 
-    for (int i=0;i<threshold;i++) {
-        DataObject ldo = opbox::net::NewMessage(attrs.max_eager_size);
+  for(int i = 0; i<threshold; i++) {
+    DataObject ldo = opbox::net::NewMessage(attrs.max_eager_size);
 
-        char *payload = ldo.GetDataPtr<char *>();
-        uint32_t seed = i+1;
-        *(uint32_t*)(payload+4) = (uint32_t)seed;  // the salt
-        uLong crc = crc32(0L, Z_NULL, 0);
-        crc = crc32(crc, ((Bytef*)payload)+4, ldo.GetDataSize()-4); // the checksum
-        *(uint32_t*)payload = 0;
-        *(uint32_t*)payload = crc;
+    char *payload = ldo.GetDataPtr<char *>();
+    uint32_t seed = i + 1;
+    *(uint32_t *) (payload + 4) = (uint32_t) seed;  // the salt
+    uLong crc = crc32(0L, Z_NULL, 0);
+    crc = crc32(crc, ((Bytef *) payload) + 4, ldo.GetDataSize() - 4); // the checksum
+    *(uint32_t *) payload = 0;
+    *(uint32_t *) payload = crc;
 
-        fprintf(stderr, "sender: seed=0x%x  payload[0]=0x%08x  crc=0x%08x\n", seed, *(uint32_t*)payload, crc);
+    fprintf(stderr, "sender: seed=0x%x  payload[0]=0x%08x  crc=0x%08x\n", seed, *(uint32_t *) payload, (uint32_t) crc);
 
-        opbox::net::SendMsg(peer, std::move(ldo), send_callback(*this));
-    }
+    opbox::net::SendMsg(peer, std::move(ldo), send_callback(*this));
+  }
 
-    send_future.get(); // wait for all sends to complete
-    recv_future.get(); // wait for all receives to complete
+  send_future.get(); // wait for all sends to complete
+  recv_future.get(); // wait for all receives to complete
 
-    std::cout << "send_count == " << send_count.load() << std::endl;
-    std::cout << "recv_count == " << recv_count.load() << std::endl;
+  std::cout << "send_count == " << send_count.load() << std::endl;
+  std::cout << "recv_count == " << recv_count.load() << std::endl;
 }
 
-int main(int argc, char **argv){
+int main(int argc, char **argv) {
 
-    ::testing::InitGoogleTest(&argc, argv);
-    int provided;
-    MPI_Init_thread(&argc, &argv, MPI_THREAD_MULTIPLE, &provided);
+  ::testing::InitGoogleTest(&argc, argv);
+  int provided;
+  MPI_Init_thread(&argc, &argv, MPI_THREAD_MULTIPLE, &provided);
 
-    int mpi_rank,mpi_size;
-    MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank);
-    MPI_Comm_size(MPI_COMM_WORLD, &mpi_size);
+  int mpi_rank, mpi_size;
+  MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank);
+  MPI_Comm_size(MPI_COMM_WORLD, &mpi_size);
 
-    Configuration conf(default_config_string);
-    conf.AppendFromReferences();
-    if(argc>1){
-        if(string(argv[1])=="-v"){         conf.Append("loglevel all");
-        } else if(string(argv[1])=="-V"){  conf.Append("loglevel all\nnssi_rpc.loglevel all");
-        }
+  Configuration conf(default_config_string);
+  conf.AppendFromReferences();
+  if(argc>1) {
+    if(string(argv[1]) == "-v") {
+      conf.Append("loglevel all");
+    } else if(string(argv[1]) == "-V") {
+      conf.Append("loglevel all\nnssi_rpc.loglevel all");
     }
-    conf.Append("node_role", (mpi_rank==0) ? "tester" : "target");
-    bootstrap::Init(conf, opbox::bootstrap);
+  }
+  conf.Append("node_role", (mpi_rank == 0) ? "tester" : "target");
+  bootstrap::Init(conf, opbox::bootstrap);
 
-    int rc = RUN_ALL_TESTS();
-    cout <<"Tester completed all tests.\n";
+  int rc = RUN_ALL_TESTS();
+  cout << "Tester completed all tests.\n";
 
-    MPI_Barrier(MPI_COMM_WORLD);
-    bootstrap::Finish();
+  MPI_Barrier(MPI_COMM_WORLD);
+  bootstrap::Finish();
 
-    MPI_Finalize();
-    return rc;
+  MPI_Finalize();
+  return rc;
 }

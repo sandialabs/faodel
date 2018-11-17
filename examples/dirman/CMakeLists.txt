@@ -1,19 +1,15 @@
-set(PROJECT_NAME directory_manager)
+set(PROJECT_NAME dirman-example)
 
-set(HEADERS
+
+add_executable(       dirman1-preload-configuration dirman1-preload-configuration.cpp)
+set_target_properties(dirman1-preload-configuration PROPERTIES LINKER_LANGUAGE CXX )
+target_link_libraries(dirman1-preload-configuration Faodel::dirman)
+
+add_executable(       dirman2-runtime-define dirman2-runtime-define.cpp)
+set_target_properties(dirman2-runtime-define PROPERTIES LINKER_LANGUAGE CXX )
+target_link_libraries(dirman2-runtime-define Faodel::dirman)
+
+install(TARGETS dirman1-preload-configuration dirman2-runtime-define
+        EXPORT faodelExampleTargets
+        RUNTIME DESTINATION "${BINARY_INSTALL_DIR}" COMPONENT bin
 )
-
-set(SOURCES
-   directory_manager_example.cpp
-   example1.cpp
-   example2.cpp
-   example3.cpp
-   example4.cpp
-   example5.cpp
-)
-
-
-add_executable(${PROJECT_NAME} ${HEADERS} ${SOURCES})
-set_target_properties(${PROJECT_NAME} PROPERTIES LINKER_LANGUAGE CXX )
-
-target_link_libraries(${PROJECT_NAME} ${EXAMPLES_LIBS})

@@ -2,7 +2,7 @@
 // LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
 // the U.S. Government retains certain rights in this software. 
 
-#include "webhook/common/QuickHTML.hh"
+#include "faodel-common/QuickHTML.hh"
 
 using namespace std;
 
@@ -23,7 +23,7 @@ void mkSection(stringstream &ss, string label, int heading_level){
   ss<<"<h"<<heading_level<<">"<<label<<"</h"<<heading_level<<">\n"; 
 }
 void mkCode(stringstream &ss, const string text, const string &code_name) {
-  if(code_name!="") mkSection(ss, code_name,1);
+  if(!code_name.empty()) mkSection(ss, code_name,1);
   
   ss << "<code>";
   size_t pos_prv=0,pos=0;
@@ -50,7 +50,7 @@ void mkTable(stringstream &ss, const map<string,string> &items, const string &ta
   ss << "</table>\n";
 }
 void tableBegin(stringstream &ss, string label, int heading_level){
-  if(label!=""){
+  if(!label.empty()){
     ss << "<h"<<heading_level<<">"<<label<<"</h"<<heading_level<<">";
   }
   ss << "<table>";

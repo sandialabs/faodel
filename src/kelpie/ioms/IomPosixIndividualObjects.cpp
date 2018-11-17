@@ -12,7 +12,7 @@
 #include <string.h> //memset
 #include <dirent.h>
 
-#include "common/StringHelpers.hh"
+#include "faodel-common/StringHelpers.hh"
 
 #include "kelpie/ioms/IomPosixIndividualObjects.hh"
 
@@ -22,18 +22,14 @@ using namespace std;
 namespace kelpie {
 namespace internal {
 
-
-IomPosixIndividualObjects::IomPosixIndividualObjects(std::string name, const map<string,string> &new_settings)
-  : IomBase(name) {
-
-  //Only keep settings that are valid
-  for(auto s : { "path" }) {
-    auto name_setting = new_settings.find(s);
-    settings[s] = (name_setting == new_settings.end()) ? "" : name_setting->second;
-  }
-
-
+  constexpr char IomPosixIndividualObjects::type_str[];
   
+IomPosixIndividualObjects::IomPosixIndividualObjects(std::string name, const map<string,string> &new_settings)
+  : IomBase(name, new_settings, {"path"}) {
+
+  //Set debug info
+  SetSubcomponentName("-pio-"+name);
+
   auto ii = settings.find("path");
   if(ii == settings.end()) {
     throw std::runtime_error("Iom "+name+" lacked a setting for 'path'");
@@ -42,42 +38,48 @@ IomPosixIndividualObjects::IomPosixIndividualObjects(std::string name, const map
   if(path.back()!='/') path=path+"/";
   
   //TODO Replace this C nastiness with c++17 stuff, or throw in a lib
-  
+  //TODO Add a directory traversal in case iom is in writable space
+
   stringstream ss;
   struct stat sb;
-  if(stat(path.c_str(), &sb)==0){
+  for(int retries=0; retries<3; retries++) {
 
-    //If this isn't a directory for us,
-    if(!S_ISDIR(sb.st_mode)){
-      ss <<"IOM PIO Failed. Path '"<<path<<"' exists but is not a directory";
-      throw std::runtime_error(ss.str());
+    //See if the directory already exists
+    if (stat(path.c_str(), &sb) == 0) {
+
+      //If this isn't a directory for us,
+      if (!S_ISDIR(sb.st_mode)) {
+        ss << "IOM PosixIndividualObjects Failed. Path '" << path << "' exists but is not a directory";
+        throw std::runtime_error(ss.str());
+      }
+
+      //Directory exists, but can user write to it?
+      if (access(path.c_str(), W_OK) != 0) {
+        ss << "IOM PosixIndividualObjects Failed. User cannot access path '" << path << "'";
+        throw std::runtime_error(ss.str());
+      }
+      //All ok
+      return;
     }
 
-    //Directory exists, but can user write to it?
-    if(access(path.c_str(), W_OK)!=0) { 
-      ss <<"IOM PIO Failed. User cannot access path '"<<path<<"'";
-      throw std::runtime_error(ss.str());
-    }
-    //All ok
-    return;
+    //Path didn't exist. Try creating the directory (note: not a recursive thing)
+    int rc=mkdir(path.c_str(), S_IRWXU |S_IRWXG );
+    if(rc == 0) return;
+
+    //Bad news: we failed to create the directory. Try again, in case race condition
+    sleep(1);
   }
-  //Path didn't exist. Try creating the directory (note: not a recursive thing)
   
-  
-  //See if we can create the directory
-  int rc=mkdir(path.c_str(), S_IRWXU |S_IRWXG );
-  if(rc != 0) {
-    ss << "IOM PIO failed. User cannot create directory '"<<path<<"'";                                                          
-    throw std::runtime_error(ss.str());          
-  }
-  return;
+  //We tried and failed to create the directory a few times. Bail out
+  ss << "IOM PosixIndividualObjects failed. User cannot create directory '"<<path<<"'";
+  throw std::runtime_error(ss.str());
 }
 
 rc_t IomPosixIndividualObjects::GetInfo(faodel::bucket_t bucket, const Key &key, kv_col_info_t *col_info) {
   rc_t rc;
-  //cout<<"PIO::GetInfo.. current col_info is "<<col_info->str()<<endl;
+  dbg("GetInfo for "+key.str());
   if(col_info)
-    memset(col_info, 0, sizeof(col_info));
+    memset(col_info, 0, sizeof(*col_info));
   
   string fname = genBucketPathFile(bucket, key);
   struct stat sb;
@@ -97,20 +99,27 @@ rc_t IomPosixIndividualObjects::GetInfo(faodel::bucket_t bucket, const Key &key,
 }
 
 void IomPosixIndividualObjects::WriteObject(faodel::bucket_t bucket, const Key &key, const lunasa::DataObject &ldo) {
+  dbg("WriteObject "+key.str());
   string fname = genBucketPathFile(bucket, key);
   ldo.writeToFile(fname.c_str());
+  stat_wr_requests++;
+  stat_wr_bytes+=ldo.GetWireSize();
 }
 
 
 rc_t IomPosixIndividualObjects::ReadObject(faodel::bucket_t bucket, const Key &key, lunasa::DataObject *ldo) {
 
+  dbg("ReadObject "+key.str());
   string fname = genBucketPathFile(bucket, key);
   struct stat sb;
-  
+
+  stat_rd_requests++;
+
   if((stat(fname.c_str(), &sb)==0) && (S_ISREG(sb.st_mode))) {
     if(ldo!=nullptr) {
       *ldo = lunasa::DataObject(0, sb.st_size, lunasa::DataObject::AllocatorType::eager);
       ldo->readFromFile(fname.c_str());
+      stat_rd_bytes+=sb.st_size;
     }
     return KELPIE_OK;
   } else {
@@ -128,15 +137,20 @@ rc_t IomPosixIndividualObjects::ReadObject(faodel::bucket_t bucket, const Key &k
 string IomPosixIndividualObjects::genBucketPath(faodel::bucket_t bucket) {
   string bucket_path = path+bucket.GetHex() +"/";
 
-  //See if we can write the path
-  if(access(bucket_path.c_str(), W_OK)!=0) {
-    if(mkdir(bucket_path.c_str(), S_IRWXU |S_IRWXG ) != 0) {
-      stringstream ss;
-      ss <<"Could not write to '"<<bucket_path<<"'";
-      throw std::runtime_error(ss.str());
+  //See if we can get the path
+  for(int retries=0; retries<5; retries++) {
+    if(access(bucket_path.c_str(), W_OK) == 0) {
+      return bucket_path; //Path already here
+    } else if(mkdir(bucket_path.c_str(), S_IRWXU | S_IRWXG) == 0) {
+      return bucket_path; //We created path
     }
+    //Either a race condition, or path actually owned by someone else
+    sleep(1); //Delay some in case another rank is creating this directory
   }
-  return bucket_path;
+  //Couldn't resolve. Bail out
+  stringstream ss;
+  ss <<"Could not write to '"<<bucket_path<<"'";
+  throw std::runtime_error(ss.str());
 }
 string IomPosixIndividualObjects::genBucketPathFile(faodel::bucket_t bucket, const Key &key){
   return genBucketPath(bucket) + faodel::MakePunycode(key.pup());
@@ -189,13 +203,18 @@ vector<pair<string,string>> IomPosixIndividualObjects::getBucketContents(string 
   return files;
   
 }
-void IomPosixIndividualObjects::AppendWebInfo(webhook::ReplyStream rs, string reference_link, const map<string,string> &args) {
+void IomPosixIndividualObjects::AppendWebInfo(faodel::ReplyStream rs, string reference_link, const map<string,string> &args) {
 
   vector<vector<string>> items=
     { {"Setting", "Value"},
       {"Name", name   },
       {"Type", Type() },
-      {"Path", path}  };
+      {"Path", path },
+      {"Write Requests", to_string(stat_wr_requests)},
+      {"Read Requests", to_string(stat_rd_requests)},
+      {"Write Bytes", to_string(stat_wr_bytes)},
+      {"Read Bytes", to_string(stat_rd_bytes)}
+    };
   rs.mkTable( items,   "Basic Information" );
 
   rs.tableBegin("Initial Configuration Parameters");
@@ -218,7 +237,7 @@ void IomPosixIndividualObjects::AppendWebInfo(webhook::ReplyStream rs, string re
       for(auto &b : buckets) {
         links.push_back( "<a href=\""+reference_link+"&details=true&iom_name="+name+"&bucket="+b.GetHex()+"\">"+b.GetHex()+"</a>");
       }
-      rs.mkList(links, "Buckets");
+      rs.mkList(links, "On-Disk Buckets");
 
       //If only one bucket, automatically dump its contents
       //if(buckets.size()==1) {

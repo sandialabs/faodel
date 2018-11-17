@@ -118,7 +118,7 @@ public:
     toString()
     {
         std::stringstream out;
-        out << "id_=" << id_ << " ; peer_pid_==" << peer_pid_;
+        out << "conn=" << (void*)this << " ; id_=" << id_ << " ; peer_pid_=" << peer_pid_ << " ; peer=" << (void*)peer();
         return out.str();
     }
 };

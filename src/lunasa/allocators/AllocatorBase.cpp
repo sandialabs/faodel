@@ -3,35 +3,35 @@
 // the U.S. Government retains certain rights in this software. 
 
 
-#include "AllocatorBase.hh"
+#include "lunasa/allocators/AllocatorBase.hh"
 #include "lunasa/common/Allocation.hh"
 
 using namespace std;
 
 namespace lunasa {
+namespace internal {
 
 void noopPin(void *base_addr, size_t length, void *&pinned) { /* noop */ }
+
 void noopUnpin(void *&pinned) { /* noop */ }
 
-void fakePin(void *base_addr, size_t length, void *&pinned) 
-{ 
-  pinned=(void *)1; 
+void fakePin(void *base_addr, size_t length, void *&pinned) {
+  pinned = (void *) 1;
 }
 
-void fakeUnpin(void *&pinned) 
-{ 
-  pinned=nullptr; 
+void fakeUnpin(void *&pinned) {
+  pinned = nullptr;
 }
 
 
-void PrintAllocations(std::set<allocation_t *> allocations){
-  int i=0;
-  for(auto &ptr : allocations){
-    std::cerr << "["<<i<<"] "<< std::hex << (uint64_t)ptr << std::dec 
-              << " db: " << ptr->header.data_bytes <<" mb "<<ptr->header.meta_bytes
+void PrintAllocations(std::set<Allocation *> allocations) {
+  int i = 0;
+  for(auto &ptr : allocations) {
+    std::cerr << "[" << i << "] " << std::hex << (uint64_t) ptr << std::dec
+              << " db: " << ptr->header.data_bytes << " mb " << ptr->header.meta_bytes
               << " rc: " << ptr->GetRefCount()
-              << " pn: " << ptr->IsPinned() 
-              << " " << ptr->local.allocator->AllocatorType() <<std::endl;
+              << " pn: " << ptr->IsPinned()
+              << " " << ptr->local.allocator->AllocatorType() << std::endl;
     i++;
   }
 }
@@ -44,17 +44,17 @@ void PrintAllocations(std::set<allocation_t *> allocations){
  * @param[in] eagerPinning Whether to use eager pinning or not
  */
 AllocatorBase::AllocatorBase(const faodel::Configuration &config, string subcomponent_name, bool eagerPinning)
-  : LoggingInterface("lunasa.allocator", subcomponent_name),
-    mRefCount (1), // start with the reference we're allocating here
-    allocator_has_been_shutdown(false),
-    mTotalManaged (0),
-    mTotalAllocated (0),
-    mTotalUsed (0),
-    mTotalFree (0),
-    mEagerPinning(eagerPinning) {
-  
+        : LoggingInterface("lunasa.allocator", subcomponent_name),
+          mRefCount(1), // start with the reference we're allocating here
+          allocator_has_been_shutdown(false),
+          mTotalManaged(0),
+          mTotalAllocated(0),
+          mTotalUsed(0),
+          mTotalFree(0),
+          mEagerPinning(eagerPinning) {
+
   RegisterPinUnpin(fakePin, fakeUnpin);
-  mutex = config.GenerateComponentMutex("lunasa.allocator","rwlock");
+  mutex = config.GenerateComponentMutex("lunasa.allocator", "rwlock");
 
   ConfigureLogging(config); //Set logging
   dbg("Creating allocator ");
@@ -73,19 +73,19 @@ void AllocatorBase::IncrRef() {
  * @retval refcount The remaining number of references to this allocator
  * @note The refcount only counts instances of an allocator, not the LDOs that need the allocator
  */
-int AllocatorBase::DecrRef () {
-  dbg("Allocator DecrRef for "+AllocatorType());
+int AllocatorBase::DecrRef() {
+  dbg("Allocator DecrRef for " + AllocatorType());
   --mRefCount;
   int num_left = mRefCount.load();
-  if(num_left==0){
+  if(num_left == 0) {
     //This allocator is no longer owned by anyone. If the nobody is holding
     //on to an allocation, then destroy us. Otherwise, disable this allocator
     //and let any existing allocations continue on so LDO's can clean up
     //themselves.
-    if(!HasActiveAllocations()){
+    if(!HasActiveAllocations()) {
       delete this;
     } else {
-      allocator_has_been_shutdown=true;
+      allocator_has_been_shutdown = true;
     }
   }
   return num_left;
@@ -106,14 +106,13 @@ int AllocatorBase::RefCount() {
  * @note: Internally, this also sets the eager/lazy pin functions accordingly
  */
 void AllocatorBase::RegisterPinUnpin(net_pin_fn pin, net_unpin_fn unpin) {
-    // save the application pinning functions for later
-    mPinFunc   = pin;
-    mUnpinFunc = unpin;
+  // save the application pinning functions for later
+  mPinFunc = pin;
+  mUnpinFunc = unpin;
 }
 
-void AllocatorBase::RegisterMemory(void *base_addr, size_t length, void *&pinned)
-{
-  if( mPinFunc ) {
+void AllocatorBase::RegisterMemory(void *base_addr, size_t length, void *&pinned) {
+  if(mPinFunc) {
     mPinFunc(base_addr, length, pinned);
   } else {
     cerr << "WARNING: Attempting to pin memory without registering pin function" << endl;
@@ -121,19 +120,17 @@ void AllocatorBase::RegisterMemory(void *base_addr, size_t length, void *&pinned
   }
 }
 
-bool AllocatorBase::UsingEagerRegistration()
-{
+bool AllocatorBase::UsingEagerRegistration() {
   return mEagerPinning;
 }
 
-bool AllocatorBase::UsingLazyRegistration()
-{
+bool AllocatorBase::UsingLazyRegistration() {
   return !mEagerPinning;
 }
 
 
-void AllocatorBase::webhookStatus(webhook::ReplyStream &rs, const std::string &allocator_name) {
-  rs.tableBegin("Lunasa "+allocator_name+" Allocator");
+void AllocatorBase::webhookStatus(faodel::ReplyStream &rs, const std::string &allocator_name) {
+  rs.tableBegin("Lunasa " + allocator_name + " Allocator");
   rs.tableTop({"Parameter", "Setting"});
   rs.tableRow({"Allocator Type", AllocatorType()});
   rs.tableRow({"Total Allocated", to_string(mTotalAllocated)});
@@ -143,8 +140,8 @@ void AllocatorBase::webhookStatus(webhook::ReplyStream &rs, const std::string &a
   rs.tableEnd();
 }
 
-void AllocatorBase::webhookMemoryAllocations(webhook::ReplyStream &rs, const string &allocator_name) {
-  rs.mkSection("Lunasa "+allocator_name+" Memory Allocations");
+void AllocatorBase::webhookMemoryAllocations(faodel::ReplyStream &rs, const string &allocator_name) {
+  rs.mkSection("Lunasa " + allocator_name + " Memory Allocations");
   rs.mkText("Allocator does not provide listing support");
 }
 
@@ -152,14 +149,14 @@ void AllocatorBase::webhookMemoryAllocations(webhook::ReplyStream &rs, const str
  * @brief Dump debug info
  */
 void AllocatorBase::sstr(std::stringstream &ss, int depth, int indent) const {
-  if(depth<0) return;
-  ss << std::string(indent,' ') << "[Allocator] "
-     << " Type: "<<AllocatorType()
-     << " Pinning: "<< ((mEagerPinning) ? string("Eager") : string("Lazy"))
-     << " TotalAllocated: "<< to_string(TotalAllocated())
+  if(depth < 0) return;
+  ss << std::string(indent, ' ') << "[Allocator] "
+     << " Type: " << AllocatorType()
+     << " Pinning: " << ((mEagerPinning) ? string("Eager") : string("Lazy"))
+     << " TotalAllocated: " << to_string(TotalAllocated())
      << endl;
 }
 
 
-
+} //namespace internal
 } //namespace lunasa

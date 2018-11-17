@@ -5,8 +5,9 @@
 #include <iostream>
 #include <sstream>
 
-#include "common/MutexWrapper.hh"
-#include "common/Debug.hh"
+#include "faodelConfig.h"
+#include "faodel-common/MutexWrapper.hh"
+#include "faodel-common/Debug.hh"
 
 using namespace std;
 
@@ -23,13 +24,13 @@ namespace faodel {
 class MutexWrapperNone : public MutexWrapper {
 public:
   MutexWrapperNone() {}
-  void Lock() {}
-  void ReaderLock() {}
-  void WriterLock() {}
-  void Unlock() {}
-  void yield() {}
-  std::string GetType() const { return "none"; }
-  MutexWrapperTypeID GetTypeID() const { return MutexWrapperTypeID::NONE; }
+  void Lock() override {}
+  void ReaderLock() override {}
+  void WriterLock() override {}
+  void Unlock() override {}
+  void yield() override {}
+  std::string GetType() const override { return "none"; }
+  MutexWrapperTypeID GetTypeID() const override { return MutexWrapperTypeID::NONE; }
   MutexWrapperNone(const MutexWrapperNone&) {  }
   MutexWrapperNone& operator= (const MutexWrapperNone& ) { return *this; }
 };
@@ -37,7 +38,7 @@ public:
 
 //=============================================================================
 // MutexWrapperOMP: Use openMP's locks
-#if defined(_OPENMP)
+#if defined(Faodel_THREADING_MODEL_OPENMP)
 #include <omp.h>
 class MutexWrapperOMP : public MutexWrapper {
 public:
@@ -62,7 +63,7 @@ private:
 
 //=============================================================================
 // MutexWrapperPT: PThreads wrapper
-#ifdef _PTHREADS
+#ifdef Faodel_THREADING_MODEL_PTHREADS
 #include <pthread.h>
 #ifdef __APPLE__
 #include <sched.h>
@@ -72,20 +73,20 @@ class MutexWrapperPT : public MutexWrapper {
 
 public:
   MutexWrapperPT()   { pthread_mutex_init(&lock_mutex, NULL); }
-  ~MutexWrapperPT()  { pthread_mutex_destroy(&lock_mutex); }
+  ~MutexWrapperPT() override { pthread_mutex_destroy(&lock_mutex); }
 
-  void Lock()   { pthread_mutex_lock(&lock_mutex); }
-  void ReaderLock() { Lock(); }
-  void WriterLock() { Lock(); }
+  void Lock() override { pthread_mutex_lock(&lock_mutex); }
+  void ReaderLock() override { Lock(); }
+  void WriterLock() override { Lock(); }
 
-  void Unlock() { pthread_mutex_unlock(&lock_mutex); }
+  void Unlock() override { pthread_mutex_unlock(&lock_mutex); }
 #ifndef __APPLE__
-  void yield()  { pthread_yield(); }
+  void yield() override { pthread_yield(); }
 #else
   void yield()  { sched_yield(); }
 #endif
-  std::string GetType() const { return "pthreads-lock"; }
-  MutexWrapperTypeID GetTypeID() const { return  MutexWrapperTypeID::PTHREADS_LOCK; }
+  std::string GetType() const override { return "pthreads-lock"; }
+  MutexWrapperTypeID GetTypeID() const override { return  MutexWrapperTypeID::PTHREADS_LOCK; }
   MutexWrapperPT(const MutexWrapperPT&) { pthread_mutex_init(&lock_mutex, NULL); }
   MutexWrapperPT& operator= (const MutexWrapperPT& ) { return *this; }
 
@@ -99,20 +100,20 @@ class MutexWrapperRWPT : public MutexWrapper {
 
 public:
   MutexWrapperRWPT()   { pthread_rwlock_init(&rwlock, NULL); }
-  ~MutexWrapperRWPT()  { pthread_rwlock_destroy(&rwlock); }
+  ~MutexWrapperRWPT() override { pthread_rwlock_destroy(&rwlock); }
 
-  void Lock()       { WriterLock(); } //Assume worst-case
-  void ReaderLock() { pthread_rwlock_rdlock(&rwlock); }
+  void Lock() override { WriterLock(); } //Assume worst-case
+  void ReaderLock() override { pthread_rwlock_rdlock(&rwlock); }
   void WriterLock() { pthread_rwlock_wrlock(&rwlock); }
 
-  void Unlock() { pthread_rwlock_unlock(&rwlock); }
+  void Unlock() override { pthread_rwlock_unlock(&rwlock); }
 #ifndef __APPLE__
-  void yield()  { pthread_yield(); }
+  void yield() override { pthread_yield(); }
 #else
   void yield()  { sched_yield(); }
 #endif
-  std::string GetType() const { return "pthreads-rwlock"; }
-  MutexWrapperTypeID GetTypeID() const { return  MutexWrapperTypeID::PTHREADS_RWLOCK; }
+  std::string GetType() const override { return "pthreads-rwlock"; }
+  MutexWrapperTypeID GetTypeID() const override { return  MutexWrapperTypeID::PTHREADS_RWLOCK; }
   MutexWrapperRWPT(const MutexWrapperPT&) { pthread_rwlock_init(&rwlock, NULL); }
   MutexWrapperRWPT& operator= (const MutexWrapperRWPT& ) { return *this; }
 
@@ -150,11 +151,11 @@ MutexWrapperTypeID GetMutexTypeID(std::string threading_model, std::string mutex
 
   if((threading_model=="none") || (mutex_type=="none")) return MutexWrapperTypeID::NONE;
 
-  #ifdef _OPENMP
+  #ifdef Faodel_THREADING_MODEL_OPENMP
   if((threading_model=="omp") || (threading_model=="openmp")) return MutexWrapperTypeID::OMP_LOCK;
   #endif
 
-  #ifdef _PTHREADS
+  #ifdef Faodel_THREADING_MODEL_PTHREADS
   if((threading_model=="pthreads") || (threading_model=="default")) {
 
     //rwlock's are the thing to use in pthreads.
@@ -176,12 +177,12 @@ MutexWrapper * GenerateMutexByTypeID(MutexWrapperTypeID mutex_type_id) {
   switch(mutex_type_id) {
   case MutexWrapperTypeID::NONE: return static_cast<MutexWrapper *>(new MutexWrapperNone());
 
-#ifdef _OPENMP
+#ifdef Faodel_THREADING_MODEL_OPENMP
   case MutexWrapperTypeID::DEFAULT:
   case MutexWrapperTypeID::OMP_LOCK: return static_cast<MutexWrapper *>(new MutexWrapperOMP());
 #endif
 
-#ifdef _PTHREADS
+#ifdef Faodel_THREADING_MODEL_PTHREADS
   case MutexWrapperTypeID::DEFAULT: //Default to plain lock
   case MutexWrapperTypeID::PTHREADS_LOCK: return static_cast<MutexWrapper *>(new MutexWrapperPT());
   case MutexWrapperTypeID::PTHREADS_RWLOCK: return static_cast<MutexWrapper *>(new MutexWrapperRWPT());
@@ -203,15 +204,15 @@ MutexWrapper * GenerateMutex(string threading_model, string mutex_type) {
 
 string MutexWrapperCompileTimeInfo() {
   stringstream ss;
-  ss << "Guttie::MutexWrapper was compiled with support for : ";
-  #ifdef _PTHREADS
+  ss << "faodel::MutexWrapper was compiled with support for : ";
+  #ifdef Faodel_THREADING_MODEL_PTHREADS
     ss << "pthreads ";
   #endif
-  #ifdef _OPENMP
+  #ifdef Faodel_THREADING_MODEL_OPENMP
     ss << "openmp ";
   #endif
 
-  #if !(defined(_PTHREADS) || defined(_OPENMP))
+  #if !(defined(Faodel_THREADING_MODEL_PTHREADS) || defined(Faodel_THREADING_MODEL_OPENMP))
     ss << "none";
   #endif
 

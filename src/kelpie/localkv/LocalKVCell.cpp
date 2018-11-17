@@ -9,8 +9,10 @@
 
 #include <memory>
 
-#include "common/Debug.hh"
+#include "faodel-common/Debug.hh"
+#include "faodel-services/BackBurner.hh"
 #include "opbox/OpBox.hh"
+
 #include "kelpie/localkv/LocalKVCell.hh"
 #include "kelpie/localkv/LocalKVRow.hh"
 #include "kelpie/common/OpArgsObjectAvailable.hh"
@@ -192,14 +194,14 @@ void LocalKVCell::sstr(stringstream &ss, int depth, int indent) const {
      << " Age: "         << time_posted - t
      << " SinceAccess: " << time_accessed - t;
 
-  if(depth>0){
-    char *tmp = ldo.GetDataPtr<char *>();
-    ss << " Data: 0x";
-    KTODO("Fix LDO capacity function");  //Fix ldo Capacity
-    //for(size_t i=0; (i<16) && (i<ldo.capacity()); i++)
-    //  ss << std::hex << (int) tmp[i];
-  }
-  ss << endl;
+  //if(depth>0){
+  //  char *tmp = ldo.GetDataPtr<char *>();
+  //  ss << " Data: 0x";
+  //  KTODO("Fix LDO capacity function");  //Fix ldo Capacity
+  //  //for(size_t i=0; (i<16) && (i<ldo.capacity()); i++)
+  //  //  ss << std::hex << (int) tmp[i];
+  //}
+  //ss << endl;
 }
 
 }  //namespace kelpie

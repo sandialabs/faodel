@@ -30,10 +30,10 @@ void KelpieCoreUnconfigured::init(const faodel::Configuration &config)         {
 void KelpieCoreUnconfigured::getLKV(LocalKV **localkv_ptr)                      { Panic("getLKV"); }
 void KelpieCoreUnconfigured::RegisterPoolConstructor(std::string pool_name,
                                              fn_PoolCreate_t ctor_function)     { Panic("RegisterPoolConstructor"); }
-Pool KelpieCoreUnconfigured::Connect(const faodel::ResourceURL &resource_url)  { Panic("Connect"); }
+Pool KelpieCoreUnconfigured::Connect(const faodel::ResourceURL &resource_url)  { Panic("Connect"); return Pool(); }
 void KelpieCoreUnconfigured::RegisterIomConstructor(std::string type,
                                              fn_IomConstructor_t ctor_function) { Panic("RegisterIomConstructor"); }  
-IomBase * KelpieCoreUnconfigured::FindIOM(uint32_t iom_hash)                    { Panic("FindIOM"); }
+IomBase * KelpieCoreUnconfigured::FindIOM(iom_hash_t iom_hash)                    { Panic("FindIOM"); return nullptr; }
 
 void KelpieCoreUnconfigured::sstr(std::stringstream &ss, int depth, int indent) const {
   ss <<"Kelpie: Currently Unconfigured (call kelpie::Init(config))\n";

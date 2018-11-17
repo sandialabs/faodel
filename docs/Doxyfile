@@ -781,11 +781,13 @@ WARN_LOGFILE           =
 # Note: If this tag is empty the current directory is searched.
 
 INPUT = src/sbl
-INPUT += src/common
+INPUT += src/faodel-common
+INPUT += src/dirman
 INPUT += src/webhook
 INPUT += src/nnti
 INPUT += src/lunasa
 INPUT += src/opbox
+INPUT += src/faodel-services
 INPUT += src/kelpie
 INPUT += README.md
 INPUT += INSTALL.md
@@ -796,8 +798,10 @@ INPUT += src/opbox/README_OpBox.md
 INPUT += src/lunasa/README_Lunasa.md
 INPUT += src/nnti/README_NNTI.md
 INPUT += src/webhook/README_WebHook.md
-INPUT += src/common/README_Common.md
-INPUT += src/sbl/README_SBL.md 
+INPUT += src/dirman/README_DirMan.md
+INPUT += src/faodel-services/README_Services.md
+INPUT += src/faodel-common/README_Common.md
+INPUT += src/sbl/README_SBL.md
 
 # This tag can be used to specify the character encoding of the source files
 # that doxygen parses. Internally doxygen uses the UTF-8 encoding. Doxygen uses

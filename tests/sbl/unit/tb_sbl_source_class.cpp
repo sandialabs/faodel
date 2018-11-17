@@ -9,9 +9,9 @@
  *      Author: thkorde
  */
 
-#include "sbl_boost_headers.hpp"
+#include "faodelConfig.h"
 
-#include "sblConfig.h"
+#include "sbl/sbl_boost_headers.hh"
 
 #include <unistd.h>
 #include <string.h>
@@ -21,8 +21,8 @@
 #include <sstream>
 #include <thread>
 
-#include "sbl_source.hpp"
-#include "sbl_stream.hpp"
+#include "sbl/sbl_source.hh"
+#include "sbl/sbl_stream.hh"
 
 
 bool success=true;

@@ -2,16 +2,14 @@
 // LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
 // the U.S. Government retains certain rights in this software. 
 
-#include "Lunasa.hh"
 #include <iostream>
 #include <sstream>
 #include <assert.h>
 
 #include <string.h> //memcpy
-// TODO does malloc.h exist?
-// #include <malloc.h>
 #include <pthread.h>
 
+#include "faodelConfig.h"
 
 #include "webhook/WebHook.hh"
 #include "webhook/Server.hh"
@@ -31,47 +29,79 @@ Lunasa GetInstance() {
 }
 
 //The Singleton holds all the init/start/finish code
-void Init(const faodel::Configuration &config)
-{
+void Init(const faodel::Configuration &config) {
   internal::Singleton::impl.Init(config);  
 }
-void Start()
-{
+void Start() {
   internal::Singleton::impl.Start();
 }
-void Finish()
-{
+void Finish() {
   internal::Singleton::impl.Finish();
 }
 
-void RegisterPinUnpin(net_pin_fn pin, net_unpin_fn unpin) 
-{
+/**
+ * @brief Internal hook for a network layer to register its pin/unpin functions
+ * @param pin The function Lunasa calls to pinning a block of memory
+ * @param unpin The function Lunasa calls to unpin a block of memory
+ */
+void RegisterPinUnpin(net_pin_fn pin, net_unpin_fn unpin) {
   internal::Singleton::impl.core->RegisterPinUnpin(pin, unpin);
 }
 
-Lunasa::Lunasa()
-{}
-
-Lunasa::Lunasa(faodel::internal_use_only_t iuo, AllocatorBase *lazy_allocator, AllocatorBase *eager_allocator)
-{
-  this->lazyImpl = lazy_allocator;
-  this->eagerImpl = eager_allocator;
+/**
+ * @brief Update Lunasa with information about how to display a particular DataObject type
+ * @param tag The integer id for a particular user data type (usually a hash of the name)
+ * @param name The name for this data type (usually hashed to make the tag)
+ * @param dump_func The function for dumping this DataObject type to a webhook replystream
+ */
+void RegisterDataObjectType(dataobject_type_t tag, std::string name, fn_DataObjectDump_t dump_func) {
+  internal::Singleton::impl.dataobject_type_registry.RegisterDataObjectType(tag, name, dump_func);
 }
 
-Lunasa::Lunasa(const Lunasa& copy) 
-{
+/**
+ * @brief Remove a dumping function from the registry
+ * @param tag The integer id for a particular user data type (usually a hash of the name)
+ */
+void DeregisterDataObjectType(dataobject_type_t tag) {
+  return internal::Singleton::impl.dataobject_type_registry.DeregisterDataObjectType(tag);
+}
+
+/**
+ * @brief Dump info about the DataObject to a reply stream. If unregistered, dump generic hex data
+ * @param ldo The DataObject that is to be dumped
+ * @param rs The webhook ReplyStream that is appended
+ * @retval TRUE A user-defined dump function was found for dumping the DataObject type
+ * @retval FALSE No user-defined dump function available for this DataObject. Dumped using hex output
+ */
+bool DumpDataObject(const DataObject &ldo, faodel::ReplyStream &rs) {
+  return internal::Singleton::impl.dataobject_type_registry.DumpDataObject(ldo, rs);
+}
+
+
+
+// Note: The Lunasa class is just a wrapper that makes calls to the singleton
+
+Lunasa::Lunasa() {
+}
+
+Lunasa::Lunasa(faodel::internal_use_only_t iuo, 
+               internal::AllocatorBase *lazy_allocator, 
+               internal::AllocatorBase *eager_allocator) 
+        : lazyImpl(lazy_allocator),
+          eagerImpl(eager_allocator) {
+}
+
+Lunasa::Lunasa(const Lunasa& copy) {
   //note: either core is valid, or the others
   lazyImpl = copy.lazyImpl;
   eagerImpl = copy.eagerImpl;
 }
 
-Lunasa::~Lunasa() 
-{
+Lunasa::~Lunasa() {
   //Everything is a reference.
 }
 
-Lunasa& Lunasa::operator=(const Lunasa& copy) 
-{
+Lunasa& Lunasa::operator=(const Lunasa& copy) {
   //note: either core is valid, or the others
   lazyImpl = copy.lazyImpl;
   eagerImpl = copy.eagerImpl;
@@ -88,6 +118,30 @@ void   Lunasa::PrintState(ostream& stream)  {         internal::Singleton::impl.
 
 void Lunasa::sstr(std::stringstream &ss, int depth, int indent) const {
   return internal::Singleton::impl.core->sstr(ss, depth, indent);
+}
+
+/**
+ * @brief Get a list of the allocators that are available in this installation
+ * @return Vector of allocator names (excluding Unconfigured)
+ */
+vector<string> AvailableAllocators() {
+  vector<string> allocators;
+  allocators.push_back("malloc");
+  #ifdef Faodel_ENABLE_TCMALLOC
+    allocators.push_back("tcmalloc");
+  #endif
+  return allocators;
+}
+
+/**
+ * @brief Get a list of the Lunasa cores that are available in this installation
+ * @return Vector of core names (excluding Unconfigured)
+ */
+vector<string> AvailableCores() {
+  vector<string> cores;
+  cores.push_back("split");
+
+  return cores;
 }
 
 } // namespace lunasa

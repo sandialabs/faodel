@@ -16,7 +16,7 @@
 
 #include <string>
 
-#include "common/Configuration.hh"
+#include "faodel-common/Configuration.hh"
 
 #include "nnti/nnti_transport.hpp"
 #include "nnti/nnti_peer.hpp"
@@ -73,7 +73,7 @@ public:
     init_logger(faodel::Configuration &config);
 
     NNTI_transport_id_t
-    id(void);
+    id(void) override;
 
     /**
      * @brief Calculate the number of bytes required to store an encoded NNTI data structure.
@@ -85,7 +85,7 @@ public:
     NNTI_result_t
     dt_sizeof(
         void     *nnti_dt,
-        uint64_t *packed_len);
+        uint64_t *packed_len) override;
 
     /**
      * @brief Encode an NNTI data structure into an array of bytes.
@@ -99,7 +99,7 @@ public:
     dt_pack(
         void           *nnti_dt,
         char           *packed_buf,
-        const uint64_t  packed_buflen);
+        const uint64_t  packed_buflen) override;
 
     /**
      * @brief Free a variable size NNTI datatype that was unpacked with NNTI_dt_unpack().
@@ -108,7 +108,7 @@ public:
      */
     NNTI_result_t
     dt_free(
-        void *nnti_dt);
+        void *nnti_dt) override;
 
 };
 

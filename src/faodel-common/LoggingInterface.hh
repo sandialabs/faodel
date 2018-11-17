@@ -7,7 +7,7 @@
 
 #include <string>
 
-#include <common/commonConfig.h>
+#include <faodelConfig.h>
 
 
 
@@ -38,6 +38,13 @@ public:
   void ConfigureLoggingInfo(bool enable_info);
   void ConfigureLoggingWarn(bool enable_warn);
 
+  void SetLoggingLevel(int log_level);
+  static int GetLoggingLevelFromConfiguration(const Configuration &config, const std::string &component_name);
+
+  bool GetDebug() const { return debug_enabled; }
+  std::string GetFullName() const { if (subcomponent_name.empty()) return component_name; else return component_name+"."+subcomponent_name;}
+  std::string GetComponentName() const { return component_name; }
+  std::string GetSubcomponentName() const { return subcomponent_name; }
 
 protected:
 
@@ -45,7 +52,9 @@ protected:
   void ConfigureLogging(const Configuration &config);
   void SetSubcomponentName(std::string new_name) { subcomponent_name=new_name; }
 
-#if FAODEL_LOGGINGINTERFACE_DISABLED==1
+
+
+#if Faodel_LOGGINGINTERFACE_DISABLED==1
   void dbg(std::string s) const {}
   void info(std::string s) const {}
   void warn(std::string s) {}
@@ -66,9 +75,10 @@ private:
   bool info_enabled;
   bool warn_enabled;
 
-#if FAODEL_LOGGINGINTERFACE_DISABLED==0 && FAODEL_LOGGINGINTERFACE_USE_SBL==1
+#if Faodel_LOGGINGINTERFACE_DISABLED==0 && Faodel_LOGGINGINTERFACE_USE_SBL==1
   static sbl::logger *sbl_logger;
 #endif
+
 
 };
 

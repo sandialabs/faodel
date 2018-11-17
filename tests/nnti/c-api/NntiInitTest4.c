@@ -23,7 +23,7 @@ main(int argc, char *argv[])
     char req_url[NNTI_URL_LEN];
     char *my_url = (char *)calloc(NNTI_URL_LEN+1,1);
 
-    test_bootstrap();
+    test_bootstrap_start();
 
     sprintf(req_url, "ib://%s:1999", my_hostname);
 
@@ -44,6 +44,7 @@ main(int argc, char *argv[])
     log_debug("NntiInitTest4", "my_url=%s", my_url);
 
     NNTI_fini(transport);
+    test_bootstrap_finish();
 
     return 0;
 }

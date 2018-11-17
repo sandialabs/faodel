@@ -13,9 +13,9 @@
 
 #include <cinttypes>
 
-#include "common/Configuration.hh"
-#include "common/BootstrapInterface.hh"
-#include "common/LoggingInterface.hh"
+#include "faodel-common/Configuration.hh"
+#include "faodel-common/BootstrapInterface.hh"
+#include "faodel-common/LoggingInterface.hh"
 
 
 namespace faodel {
@@ -31,9 +31,9 @@ namespace backburner {
 std::string bootstrap(); //Function handed to bootstrap for dependency injection
 
 //Public interface
-void RegisterPollingFunction(std::string name, uint32_t group_id, fn_backburner_work polling_function);
-void DisablePollingFunction(std::string name);
-void DisablePollingFunction(std::string name, uint32_t group_id);
+void RegisterPollingFunction(const std::string &name, uint32_t group_id, fn_backburner_work polling_function);
+void DisablePollingFunction(const std::string &name);
+void DisablePollingFunction(const std::string &name, uint32_t group_id);
 
 void AddWork(fn_backburner_work work);
 void AddWork(std::vector<fn_backburner_work> work);
@@ -58,7 +58,7 @@ class BackBurner
 
 public:
   BackBurner();
-  ~BackBurner();
+  ~BackBurner() override;
 
   //Bootstrap API
   void Init(const faodel::Configuration &config) override;
@@ -69,9 +69,9 @@ public:
                        std::vector<std::string> &optional) const override;
 
   //Call before Start
-  void RegisterPollingFunction(std::string name, uint32_t group_id, fn_backburner_work polling_function);
+  void RegisterPollingFunction(const std::string &name, uint32_t group_id, fn_backburner_work polling_function);
   void DisablePollingFunction(std::string name);
-  void DisablePollingFunction(std::string name, uint32_t group_id);
+  void DisablePollingFunction(const std::string &name, uint32_t group_id);
 
   //Use to add a task to the queue
   void AddWork(fn_backburner_work work);

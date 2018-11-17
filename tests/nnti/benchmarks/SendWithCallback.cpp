@@ -20,7 +20,7 @@
 #include <string>
 #include <thread>
 
-#include "common/Configuration.hh"
+#include "faodel-common/Configuration.hh"
 
 #include "nnti/nnti_logger.hpp"
 
@@ -179,7 +179,6 @@ NNTI_result_t runbench(bool                         server,
 string default_config_string = R"EOF(
 # default to using mpi, but allow override in config file pointed to by CONFIG
 nnti.transport.name                           mpi
-config.additional_files.env_name.if_defined   FAODEL_CONFIG
 )EOF";
 
 

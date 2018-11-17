@@ -12,8 +12,9 @@
 
 #include "gtest/gtest.h"
 
+#include "faodelConfig.h" //Use the threads faodel was compiled with
 
-#include "common/MutexWrapper.hh"
+#include "faodel-common/MutexWrapper.hh"
 
 
 //TODO: This should have testing on the mutexwrapper id stuff
@@ -33,8 +34,8 @@ double getMBps(uint64_t bytes, struct timeval *stop, struct timeval *start) {
 
 
 //Compile time check to make sure one of these works
-#if !(defined(_PTHREADS) || defined(_OPENMP))
-static_assert(false, "Neither _PTHREADS nor _OPENMP were defined");
+#if !(defined(Faodel_THREADING_MODEL_PTHREADS) || defined(Faodel_THREADING_MODEL_OPENMP))
+static_assert(false, "Neither Faodel_THREADING_MODEL_PTHREADS nor Faodel_THREADING_MODEL_OPENMP were defined");
 #endif
 
 
@@ -160,7 +161,7 @@ TEST(Mutex, BurnThreaded) {
   }
   #endif
 
-  #ifdef _OPENMP
+  #ifdef Faodel_THREADING_MODEL_OPENMP
   {
     agrs.mutex = faodel::GenerateMutex("openmp");
     string s = args.mutex->GetType();
@@ -177,7 +178,7 @@ TEST(Mutex, BurnThreaded) {
   }
   #endif
 
-  #ifdef _PTHREADS
+  #ifdef Faodel_THREADING_MODEL_PTHREADS
   {
     pthread_t threads[num_threads];
     uint64_t call_times[num_threads];
@@ -253,7 +254,7 @@ TEST(Mutex, BurnThreadedRW) {
   }
   #endif
 
-  #ifdef _OPENMP
+  #ifdef Faodel_THREADING_MODEL_OPENMP
   {
     args.mutex = faodel::GenerateMutex("openmp");
     string s = args.mutex->GetType();
@@ -273,7 +274,7 @@ TEST(Mutex, BurnThreadedRW) {
   }
   #endif
 
-  #ifdef _PTHREADS
+  #ifdef Faodel_THREADING_MODEL_PTHREADS
   {
     pthread_t threads[num_threads];
     uint64_t call_times[num_threads];
@@ -332,7 +333,7 @@ TEST(Mutex, NoConflictThreaded) {
   uint64_t iterations=100000;
 
 
-  #ifdef _PTHREADS
+  #ifdef Faodel_THREADING_MODEL_PTHREADS
   {
     pthread_t threads[num_threads];
     uint64_t call_times[num_threads];
@@ -390,7 +391,7 @@ TEST(Mutex, NoConflictThreadedRW) {
   uint64_t iterations=100000;
 
 
-  #ifdef _PTHREADS
+  #ifdef Faodel_THREADING_MODEL_PTHREADS
   {
     pthread_t threads[num_threads];
     uint64_t call_times[num_threads];

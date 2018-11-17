@@ -17,28 +17,24 @@ const unsigned int OpGather::op_id = const_hash("OpGather");
 const string OpGather::op_name = "OpGather";
 
 
-
 OpGather::OpGather(opbox::net::peer_ptr_t *peer_list, int peer_count, lunasa::DataObject gather_dst_ldo)
-  : state(State::start), gather_count(0), Op(true)
-{
-  this->peer_list  = peer_list;
+        : state(State::start), gather_count(0), Op(true) {
+
+  this->peer_list = peer_list;
   this->peer_count = peer_count;
   this->gather_ldo = gather_dst_ldo;
   //Work picks up again in origin's state machine
 }
 
 OpGather::OpGather(op_create_as_target_t t)
-  : state(State::start), gather_count(0), Op(t)
-{
+        : state(State::start), gather_count(0), Op(t) {
   //No work to do - done in target's state machine
 }
 
-OpGather::~OpGather()
-{
+OpGather::~OpGather() {
 }
 
-future<int> OpGather::GetFuture()
-{
+future<int> OpGather::GetFuture() {
   return gather_promise.get_future();
 }
 
@@ -51,16 +47,16 @@ future<int> OpGather::GetFuture()
  * NetBufferRemote that describes the RDMA window of the
  * gathered data.
  */
-lunasa::DataObject OpGather::createOutgoingMessage(faodel::nodeid_t   dst,
-                                                     const mailbox_t    &src_mailbox,
-                                                     const mailbox_t    &dst_mailbox,
-                                                     const uint32_t      block_length,
-                                                     const int           target_rank)
-{
+lunasa::DataObject OpGather::createOutgoingMessage(faodel::nodeid_t dst,
+                                                   const mailbox_t &src_mailbox,
+                                                   const mailbox_t &dst_mailbox,
+                                                   const uint32_t block_length,
+                                                   const int target_rank) {
   gather_key key;
-  int         key_size = sizeof(gather_key);
+  int key_size = sizeof(gather_key);
 
-  lunasa::DataObject ldo_msg = opbox::net::NewMessage(sizeof(message_t) + key_size + sizeof(struct opbox::net::NetBufferRemote));
+  lunasa::DataObject ldo_msg = opbox::net::NewMessage(
+          sizeof(message_t) + key_size + sizeof(struct opbox::net::NetBufferRemote));
 
   message_t *msg = ldo_msg.GetDataPtr<message_t *>();
   msg->src           = opbox::net::GetMyID();
@@ -70,13 +66,14 @@ lunasa::DataObject OpGather::createOutgoingMessage(faodel::nodeid_t   dst,
   msg->op_id         = OpGather::op_id;
   msg->body_len      = key_size + sizeof(struct opbox::net::NetBufferRemote);
 
-  opbox::net::NetBufferLocal  *nbl = nullptr;
-  opbox::net::NetBufferRemote  nbr;
+  opbox::net::NetBufferLocal *nbl = nullptr;
+  opbox::net::NetBufferRemote nbr;
   // We don't want the target to reference the entire LDO, so we
   // specify an offset and length that creates a widow in the LDO.
   // Since a complete LDO includes the header, the offset must include
   // the size of the header.
-  int rc = opbox::net::GetRdmaPtr(&gather_ldo, gather_ldo.GetHeaderSize()+(block_length*target_rank), block_length, &nbl, &nbr);
+  int rc = opbox::net::GetRdmaPtr(&gather_ldo, gather_ldo.GetHeaderSize() + (block_length*target_rank), block_length,
+                                  &nbl, &nbr);
   assert(rc == 0 && "opbox::net::GetRdmaPtr()");
 
   memset(key, 0, key_size);
@@ -93,10 +90,9 @@ lunasa::DataObject OpGather::createOutgoingMessage(faodel::nodeid_t   dst,
  * message is just a message_t that tells the origin (them) which
  * operation is complete.
  */
-lunasa::DataObject OpGather::createAckMessage(faodel::nodeid_t   dst,
-                                  const mailbox_t    &src_mailbox,
-                                  const mailbox_t    &dst_mailbox)
-{
+lunasa::DataObject OpGather::createAckMessage(faodel::nodeid_t dst,
+                                              const mailbox_t &src_mailbox,
+                                              const mailbox_t &dst_mailbox) {
   lunasa::DataObject ldo_msg = opbox::net::NewMessage(sizeof(message_t));
   auto *msg = ldo_msg.GetDataPtr<message_t *>();
   msg->src           = opbox::net::GetMyID();
@@ -117,45 +113,45 @@ WaitingType OpGather::UpdateOrigin(OpArgs *args) {
   lunasa::DataObject ldo_msg;
   string user_data;
 
-  switch(state){
-  case State::start:
-    // evenly divide the gather destination amongst the targets
-    block_size = gather_ldo.GetDataSize()/peer_count;
-    // create and send the init message to each target
-    for (int i=0;i<peer_count;i++) {
-      ldo_msg = createOutgoingMessage(opbox::net::ConvertPeerToNodeID(peer_list[i]),
-                                      GetAssignedMailbox(),
-                                      MAILBOX_UNSPECIFIED,
-                                      block_size,
-                                      i);
+  switch(state) {
+    case State::start:
+      // evenly divide the gather destination amongst the targets
+      block_size = gather_ldo.GetDataSize()/peer_count;
+      // create and send the init message to each target
+      for(int i = 0; i<peer_count; i++) {
+        ldo_msg = createOutgoingMessage(opbox::net::ConvertPeerToNodeID(peer_list[i]),
+                                        GetAssignedMailbox(),
+                                        MAILBOX_UNSPECIFIED,
+                                        block_size,
+                                        i);
 
-      // send a message to the target process to begin the gather
-      opbox::net::SendMsg(peer_list[i], std::move(ldo_msg));
-    }
+        // send a message to the target process to begin the gather
+        opbox::net::SendMsg(peer_list[i], std::move(ldo_msg));
+      }
 
-    state=State::snd_wait_for_ack;
-    return WaitingType::waiting_on_cq;
+      state = State::snd_wait_for_ack;
+      return WaitingType::waiting_on_cq;
 
-  case State::snd_wait_for_ack:
-    // an ACK message has arrived
-    args->VerifyTypeOrDie(UpdateType::incoming_message, op_name);
+    case State::snd_wait_for_ack:
+      // an ACK message has arrived
+      args->VerifyTypeOrDie(UpdateType::incoming_message, op_name);
 
-    // keep track of how many targets have sent an ACK
-    gather_count++;
-    // if we don't have all the ACKs, keep waiting
-    if (gather_count < peer_count) {
+      // keep track of how many targets have sent an ACK
+      gather_count++;
+      // if we don't have all the ACKs, keep waiting
+      if(gather_count<peer_count) {
         return WaitingType::waiting_on_cq;
-    }
+      }
 
-    // set the the value of the promise which will wake up the main
-    // thread which is waiting on the associated future
-    gather_promise.set_value(1);
+      // set the the value of the promise which will wake up the main
+      // thread which is waiting on the associated future
+      gather_promise.set_value(1);
 
-    state=State::done;
-    return WaitingType::done_and_destroy;
+      state = State::done;
+      return WaitingType::done_and_destroy;
 
-  case State::done:
-    return WaitingType::done_and_destroy;
+    case State::done:
+      return WaitingType::done_and_destroy;
   }
   //Shouldn't be here
   KFAIL();
@@ -165,14 +161,12 @@ WaitingType OpGather::UpdateOrigin(OpArgs *args) {
 /*
  * This is the target state machine.
  */
-WaitingType OpGather::UpdateTarget(OpArgs *args)
-{
+WaitingType OpGather::UpdateTarget(OpArgs *args) {
   int key_size = sizeof(gather_key);
 
-  switch(state){
+  switch(state) {
 
-  case State::start:
-    {
+    case State::start: {
       auto incoming_msg = args->ExpectMessageOrDie<message_t *>(&origin);
 
       // save a copy of the key
@@ -195,26 +189,28 @@ WaitingType OpGather::UpdateTarget(OpArgs *args)
       // AllEventsCallback() is a convenience class that will redirect
       // all events generated by the get to this operation's Update()
       // method.
-      opbox::net::Put(origin, gather_ldo, gather_ldo.GetHeaderSize(), &nbr, 0, nbr.GetLength(), AllEventsCallback(this));
+      opbox::net::Put(origin, gather_ldo, gather_ldo.GetHeaderSize(), &nbr, 0, nbr.GetLength(),
+                      AllEventsCallback(this));
 
-      state=State::put_wait_complete;
+      state = State::put_wait_complete;
       return WaitingType::waiting_on_cq;
     }
-  case State::put_wait_complete:
+    case State::put_wait_complete:
 
-    // the put is complete, so send the ACK to the origin process.
-    opbox::net::SendMsg(origin, std::move(ack_msg));
+      // the put is complete, so send the ACK to the origin process.
+      opbox::net::SendMsg(origin, std::move(ack_msg));
 
-    state=State::done;
-    return WaitingType::done_and_destroy;
+      state = State::done;
+      return WaitingType::done_and_destroy;
 
-  case State::done:
-    return WaitingType::done_and_destroy;
+    case State::done:
+      return WaitingType::done_and_destroy;
   }
+  KHALT("Missing state");
+  return WaitingType::done_and_destroy;
 }
 
-string OpGather::GetStateName() const
-{
+string OpGather::GetStateName() const {
   switch(state){
   case State::start:             return "Start";
   case State::snd_wait_for_ack:  return "Sender-WaitForAck";
@@ -222,4 +218,5 @@ string OpGather::GetStateName() const
   case State::done:              return "Done";
   }
   KFAIL();
+  return "Unknown";
 }

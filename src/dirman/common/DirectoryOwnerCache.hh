@@ -2,17 +2,17 @@
 // LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
 // the U.S. Government retains certain rights in this software. 
 
-#ifndef OPBOX_DIRECTORYOWNERCACHE_HH
-#define OPBOX_DIRECTORYOWNERCACHE_HH
+#ifndef DIRMAN_DIRECTORYOWNERCACHE_HH
+#define DIRMAN_DIRECTORYOWNERCACHE_HH
 
 #include <string>
 #include <vector>
 #include <map>
 
-#include "common/Common.hh"
-#include "webhook/common/ReplyStream.hh"
+#include "faodel-common/Common.hh"
+#include "faodel-common/LoggingInterface.hh"
 
-namespace opbox {
+namespace dirman {
 
 /**
  * @brief A simple lookup table for finding which node is responsible for a resource
@@ -21,10 +21,13 @@ namespace opbox {
  * for a Resource.
  */
 class DirectoryOwnerCache
-        : public faodel::InfoInterface {
+        : public faodel::InfoInterface,
+          public faodel::LoggingInterface {
 
 public:
-  DirectoryOwnerCache() : mutex(nullptr) {};
+  DirectoryOwnerCache() = delete; //Need to specify the name of the component
+  explicit DirectoryOwnerCache(const std::string &full_name); // : mutex(nullptr) {};
+
   ~DirectoryOwnerCache() override;
 
   void Init(const faodel::Configuration &conf, std::string threading_model, std::string mutex_type);
@@ -39,8 +42,8 @@ public:
 
   size_t NumberOfResources() const { return known_resource_owners.size(); }
 
-  void webhookInfo(webhook::ReplyStream &rs);
-  void sstr(std::stringstream &ss, int depth=0, int indent=0) const;
+  void webhookInfo(faodel::ReplyStream &rs);
+  void sstr(std::stringstream &ss, int depth=0, int indent=0) const override;
 
 private:
 
@@ -51,12 +54,9 @@ private:
 
   faodel::MutexWrapper *mutex;
 
-  void log(std::string s);
-  bool debug;
-
 };
 
 
-} // namespace opbox
+} // namespace dirman
 
 #endif

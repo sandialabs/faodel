@@ -12,8 +12,8 @@
 #ifndef SBL_STREAM_HPP_
 #define SBL_STREAM_HPP_
 
-#include "sbl/sbl_boost_headers.hpp"
-#include "sbl/sblConfig.h"
+#include "faodelConfig.h"
+#include "sbl/sbl_boost_headers.hh"
 
 #include <errno.h>
 #include <time.h>
@@ -28,7 +28,7 @@
 #include <map>
 #include <string>
 
-#include "sbl/sbl_types.hpp"
+#include "sbl/sbl_types.hh"
 
 namespace sbl  {
 

@@ -20,9 +20,14 @@ set(Faodel_CXX_COMPILER @CMAKE_CXX_COMPILER@ )
 set(Faodel_C_COMPILER   @CMAKE_C_COMPILER@ )
 set(Faodel_CXX_FLAGS   "@CMAKE_CXX_FLAGS@" )
 
-set( Faodel_BUILT_WITH_MPI @USE_MPI@ )
+set( Faodel_BUILT_WITH_MPI @Faodel_ENABLE_MPI_SUPPORT@ )
 set( Faodel_BUILT_CMAKE_SYSTEM_NAME @CMAKE_SYSTEM_NAME@ )
-set( Faodel_BUILT_NETWORK_LIBRARY @NETWORK_LIBRARY@ )
+set( Faodel_BUILT_NETWORK_LIBRARY @Faodel_NETWORK_LIBRARY@ )
+
+# If user didn't specify mpi support, default to use the same setting as the installation
+if( Faodel_BUILT_WITH_MPI AND (NOT DEFINED Faodel_ENABLE_MPI_SUPPORT))
+  set( Faodel_ENABLE_MPI_SUPPORT @Faodel_ENABLE_MPI_SUPPORT@)
+endif()
 
 
 #
@@ -40,19 +45,48 @@ set( CMAKE_CXX_STANDARD 11 )
 set( CMAKE_CXX_STANDARD_REQUIRED YES )
 set( CMAKE_CXX_EXTENSIONS OFF )
 
-find_package( Threads )
+if ("${Faodel_BUILT_CMAKE_SYSTEM_NAME}" STREQUAL "CrayLinuxEnvironment")
+  message(STATUS "pthreads on Cray CLE requires --whole-archive")
+  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,--whole-archive -lpthread -Wl,--no-whole-archive")
+else()
+  find_package(Threads REQUIRED)
+endif()
 
 message( STATUS "[Faodel] Locating required third-party libraries" )
 
+# Handle IOMs
+# We have to reset the BUILD_IOM_* variables here so that FaodelTPLs will search for them
+# These are options in the Faodel build
+set( Faodel_ENABLE_IOM_LEVELDB @Faodel_ENABLE_IOM_LEVELDB@ )
+set( Faodel_ENABLE_IOM_HDF5 @Faodel_ENABLE_IOM_HDF5@ )
+
+
 include( ${CMAKE_CURRENT_LIST_DIR}/FaodelTPLs.cmake )
 
-if( NOT USE_MPI AND Faodel_BUILT_WITH_MPI )
-  # The user has indicated that they don't want an MPI_BUILD (USE_MPI not set) but they've
+
+
+if( NOT Faodel_ENABLE_MPI_SUPPORT AND Faodel_BUILT_WITH_MPI )
+  # The user has indicated that they don't want an MPI_BUILD (Faodel_ENABLE_MPI_SUPPORT not set) but they've
   # found a FAODEL install that was built with MPI. This will almost certainly result in
   # missing symbols at link time (if not a compile failure because mpi.h can't be found).
   # So let's warn about this.
   message( WARNING
-    "[Faodel] This build isn't configuring to use MPI (USE_MPI not set), but Faodel was built with MPI. This is almost certainly not what you want." )
+    "[Faodel] Mismatch of MPI expectations."
+    "  The user has specified that they do NOT want Faodel to have MPI support, but the "
+    "  FAODEL installation that this project is importing WAS built with MPI support "
+    "  (ie, Faodel_ENABLE_MPI_SUPPORT is FALSE in the user's project while the Faodel"
+    "  installation had the value set to TRUE). This setting is almost certainly not "
+    "  what you want. Please make sure Faodel_ENABLE_MPI_SUPPORT is the same for both.")
+
+endif()
+
+if( NOT Faodel_NETWORK_LIBRARY STREQUAL Faodel_BUILT_NETWORK_LIBRARY )
+  # The user has indicated that they want to use a network module that is 
+  # different from the one used to build the Faodel found by find_package(). 
+  # This will almost certainly result in compile or link errors.
+  # So let's warn about this.
+  message( WARNING
+    "[Faodel] This build is configured to use the ${Faodel_NETWORK_LIBRARY} network module, but Faodel was built with ${Faodel_BUILT_NETWORK_LIBRARY}. This is almost certainly not what you want." )
 endif()
 
 message( STATUS "[Faodel] configured, available targets in ${CMAKE_CURRENT_LIST_DIR}/FaodelTargets.cmake" )

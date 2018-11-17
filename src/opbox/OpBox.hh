@@ -7,7 +7,7 @@
 
 #include <memory>
 
-#include "common/NodeID.hh"
+#include "faodel-common/NodeID.hh"
 
 #include "opbox/ops/Op.hh"
 #include "opbox/net/peer.hh"

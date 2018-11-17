@@ -32,14 +32,12 @@ void LunasaCoreUnconfigured::RegisterPinUnpin(net_pin_fn pin, net_unpin_fn unpin
   Panic("(LunasaCoreUnconfigured) RegisterPinUnpin");
 }
 
-allocation_t *LunasaCoreUnconfigured::AllocateEager(uint32_t metaCapacity, uint32_t dataCapacity)
-{
+Allocation *LunasaCoreUnconfigured::AllocateEager(uint32_t user_capacity) {
   Panic("AllocateEager");
   return nullptr;
 }
 
-allocation_t *LunasaCoreUnconfigured::AllocateLazy(uint32_t metaCapacity, uint32_t dataCapacity)
-{
+Allocation *LunasaCoreUnconfigured::AllocateLazy(uint32_t user_capacity) {
   Panic("AllocateLazy");
   return nullptr;
 }

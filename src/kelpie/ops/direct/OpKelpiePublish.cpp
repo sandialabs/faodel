@@ -3,6 +3,7 @@
 // the U.S. Government retains certain rights in this software. 
 
 #include <iostream>
+#include <kelpie/core/Singleton.hh>
 
 #include "kelpie/ops/direct/OpKelpiePublish.hh"
 
@@ -35,6 +36,8 @@ void OpKelpiePublish::configure(faodel::internal_use_only_t iuo, LocalKV *new_lk
  * @param[in] bucket The bucket namespace for this object
  * @param[in] key The key label for the object
  * @param[in] ldo_users_data The ldo for the data
+ * @param[in] iom_hash Hash id of an IOM associated with this request
+ * @param[in] behavior_flags Info about what actions to take on remote side
  * @param[in] cb_result Callback function invoke when success/failure is known
  * @return OpKelpiePublish
  */
@@ -44,6 +47,8 @@ OpKelpiePublish::OpKelpiePublish(
                      const faodel::bucket_t bucket,
                      const Key &key,
                      const lunasa::DataObject &ldo_users_data,
+                     const iom_hash_t iom_hash,
+                     const pool_behavior_t behavior_flags,
                      fn_publish_callback_t cb_result)
   : state(State::orig_pub_send),
     peer(target_ptr),
@@ -51,14 +56,8 @@ OpKelpiePublish::OpKelpiePublish(
 
   ldo_data = ldo_users_data;  //We need to keep a copy of the ldo until sent
 
-  bool exceeds = msg_direct_buffer_t::Alloc(ldo_msg,
-                                                op_id,
-                                                DirectFlags::CMD_PUBLISH,
-                                                target_node,
-                                                GetAssignedMailbox(),
-                                                opbox::MAILBOX_UNSPECIFIED,
-                                                bucket, key,
-                                                &ldo_data);
+  bool exceeds = msg_direct_buffer_t::Alloc(ldo_msg, op_id, DirectFlags::CMD_PUBLISH, target_node, GetAssignedMailbox(),
+                                            opbox::MAILBOX_UNSPECIFIED, bucket, key, iom_hash, behavior_flags, &ldo_data);
 
 }
 
@@ -73,6 +72,8 @@ OpKelpiePublish::OpKelpiePublish(Op::op_create_as_target_t t)
 
   //No work to do - done in target's state machine
   peer = 0;
+  target_iom=0;
+  target_behavior_flags=0;
   GetAssignedMailbox();  //For safety, get a mailbox. Not needed everywhere?
 }
 
@@ -105,9 +106,11 @@ WaitingType OpKelpiePublish::smt_Publish_Start(OpArgs *args) {
   auto imsg = args->ExpectMessageOrDie<msg_direct_buffer_t *>(&peer);
 
   //Grab essential from this message for later user
-  bucket = imsg->bucket;
-  key    = imsg->ExtractKey();
-  nbr    = imsg->net_buffer_remote;  //Copy the remote pointers
+  bucket     = imsg->bucket;
+  key        = imsg->ExtractKey();
+  nbr        = imsg->net_buffer_remote;  //Copy the remote pointers
+  target_iom = imsg->iom_hash;
+  target_behavior_flags = PoolBehavior::ChangeRemoteToLocal(imsg->behavior_flags);
 
   //cout <<"OPPUB-TRG: message is a publish. OMBox="<<imsg->hdr.src_mailbox<<" Meta+Data Length is "<<imsg->meta_plus_data_size<<" key is "<<key.str()<<"\n";
 
@@ -131,12 +134,29 @@ WaitingType OpKelpiePublish::smt_Publish_Start(OpArgs *args) {
 WaitingType OpKelpiePublish::smt_Publish_WaitRDMA(opbox::OpArgs *args){
 
   //cout <<"OPPUB-TRG: got dma done notification. sending ack. Key is "<<key.str()<<"\n";
+
+  //FIXME
+  if(args->type == UpdateType::send_success) {
+    cout<<"FIXME: got send_success instead of get_success\n";
+    return WaitingType::waiting_on_cq;
+  }
+  //FIXME^^
+
   args->VerifyTypeOrDie(UpdateType::get_success, op_name);  //TODO: Add better error handling
 
   auto omsg = ldo_msg.GetDataPtr<msg_direct_status_t *>();
 
-  //Got the data, now store it locally
-  rc_t rc = lkv->put(bucket, key, ldo_data, &omsg->row_info, &omsg->col_info);
+  //Got the data, now store it locally in memory
+  rc_t rc = lkv->put(bucket, key, ldo_data, target_behavior_flags, &omsg->row_info, &omsg->col_info);
+
+  //See if it also goes to an iom
+  if((target_iom!=0) && (target_behavior_flags & PoolBehavior::WriteToIOM)){
+    auto *iom = kelpie::internal::Singleton::impl.core->FindIOM(target_iom);
+    if(iom==nullptr) {
+      throw runtime_error("OpKelpiePublish attempted to write key "+key.str()+" to a node with a bad iom");
+    }
+    iom->WriteObject(bucket, key, ldo_data);
+  }
 
   omsg->Success(rc==KELPIE_OK);
   omsg->remote_rc = rc;
@@ -157,6 +177,8 @@ WaitingType OpKelpiePublish::smo_Publish_WaitAck(opbox::OpArgs *args) {
   //caller specified a callback, pass the result back
   if(cb_info_result!=nullptr){
     //cout <<"OPPUB-ORG got ack Reply. Need to extract the return code\n";
+    imsg->row_info.ChangeAvailabilityFromLocalToRemote();
+    imsg->col_info.ChangeAvailabilityFromLocalToRemote();
     cb_info_result(imsg->remote_rc, imsg->row_info, imsg->col_info);
   }
   return updateStateDone();

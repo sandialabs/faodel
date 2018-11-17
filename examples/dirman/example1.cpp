@@ -5,11 +5,12 @@
 #include <iostream>
 #include <unistd.h>
 #include <assert.h>
+#include <mpi.h>
 
-#include "common/Common.hh"
+#include "faodel-common/Common.hh"
 #include "opbox/OpBox.hh"
 
-#include "opbox/services/dirman/DirectoryManager.hh"
+#include "dirman/DirMan.hh"
 
 #include "Globals.hh"
 
@@ -17,7 +18,7 @@ using namespace std;
 using namespace faodel;
 using namespace opbox;
 
-extern Globals G;
+
 
 //Have the root node create a directory, and have some of the nodes join it
 void example1_create_and_fetch(){

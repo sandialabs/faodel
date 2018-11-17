@@ -6,17 +6,22 @@
 #include <fstream>
 #include <algorithm>
 
-#include "common/Debug.hh"
+#include "faodel-common/Debug.hh"
 
-#include "opbox/services/dirman/common/DirectoryCache.hh"
+#include "dirman/common/DirectoryCache.hh"
 
 
 using namespace std;
 using namespace faodel;
 
-namespace opbox {
+namespace dirman {
 
 const std::string DirectoryCache::auto_generate_option_label = "ag";
+
+DirectoryCache::DirectoryCache(const string &full_name)
+        : LoggingInterface(full_name), mutex(nullptr) {
+
+}
 
 DirectoryCache::~DirectoryCache(){
   if(mutex){
@@ -28,11 +33,11 @@ DirectoryCache::~DirectoryCache(){
     delete mutex;
   }
 }
-void DirectoryCache::Init(const faodel::Configuration &conf, string dc_name, string threading_model, string mutex_type) {
+void DirectoryCache::Init(const faodel::Configuration &config, string threading_model, string mutex_type) {
   kassert(mutex==nullptr, "Initialized more than once");
+  ConfigureLogging(config);
   mutex = GenerateMutex(threading_model, mutex_type);
-  this->dc_name = dc_name;
-  conf.GetBool(&debug, "dirman.cache."+dc_name+".debug", "false");
+
 }
 /**
  * @brief Add a new DirectoryInfo to the cache. Abort if item already exists
@@ -41,7 +46,7 @@ void DirectoryCache::Init(const faodel::Configuration &conf, string dc_name, str
  * @retval FALSE The resource already exists and therefore was NOT modified
  */
 bool DirectoryCache::Create(const DirectoryInfo &resource){
-  log("Create "+ resource.url.GetFullURL());
+  dbg("Create "+ resource.url.GetFullURL());
   return write(resource, false);
 }
 /**
@@ -52,7 +57,7 @@ bool DirectoryCache::Create(const DirectoryInfo &resource){
  * @retval FALSE One or more of the resources could not be created (already existed, or invalid)
  */
 bool DirectoryCache::Create(const vector<DirectoryInfo> &resources, int *num_created){
-  log("Create vector with "+to_string(resources.size())+" items");
+  dbg("Create vector with "+to_string(resources.size())+" items");
   return write(resources, num_created, false);
 }
 /**
@@ -64,7 +69,7 @@ bool DirectoryCache::Create(const vector<DirectoryInfo> &resources, int *num_cre
  */
 bool DirectoryCache::CreateAndLinkParents(const DirectoryInfo &resource){
   bool ok;
-  log("CreateAndLinkParents "+resource.url.GetFullURL());
+  dbg("CreateAndLinkParents "+resource.url.GetFullURL());
   if(!resource.url.Valid()) return false;
   mutex->WriterLock();
 
@@ -106,7 +111,7 @@ bool DirectoryCache::CreateAndLinkParents(const DirectoryInfo &resource){
  * @retval FALSE Entry was not found in the cache
  */
 bool DirectoryCache::Remove(const ResourceURL &dir_url){
-  log("Remove "+ dir_url.GetFullURL());
+  dbg("Remove "+ dir_url.GetFullURL());
 
   mutex->WriterLock();
   DirectoryInfo *r;
@@ -145,7 +150,7 @@ bool DirectoryCache::Remove(const ResourceURL &dir_url){
  * @retval FALSE The resource wasn't valid
  */
 bool DirectoryCache::Update(const DirectoryInfo &resource) {
-  log("Update "+resource.url.GetFullURL());
+  dbg("Update "+resource.url.GetFullURL());
   return write(resource, true);
 }
 /**
@@ -156,7 +161,7 @@ bool DirectoryCache::Update(const DirectoryInfo &resource) {
  * @retval FALSE One or more of the resources were not valid
  */
 bool DirectoryCache::Update(const vector<DirectoryInfo> &resources, int *num_created){
-  log("Update vector with "+to_string(resources.size())+" items");
+  dbg("Update vector with "+to_string(resources.size())+" items");
   return write(resources, num_created, true);
 }
 
@@ -169,7 +174,7 @@ bool DirectoryCache::Update(const vector<DirectoryInfo> &resources, int *num_cre
  */
 bool DirectoryCache::write(const DirectoryInfo &resource, bool overwrite_existing){
   bool ok;
-  log("Write resource "+resource.url.GetFullURL());
+  dbg("Write resource "+resource.url.GetFullURL());
   if(!resource.url.Valid()) return false;
   mutex->WriterLock();
   ok = _write(resource, overwrite_existing);
@@ -226,7 +231,7 @@ bool DirectoryCache::_write(const DirectoryInfo &resource_info, bool overwrite_e
  */
 bool DirectoryCache::Join(const faodel::ResourceURL &child_url, DirectoryInfo *resource_info){
 
-  log("Join resource "+child_url.GetURL());
+  dbg("Join resource "+child_url.GetURL());
 
   string option_autogen = child_url.GetOption(auto_generate_option_label);
   bool needs_autogen = (option_autogen=="1");
@@ -240,7 +245,7 @@ bool DirectoryCache::Join(const faodel::ResourceURL &child_url, DirectoryInfo *r
 
   //Abort if we were given a named child and its at the root - nowhere to add
   if((!needs_autogen) &&child_url.IsRootLevel()) {
-    log("Attempted join using a root url "+child_url.GetURL());
+    dbg("Attempted join using a root url "+child_url.GetURL());
     if(resource_info) *resource_info = DirectoryInfo();
     return false;
   }
@@ -270,11 +275,11 @@ bool DirectoryCache::Leave(const faodel::ResourceURL &child_url, DirectoryInfo *
   bool found;
   bool removed=false;
 
-  log("Leave resource "+child_url.GetURL());
+  dbg("Leave resource "+child_url.GetURL());
 
   //Abort if this was a root url. Nothing to join
   if(child_url.path=="/") {
-    log("Attempted join using a root url "+child_url.GetURL());
+    dbg("Attempted join using a root url "+child_url.GetURL());
     if(resource_info) *resource_info = DirectoryInfo();
     return false;
   }
@@ -301,11 +306,11 @@ bool DirectoryCache::Lookup(const faodel::ResourceURL &search_url, DirectoryInfo
   bool found;
   DirectoryInfo *r;
 
-  log("Lookup "+search_url.GetFullURL());
+  dbg("Lookup "+search_url.GetFullURL());
 
   mutex->ReaderLock();
   found = _lookup(search_url, &r, reference_node);
-  if(resource_info) *resource_info = (found) ? *r : DirectoryInfo();
+  if(resource_info) *resource_info = (found) ? *r : DirectoryInfo(); //Not found: set to empty
   mutex->Unlock();
   return found;
 }
@@ -364,9 +369,21 @@ vector<faodel::ResourceURL> DirectoryCache::GetAllURLs(){
   return urls;
 }
 
-void DirectoryCache::webhookInfo(webhook::ReplyStream &rs){
+/**
+ * @brief Return a string list of known resources, in the form of "[bucket]/path/name"
+ * @param names The vector to append the results to
+ */
+void DirectoryCache::GetAllNames(vector<string> *names) {
+  mutex->ReaderLock();
+  for(auto &kv : known_resources){
+    names->push_back(kv.first);
+  }
+  mutex->Unlock();
+}
 
-  rs.tableBegin("DirectoryCache "+dc_name);
+void DirectoryCache::webhookInfo(faodel::ReplyStream &rs){
+
+  rs.tableBegin("DirectoryCache "+GetComponentName());
   rs.tableTop({"Name","ReferenceNode","NumChildren","Info"});
   mutex->ReaderLock();
   for(auto &name_dirptr : known_resources){
@@ -384,10 +401,9 @@ void DirectoryCache::webhookInfo(webhook::ReplyStream &rs){
 }
 
 void DirectoryCache::sstr(stringstream &ss, int depth, int indent) const {
-  ss << string(indent,' ')<<"[DirectoryCache-"<<dc_name
-     <<"] Items: "<<known_resources.size()
-     <<" Debug: "<<debug<<endl;
-  if(depth>0){
+  ss << string(indent,' ')<<"["<<GetFullName()<<"] Items: "<<known_resources.size()
+     <<" Debug: "<<GetDebug()<<endl;
+  if(depth>0) {
     //for(map<string,DirectoryInfo *>::const_iterator it = known_resources.begin(); it!=known_resources.end(); it++){
     // ss << string(indent+2,' ')
     //     << it->first <<" "
@@ -419,7 +435,7 @@ void DirectoryCache::sstr(stringstream &ss, int depth, int indent) const {
  */
 bool DirectoryCache::_lookup(const faodel::ResourceURL &url, DirectoryInfo **resource_info, nodeid_t *reference_node){
 
-  kassert(resource_info, "Invalid resource info");
+  kassert(resource_info!=nullptr, "Invalid resource info");
   kassert(url.Valid(), "Invalid url given to DC:"+url.GetFullURL());
 
   map<string,DirectoryInfo *>::iterator it;
@@ -427,7 +443,7 @@ bool DirectoryCache::_lookup(const faodel::ResourceURL &url, DirectoryInfo **res
 
   it=known_resources.find(bucket_path_name);
   if(it==known_resources.end()) {
-    log("_lookup miss for "+bucket_path_name);
+    dbg("_lookup miss for "+bucket_path_name);
     //cout <<"  DC known items:\n";
     //for(auto &name_rip : known_resources){
     //  cout <<"    "<<name_rip.first <<" --> "<<name_rip.second->url.str();
@@ -435,7 +451,7 @@ bool DirectoryCache::_lookup(const faodel::ResourceURL &url, DirectoryInfo **res
     if(reference_node) *reference_node = NODE_UNSPECIFIED;
     return false;
   }
-  log("_lookup hit for "+bucket_path_name+
+  dbg("_lookup hit for "+bucket_path_name+
       " Url is "+it->second->url.GetFullURL() +
       " Node is "+it->second->url.reference_node.GetHex());
 
@@ -459,13 +475,13 @@ bool DirectoryCache::_removeSingleDir(const faodel::ResourceURL &url, std::vecto
   it=known_resources.find(bucket_path_name);
   if(it==known_resources.end()) return false;
 
-  log("_removeSingleDir removing: "+bucket_path_name);
+  dbg("_removeSingleDir removing: "+bucket_path_name);
 
   DirectoryInfo *r = it->second;
   known_resources.erase(it);
   for( auto &name_node : r->children ){
     if((children!=nullptr) && (!name_node.name.empty())){
-      log("_removeSingleDir marking for removal: "+bucket_path_name+"/"+name_node.name);
+      dbg("_removeSingleDir marking for removal: "+bucket_path_name+"/"+name_node.name);
       children->push_back( ResourceURL(bucket_path_name+"/"+name_node.name));
     }
   }
@@ -475,8 +491,6 @@ bool DirectoryCache::_removeSingleDir(const faodel::ResourceURL &url, std::vecto
 }
 
 
-void DirectoryCache::log(std::string s){
-  if(debug) cout << "DirmanDirectoryCache "<<dc_name<<": "<< s<<endl;
-}
 
-} // namespace opbox
+
+} // namespace dirman

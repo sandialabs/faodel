@@ -12,8 +12,8 @@
 #ifndef SBL_LOGGER_HPP_
 #define SBL_LOGGER_HPP_
 
-#include "sbl/sbl_boost_headers.hpp"
-#include "sbl/sblConfig.h"
+#include "faodelConfig.h"
+#include "sbl/sbl_boost_headers.hh"
 
 #include <errno.h>
 #include <time.h>
@@ -28,9 +28,9 @@
 #include <map>
 #include <string>
 
-#include "sbl_types.hpp"
-#include "sbl_source.hpp"
-#include "sbl_stream.hpp"
+#include "sbl/sbl_types.hh"
+#include "sbl/sbl_source.hh"
+#include "sbl/sbl_stream.hh"
 
 namespace sbl  {
 

@@ -73,10 +73,11 @@ public:
         nnti::transports::transport *transport,
         char                        *packed_buf,
         const uint64_t               packed_len);
-    virtual ~ibverbs_buffer();
 
-    virtual char*
-    payload(void);
+  ~ibverbs_buffer() override;
+
+  char*
+    payload(void) override;
     void *
     addr(void);
     size_t

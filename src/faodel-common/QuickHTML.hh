@@ -2,8 +2,8 @@
 // LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
 // the U.S. Government retains certain rights in this software. 
 
-#ifndef WEBHOOK_QUICKHTML_HH
-#define WEBHOOK_QUICKHTML_HH
+#ifndef FAODEL_COMMON_QUICKHTML_HH
+#define FAODEL_COMMON_QUICKHTML_HH
 
 #include <string>
 #include <sstream>
@@ -49,5 +49,5 @@ void tableEnd(std::stringstream &ss);
 
 } //html
 
-#endif // WEBHOOK_QUICKHTML_HH
+#endif // FAODEL_COMMON_QUICKHTML_HH
 

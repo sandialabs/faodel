@@ -3,7 +3,7 @@
 // the U.S. Government retains certain rights in this software. 
 
 
-#include "sbl_boost_headers.hpp"
+#include "sbl/sbl_boost_headers.hh"
 
 
 int main(int argc, char *argv[])

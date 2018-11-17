@@ -27,3 +27,8 @@ target_link_libraries(${SERVER_EXEC} ${EXAMPLES_LIBS})
 add_executable(${CLIENT_EXEC} ${HEADERS} ${CLIENT_SOURCES} ${COMMON_SOURCES})
 set_target_properties(${CLIENT_EXEC} PROPERTIES LINKER_LANGUAGE CXX )
 target_link_libraries(${CLIENT_EXEC} ${EXAMPLES_LIBS})
+
+install(TARGETS ${PROJECT_NAME}-server ${PROJECT_NAME}-client
+        EXPORT faodelExampleTargets
+        RUNTIME DESTINATION "${BINARY_INSTALL_DIR}" COMPONENT bin
+)

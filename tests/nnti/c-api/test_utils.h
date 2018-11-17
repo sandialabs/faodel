@@ -24,7 +24,9 @@ extern "C" {
 #endif
 
 void
-test_bootstrap(void);
+test_bootstrap_start(void);
+void
+test_bootstrap_finish(void);
 
 NNTI_result_t
 cb_func(NNTI_event_t *event, void *context);

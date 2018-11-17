@@ -14,7 +14,7 @@
 #ifndef NULL_TRANSPORT_HPP_
 #define NULL_TRANSPORT_HPP_
 
-#include "common/Configuration.hh"
+#include "faodel-common/Configuration.hh"
 
 #include "nnti/nnti_transport.hpp"
 #include "nnti/transports/base/base_transport.hpp"
@@ -64,20 +64,17 @@ public:
      *
      * \return A result code (NNTI_OK or an error)
      */
-    ~null_transport()
-    {
+    ~null_transport() override {
         return;
     }
 
     NNTI_result_t
-    start(void)
-    {
+    start(void) override {
         return NNTI_OK;
     }
 
     NNTI_result_t
-    stop(void)
-    {
+    stop(void) override {
         return NNTI_OK;
     }
 
@@ -90,8 +87,7 @@ public:
      *
      */
     bool
-    initialized(void)
-    {
+    initialized(void) override {
         return true;
     }
 
@@ -105,8 +101,7 @@ public:
     NNTI_result_t
     get_url(
         char           *url,
-        const uint64_t  maxlen)
-    {
+        const uint64_t  maxlen) override {
         return NNTI_OK;
     }
 
@@ -117,9 +112,8 @@ public:
      * \return A result code (NNTI_OK or an error)
      *
      */
-    virtual NNTI_result_t
-    pid(NNTI_process_id_t *pid)
-    {
+    NNTI_result_t
+    pid(NNTI_process_id_t *pid) override {
         *pid = 0;
         return NNTI_OK;
     }
@@ -132,8 +126,7 @@ public:
      *
      */
     NNTI_result_t
-    attrs(NNTI_attrs_t *attrs)
-    {
+    attrs(NNTI_attrs_t *attrs) override {
         memset(attrs, 0, sizeof(NNTI_attrs_t));
         return NNTI_OK;
     }
@@ -150,8 +143,7 @@ public:
     connect(
         const char  *url,
         const int    timeout,
-        NNTI_peer_t *peer_hdl)
-    {
+        NNTI_peer_t *peer_hdl) override {
         nnti::datatype::nnti_peer *peer=nullptr;
 
         peer_hdl = (NNTI_peer_t *)peer;
@@ -167,8 +159,7 @@ public:
      */
     NNTI_result_t
     disconnect(
-        NNTI_peer_t peer_hdl)
-    {
+        NNTI_peer_t peer_hdl) override {
         nnti::datatype::nnti_peer *peer = (nnti::datatype::nnti_peer *)peer_hdl;
 
         return NNTI_OK;
@@ -186,8 +177,7 @@ public:
     eq_create(
         uint64_t            size,
         NNTI_eq_flags_t     flags,
-        NNTI_event_queue_t *eq)
-    {
+        NNTI_event_queue_t *eq) override {
         nnti::datatype::nnti_event_queue *new_eq = new nnti::datatype::nnti_event_queue(true, size, this);
 
         *eq = (NNTI_event_queue_t)new_eq;
@@ -201,8 +191,7 @@ public:
         NNTI_eq_flags_t                      flags,
         nnti::datatype::nnti_event_callback  cb,
         void                                *cb_context,
-        NNTI_event_queue_t                  *eq)
-    {
+        NNTI_event_queue_t                  *eq) override {
         nnti::datatype::nnti_event_queue *new_eq = new nnti::datatype::nnti_event_queue(true, size, cb, cb_context, this);
 
         *eq = (NNTI_event_queue_t)new_eq;
@@ -218,8 +207,7 @@ public:
      */
     NNTI_result_t
     eq_destroy(
-        NNTI_event_queue_t eq)
-    {
+        NNTI_event_queue_t eq) override {
         delete (nnti::datatype::nnti_event_queue *)eq;
 
         return NNTI_OK;
@@ -240,8 +228,7 @@ public:
         const uint32_t      eq_count,
         const int           timeout,
         uint32_t           *which,
-        NNTI_event_t       *event)
-    {
+        NNTI_event_t       *event) override {
         return NNTI_OK;
     }
 
@@ -257,8 +244,7 @@ public:
     next_unexpected(
         NNTI_buffer_t  dst_hdl,
         uint64_t       dst_offset,
-        NNTI_event_t  *result_event)
-    {
+        NNTI_event_t  *result_event) override {
         nnti::datatype::nnti_buffer *b = (nnti::datatype::nnti_buffer *)dst_hdl;
 
         return NNTI_OK;
@@ -278,8 +264,7 @@ public:
         NNTI_event_t  *unexpected_event,
         NNTI_buffer_t  dst_hdl,
         uint64_t       dst_offset,
-        NNTI_event_t  *result_event)
-    {
+        NNTI_event_t  *result_event) override {
         nnti::datatype::nnti_buffer *b = (nnti::datatype::nnti_buffer *)dst_hdl;
 
         return NNTI_OK;
@@ -293,8 +278,7 @@ public:
      */
     NNTI_result_t
     event_complete(
-        NNTI_event_t *event)
-    {
+        NNTI_event_t *event) override {
         return NNTI_OK;
     }
 
@@ -310,8 +294,7 @@ public:
     dt_unpack(
         void           *nnti_dt,
         char           *packed_buf,
-        const uint64_t  packed_len)
-    {
+        const uint64_t  packed_len) override {
         return NNTI_OK;
     }
 
@@ -335,8 +318,7 @@ public:
         nnti::datatype::nnti_event_callback  cb,
         void                                *cb_context,
         char                               **reg_ptr,
-        NNTI_buffer_t                       *reg_buf)
-    {
+        NNTI_buffer_t                       *reg_buf) override {
         nnti::datatype::nnti_buffer *b = new nnti::datatype::nnti_buffer(this,
                                                                          size,
                                                                          flags,
@@ -357,8 +339,7 @@ public:
      */
     NNTI_result_t
     free(
-        NNTI_buffer_t reg_buf)
-    {
+        NNTI_buffer_t reg_buf) override {
         nnti::datatype::nnti_buffer *b = (nnti::datatype::nnti_buffer *)reg_buf;
 
         delete b;
@@ -386,8 +367,7 @@ public:
         NNTI_event_queue_t                   eq,
         nnti::datatype::nnti_event_callback  cb,
         void                                *cb_context,
-        NNTI_buffer_t                       *reg_buf)
-    {
+        NNTI_buffer_t                       *reg_buf) override {
         nnti::datatype::nnti_buffer *b = new nnti::datatype::nnti_buffer(this,
                                                                          buffer,
                                                                          size,
@@ -438,8 +418,7 @@ public:
      */
     NNTI_result_t
     unregister_memory(
-        NNTI_buffer_t reg_buf)
-    {
+        NNTI_buffer_t reg_buf) override {
         nnti::datatype::nnti_buffer *b = (nnti::datatype::nnti_buffer *)reg_buf;
 
         delete b;
@@ -457,8 +436,7 @@ public:
     NNTI_result_t
     dt_peer_to_pid(
         NNTI_peer_t        peer_hdl,
-        NNTI_process_id_t *pid)
-    {
+        NNTI_process_id_t *pid) override {
         return NNTI_OK;
     }
 
@@ -472,8 +450,7 @@ public:
     NNTI_result_t
     dt_pid_to_peer(
         NNTI_process_id_t  pid,
-        NNTI_peer_t       *peer_hdl)
-    {
+        NNTI_peer_t       *peer_hdl) override {
         return NNTI_OK;
     }
 
@@ -487,8 +464,7 @@ public:
     NNTI_result_t
     send(
         nnti::datatype::nnti_work_request *wr,
-        NNTI_work_id_t                    *wid)
-    {
+        NNTI_work_id_t                    *wid) override {
         nnti::datatype::nnti_work_id *work_id = new nnti::datatype::nnti_work_id(*wr);
 
         *wid = (NNTI_work_id_t)work_id;
@@ -506,8 +482,7 @@ public:
     NNTI_result_t
     put(
         nnti::datatype::nnti_work_request *wr,
-        NNTI_work_id_t                    *wid)
-    {
+        NNTI_work_id_t                    *wid) override {
         nnti::datatype::nnti_work_id *work_id = new nnti::datatype::nnti_work_id(*wr);
 
         *wid = (NNTI_work_id_t)work_id;
@@ -525,8 +500,7 @@ public:
     NNTI_result_t
     get(
         nnti::datatype::nnti_work_request *wr,
-        NNTI_work_id_t                    *wid)
-    {
+        NNTI_work_id_t                    *wid) override {
         nnti::datatype::nnti_work_id *work_id = new nnti::datatype::nnti_work_id(*wr);
 
         *wid = (NNTI_work_id_t)work_id;
@@ -544,8 +518,7 @@ public:
     NNTI_result_t
     atomic_fop(
         nnti::datatype::nnti_work_request *wr,
-        NNTI_work_id_t                    *wid)
-    {
+        NNTI_work_id_t                    *wid) override {
         nnti::datatype::nnti_work_id *work_id = new nnti::datatype::nnti_work_id(*wr);
 
         *wid = (NNTI_work_id_t)work_id;
@@ -563,8 +536,7 @@ public:
     NNTI_result_t
     atomic_cswap(
         nnti::datatype::nnti_work_request *wr,
-        NNTI_work_id_t                    *wid)
-    {
+        NNTI_work_id_t                    *wid) override {
         nnti::datatype::nnti_work_id *work_id = new nnti::datatype::nnti_work_id(*wr);
 
         *wid = (NNTI_work_id_t)work_id;
@@ -598,8 +570,7 @@ public:
     NNTI_result_t
     cancelall(
         NNTI_work_id_t *wid_list,
-        const uint32_t  wid_count)
-    {
+        const uint32_t  wid_count) override {
         return NNTI_OK;
     }
 
@@ -610,8 +581,7 @@ public:
      * \return A result code (NNTI_OK or an error)
      */
     NNTI_result_t
-    interrupt()
-    {
+    interrupt() override {
         return NNTI_OK;
     }
 
@@ -628,8 +598,7 @@ public:
     wait(
         NNTI_work_id_t  wid,
         const int64_t   timeout,
-        NNTI_status_t  *status)
-    {
+        NNTI_status_t  *status) override {
         nnti::datatype::nnti_work_id *work_id = (nnti::datatype::nnti_work_id *)wid;
 
         return NNTI_OK;
@@ -651,8 +620,7 @@ public:
         const uint32_t  wid_count,
         const int64_t   timeout,
         uint32_t       *which,
-        NNTI_status_t  *status)
-    {
+        NNTI_status_t  *status) override {
         return NNTI_OK;
     }
 
@@ -670,8 +638,7 @@ public:
         NNTI_work_id_t *wid_list,
         const uint32_t  wid_count,
         const int64_t   timeout,
-        NNTI_status_t  *status)
-    {
+        NNTI_status_t  *status) override {
         return NNTI_OK;
     }
 

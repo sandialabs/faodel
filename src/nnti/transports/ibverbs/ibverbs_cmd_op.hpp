@@ -130,8 +130,8 @@ public:
 
         return;
     }
-    virtual ~ibverbs_cmd_op()
-    {
+
+  ~ibverbs_cmd_op() override {
         if ((wid_) && !(wid_->wr().flags() & NNTI_OF_ZERO_COPY)) {
             log_debug("ibverbs_buffer", "deregistering ibverbs_cmd_op (cmd_msg_.buf()=%x)", cmd_mr_->addr);
             ibv_dereg_mr(cmd_mr_);
@@ -189,9 +189,8 @@ public:
         return cmd_msg_.src_op_id();
     }
 
-    virtual std::string
-    toString(void)
-    {
+  std::string
+    toString(void) override {
         std::stringstream out;
         out << "id_==" << id_;
         return out.str();

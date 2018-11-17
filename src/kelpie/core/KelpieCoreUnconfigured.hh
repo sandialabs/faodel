@@ -24,7 +24,10 @@ class KelpieCoreUnconfigured :
 
 public:
   KelpieCoreUnconfigured();
-  ~KelpieCoreUnconfigured();
+  ~KelpieCoreUnconfigured() override;
+
+  KelpieCoreUnconfigured(KelpieCoreUnconfigured &) = delete;
+  void operator= (KelpieCoreUnconfigured &) = delete;
 
   //KelpieCoreBase API
   void start() override;
@@ -39,7 +42,7 @@ public:
 
   //IOM Management
   void RegisterIomConstructor(std::string type, fn_IomConstructor_t ctor_function) override;
-  IomBase * FindIOM(uint32_t iom_hash) override;
+  IomBase * FindIOM(iom_hash_t iom_hash) override;
   
   //InfoInterface function
   void sstr(std::stringstream &ss, int depth=0, int indent=0) const override;
@@ -47,9 +50,7 @@ public:
 private:
 
   void Panic(const std::string fname) const;
-  // Not implemented
-  KelpieCoreUnconfigured(KelpieCoreUnconfigured &);
-  void operator= (KelpieCoreUnconfigured &);
+
 };
 
 }  // namespace internal

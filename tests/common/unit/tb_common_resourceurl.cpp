@@ -6,14 +6,14 @@
 #include <string>
 
 #include "gtest/gtest.h"
-#include "common/Common.hh"
+#include "faodel-common/Common.hh"
 
 using namespace std;
 using namespace faodel;
 
 class UrlTest : public testing::Test {
 protected:
-  virtual void SetUp() {
+  void SetUp() override {
     default_bucket=bucket_t(2112, internal_use_only);
   }
   bucket_t default_bucket;
@@ -36,14 +36,17 @@ TEST_F(UrlTest, SimpleByHand) {
     ResourceURL l9("/local");
     //All ok
     EXPECT_TRUE(true);
-  } catch(ResourceURLParseError e) {
+  } catch(std::invalid_argument e) {
     cout <<e.what()<<endl;
-    EXPECT_FALSE(true);
+    EXPECT_FALSE(true); //Should not be here
   }
+
 
 
   ResourceURL x("dht:<0x2>[this_is_my_bucket]/a/b/x&a=1&b=2");
   ResourceURL x2;
+  EXPECT_FALSE(x.IsEmpty());
+  EXPECT_TRUE(x2.IsEmpty());
 
   bucket_t b("this_is_my_bucket");
   EXPECT_EQ("dht",         x.resource_type);
@@ -71,11 +74,13 @@ TEST_F(UrlTest, SimpleByHand) {
   EXPECT_EQ("/a/b",   y.path);
   EXPECT_EQ("c",      y.name);
   EXPECT_EQ("/a/b/c", y.GetPathName());
+  EXPECT_FALSE(y.IsEmpty());
 
   ResourceURL z("[this_is_my_bucket]/a");
   EXPECT_EQ(b,      z.bucket);
   EXPECT_EQ("/",    z.path);
   EXPECT_EQ("a",    z.name);
+  EXPECT_FALSE(z.IsEmpty());
 
   string s;
   s = x.GetOption("a"); EXPECT_EQ("1",s);
@@ -92,6 +97,14 @@ TEST_F(UrlTest, SimpleByHand) {
   EXPECT_EQ("b", options[1].first);
   EXPECT_EQ("1", options[0].second);
   EXPECT_EQ("2", options[1].second);
+
+  EXPECT_ANY_THROW(ResourceURL l1("local"));
+  EXPECT_ANY_THROW(ResourceURL l2("local"));
+  EXPECT_ANY_THROW(ResourceURL l3("foo:bar"));
+  
+  ResourceURL l4("ref:/empire/fluid/mesh/");
+  EXPECT_EQ("/empire/fluid", l4.path);
+  EXPECT_EQ("mesh",l4.name);
 
 }
 TEST_F(UrlTest, LocalReference) {
@@ -165,6 +178,15 @@ TEST_F(UrlTest, LocalOptions) {
   EXPECT_EQ(sorted_s1,sorted_s2);
   EXPECT_EQ("option1=foo&option2=bar", sorted_s1);
   EXPECT_EQ("option1=foo&option2=bar", sorted_s2);
+
+  ResourceURL dash1("local:/empire/mesh-thing");
+  EXPECT_EQ("local", dash1.resource_type);
+  EXPECT_EQ("/empire", dash1.path);
+  EXPECT_EQ("mesh-thing", dash1.name);
+
+  EXPECT_ANY_THROW(ResourceURL bad1("this isn't a ResourceURL"));
+
+
 }
 
 TEST_F(UrlTest, SimpleAutomated) {

@@ -8,8 +8,8 @@
 #include "gtest/gtest.h"
 #include <arpa/inet.h> //htonl
 
-#include "common/Common.hh"
-#include "common/SerializationHelpers.hh"
+#include "faodel-common/Common.hh"
+#include "faodel-common/SerializationHelpers.hh"
 
 #include "kelpie/Key.hh"
 
@@ -19,7 +19,7 @@ using namespace kelpie;
 
 class KeyTest : public testing::Test {
 protected:
-  virtual void SetUp(){
+  void SetUp() override {
     a1 = Key("Booya");
     b1 = Key("Booya");
     c1 = Key("Not Booya");

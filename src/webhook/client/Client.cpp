@@ -16,13 +16,33 @@ using boost::asio::ip::tcp;
 
 namespace webhook {
 
+/**
+ * @brief Connect to a destination and request data
+ * @param[in] nid The FAODEL node id to connect to
+ * @param[in] path The parth in the url
+ * @param[out] data The returned data string
+ * @retval 0 Success
+ * @retval -1 Server did not speak http protocol
+ * @retval -2 Server did not reply with a status code of 200
+ * @retval -3 Server spoke http, but there was an exception during the reply
+ */
 int retrieveData(faodel::nodeid_t nid, const std::string &path, std::string *data){
   string server,port;
   nid.GetIPPort(&server,&port);
   return retrieveData(server, port, path, data);
 }
 
-
+/**
+ * @brief Connect to a destination and request data
+ * @param[in] server The IP address of the server
+ * @param[in] port The TCP port to use
+ * @param[in] path The path part of the url
+ * @param[out] data The returned data string
+ * @retval 0 Success
+ * @retval -1 Server did not speak http protocol
+ * @retval -2 Server did not reply with a status code of 200
+ * @retval -3 Server spoke http, but there was an exception during the reply
+ */
 int retrieveData(const string &server, const string &port, const string &path, string *data){
 
   stringstream result_stream;
@@ -67,11 +87,11 @@ int retrieveData(const string &server, const string &port, const string &path, s
     std::string status_message;
     std::getline(response_stream, status_message);
     if (!response_stream || http_version.substr(0, 5) != "HTTP/")    {
-      std::cout << "Invalid response\n";
+      //std::cout << "Invalid response\n";
       return -1;
     }
     if (status_code != 200) {
-      std::cout << "Response returned with status code " << status_code << "\n";
+      //std::cout << "Response returned with status code " << status_code << "\n";
       return -2;
     }
 
@@ -102,6 +122,17 @@ int retrieveData(const string &server, const string &port, const string &path, s
   return 0;
 }
 
+/**
+ * @brief Connect to a destination and request data
+ * @param[in] server The IP address of the server
+ * @param[in] port The TCP port to use
+ * @param[in] path The path part of the url
+ * @param[out] data The returned data string
+ * @retval 0 Success
+ * @retval -1 Server did not speak http protocol
+ * @retval -2 Server did not reply with a status code of 200
+ * @retval -3 Server spoke http, but there was an exception during the reply
+ */
 int retrieveData(const std::string &server, unsigned int port, const string &path, string *data){
   stringstream ss;  ss<<port;
   string sport = ss.str();

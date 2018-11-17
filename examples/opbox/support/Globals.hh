@@ -7,7 +7,7 @@
 
 #include <mpi.h>
 
-#include "common/Common.hh"
+#include "faodel-common/Common.hh"
 #include "opbox/OpBox.hh"
 #include "webhook/Server.hh"
 

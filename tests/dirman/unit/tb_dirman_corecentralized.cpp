@@ -10,20 +10,19 @@
 
 #include "gtest/gtest.h"
 
-#include "common/Common.hh"
-#include "opbox/services/dirman/core/DirManCoreCentralized.hh"
+#include "faodel-common/Common.hh"
+#include "dirman/core/DirManCoreCentralized.hh"
 
 #include <stdio.h>
 
 using namespace std;
 using namespace faodel;
-using namespace opbox;
-using namespace opbox::dirman;
-using namespace opbox::dirman::internal;
+using namespace dirman;
+using namespace dirman::internal;
 
 
 
-bool ENABLE_DEBUG_MESSAGES=false;
+bool ENABLE_DEBUG_MESSAGES=false; //Toggles the addition of dirman debug settings in config
 
 
 
@@ -33,26 +32,27 @@ class DirManCoreCentralizedTest : public testing::Test {
 
 protected:
 
-  virtual void SetUp(){
+  void SetUp() override {
     def_bucket_name="mine";
     def_bucket = bucket_t(def_bucket_name);
 
+    //Note: Additional configuration settings will be loaded the file specified by FAODEL_CONFIG
     stringstream ss;
-    ss<<   "config.additional_files.env_name.if_defined   FAODEL_CONFIG\n"
-      <<   "dirman.testing_mode.am_root  true\n"      
+    ss<<   "dirman.host_root             true\n"
       <<   "security_bucket              "<<def_bucket_name<<"\n";
 
     if(ENABLE_DEBUG_MESSAGES) {
       ss<< "dirman.debug                 true\n"
         << "dirman.cache.mine.debug      true\n"
-        << "dirman.cache.others.debug    true\n";
+        << "dirman.cache.others.debug    true\n"
+        << "dirman.cahce.owners.debug    true\n";
     }
     config = Configuration(ss.str());
     config.AppendFromReferences();
     dmcc = new DirManCoreCentralized(config);
   }
 
-  virtual void TearDown(){
+  void TearDown() override {
     delete dmcc;
   }
   DirManCoreCentralized *dmcc;

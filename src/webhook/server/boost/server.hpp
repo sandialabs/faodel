@@ -20,8 +20,8 @@
 #include "webhook/server/boost/connection_manager.hpp"
 #include "webhook/server/boost/request_handler.hpp"
 
-#include "common/Common.hh"
-#include "common/LoggingInterface.hh"
+#include "faodel-common/Common.hh"
+#include "faodel-common/LoggingInterface.hh"
 
 #include "webhook/Server.hh"
 
@@ -29,6 +29,37 @@
 
 namespace http {
 namespace server {
+
+class asio_resources {
+public:
+    asio_resources()
+    : io_service_(),
+      signals_(io_service_),
+      acceptor_(io_service_),
+      connection_manager_(),
+      socket_(io_service_),
+      request_handler_()
+    {
+    }
+public:
+    /// The io_service used to perform asynchronous operations.
+    boost::asio::io_service io_service_;
+
+    /// The signal_set is used to register for process termination notifications.
+    boost::asio::signal_set signals_;
+
+    /// Acceptor used to listen for incoming connections.
+    boost::asio::ip::tcp::acceptor acceptor_;
+
+    /// The connection manager which owns all live connections.
+    connection_manager connection_manager_;
+
+    /// The next socket to be accepted.
+    boost::asio::ip::tcp::socket socket_;
+
+    /// The handler for all incoming requests.
+    request_handler request_handler_;
+};
 
 /// The top-level class of the HTTP server.
 class server :
@@ -39,15 +70,15 @@ public:
   server(const server&) = delete;
   server& operator=(const server&) = delete;
 
-  ~server();
+  ~server() override;
 
   //Bootstrap standard apis
-  void Init(const faodel::Configuration &config);
-  void Start();
-  void Finish();
+  void Init(const faodel::Configuration &config) override;
+  void Start() override;
+  void Finish() override;
   void GetBootstrapDependencies(std::string &name,
                        std::vector<std::string> &requires,
-                       std::vector<std::string> &optional) const;  
+                       std::vector<std::string> &optional) const override;
 
 
   /// Construct the server to listen on the specified TCP address and port, and
@@ -69,13 +100,13 @@ public:
   faodel::nodeid_t GetNodeID() { return my_nodeid; }
   
   int registerHook(const std::string &name, webhook::cb_web_handler_t func) {
-    return request_handler_.registerHook(name, func);
+    return asio_->request_handler_.registerHook(name, func);
   }
   int updateHook(const std::string &name, webhook::cb_web_handler_t func) {
-    return request_handler_.updateHook(name, func);
+    return asio_->request_handler_.updateHook(name, func);
   }
   int deregisterHook(const std::string &name) {
-    return request_handler_.deregisterHook(name);
+    return asio_->request_handler_.deregisterHook(name);
   }
   
 private:
@@ -94,6 +125,7 @@ private:
   
   //Provide the configuration webhook was given
   void HandleWebhookConfig(const std::map<std::string,std::string> &args, std::stringstream &results);
+  void HandleWebhookBootstrap(const std::map<std::string,std::string> &args, std::stringstream &results);
 
   /// interate over a list of network interfaces looking for an address to use
   std::string search_interfaces(std::string interfaces);
@@ -104,23 +136,7 @@ private:
   /// Wait for a request to stop the server.
   void do_await_stop();
 
-  /// The io_service used to perform asynchronous operations.
-  boost::asio::io_service io_service_;
-
-  /// The signal_set is used to register for process termination notifications.
-  boost::asio::signal_set signals_;
-
-  /// Acceptor used to listen for incoming connections.
-  boost::asio::ip::tcp::acceptor acceptor_;
-
-  /// The connection manager which owns all live connections.
-  connection_manager connection_manager_;
-
-  /// The next socket to be accepted.
-  boost::asio::ip::tcp::socket socket_;
-
-  /// The handler for all incoming requests.
-  request_handler request_handler_;
+  asio_resources *asio_;
 
   std::thread th_http_server_;
 

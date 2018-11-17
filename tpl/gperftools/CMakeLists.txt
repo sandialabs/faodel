@@ -57,10 +57,11 @@ CHECK_CXX_SOURCE_COMPILES(
   malloc_hook_volatile)
 
 IF (malloc_hook_volatile)
-  SET(MALLOC_HOOK_MAYBE_VOLATILE "volatile" CACHE string "does malloc hook need volatile")
+  SET(Faodel_PERFTOOLS_MALLOC_HOOK_MAYBE_VOLATILE "volatile" CACHE string "does malloc hook need volatile")
 ELSE ()
-  SET(MALLOC_HOOK_MAYBE_VOLATILE "" CACHE string "does malloc hook need volatile")
+  SET(Faodel_PERFTOOLS_MALLOC_HOOK_MAYBE_VOLATILE "" CACHE string "does malloc hook need volatile")
 ENDIF ()
+mark_as_advanced(Faodel_PERFTOOLS_MALLOC_HOOK_MAYBE_VOLATILE)
 
 CHECK_CXX_SOURCE_COMPILES(
   "#include <malloc.h>
@@ -72,22 +73,29 @@ CHECK_CXX_SOURCE_COMPILES(
   malloc_mallinfo)
 
 IF (malloc_mallinfo)
-  SET(HAVE_STRUCT_MALLINFO 1 CACHE string "support for mallinfo")
+  SET(Faodel_PERFTOOLS_HAVE_STRUCT_MALLINFO 1 CACHE string "support for mallinfo")
 ENDIF ()
+mark_as_advanced(Faodel_PERFTOOLS_HAVE_STRUCT_MALLINFO)
 
-set(PERFTOOLS_DLL_DECL "" CACHE string "On windows, should be __declspec(dllexport)")
-set(STL_NAMESPACE "std" CACHE string "namespace where STL code like vector<> is defined")
-option(TCMALLOC_32K_PAGES "32K of internal page size" OFF)
-option(TCMALLOC_64K_PAGES "64K of internal page size" OFF)
-option(TCMALLOC_ALIGN_8BYTES "8 bytes of allocation alignment" OFF)
+set(Faodel_PERFTOOLS_DLL_DECL "" CACHE string "On windows, should be __declspec(dllexport)")
+set(Faodel_PERFTOOLS_STL_NAMESPACE "std" CACHE string "namespace where STL code like vector<> is defined")
+option(Faodel_PERFTOOLS_TCMALLOC_32K_PAGES "32K of internal page size" OFF)
+option(Faodel_PERFTOOLS_TCMALLOC_64K_PAGES "64K of internal page size" OFF)
+option(Faodel_PERFTOOLS_TCMALLOC_ALIGN_8BYTES "8 bytes of allocation alignment" OFF)
 # option(HAVE_MMAP "System has MMAP" ON)
 # option(NO_HEAP_CHECK "Don't check the heap" ON)
-set(VERSION "lunasa" CACHE string "version string for the config")
+#set(VERSION "lunasa" CACHE string "version string for the config")
+mark_as_advanced(Faodel_PERFTOOLS_DLL_DECL)
+mark_as_advanced(Faodel_PERFTOOLS_STL_NAMESPACE)
+mark_as_advanced(Faodel_PERFTOOLS_TCMALLOC_32K_PAGES)
+mark_as_advanced(Faodel_PERFTOOLS_TCMALLOC_64K_PAGES)
+mark_as_advanced(Faodel_PERFTOOLS_TCMALLOC_ALIGN_8BYTES)
 
-set(PACKAGE_VERSION  "2.5" CACHE string "version of this package")
-execute_process(COMMAND expr "${PACKAGE_VERSION}" : "\\([[0-9]]*\\)" OUTPUT_VARIABLE MAJOR)
-execute_process(COMMAND expr "${PACKAGE_VERSION}" : "[[0-9]]*\\.\\([[0-9]]*\\)" OUTPUT_VARIABLE MINOR)
-execute_process(COMMAND expr "${PACKAGE_VERSION}" : "[[0-9]]*\\.[[0-9]]*\\(.*\\)$" OUTPUT_VARIABLE PATCH)
+set(Faodel_PERFTOOLS_PACKAGE_VERSION  "2.5" CACHE string "version of this package")
+mark_as_advanced(Faodel_PERFTOOLS_PACKAGE_VERSION)
+execute_process(COMMAND expr "${Faodel_PERFTOOLS_PACKAGE_VERSION}" : "\\([[0-9]]*\\)" OUTPUT_VARIABLE MAJOR)
+execute_process(COMMAND expr "${Faodel_PERFTOOLS_PACKAGE_VERSION}" : "[[0-9]]*\\.\\([[0-9]]*\\)" OUTPUT_VARIABLE MINOR)
+execute_process(COMMAND expr "${Faodel_PERFTOOLS_PACKAGE_VERSION}" : "[[0-9]]*\\.[[0-9]]*\\(.*\\)$" OUTPUT_VARIABLE PATCH)
 
 # In some cases, the assignment of these variables includes a newline which 
 # is problematic for their subsequent use.  This should solve that problem
@@ -96,13 +104,19 @@ string(STRIP "${MAJOR}" MAJOR)
 string(STRIP "${MINOR}" MINOR)
 string(STRIP "${PATCH}" PATCH)
 
-set(TC_VERSION_MAJOR "${MAJOR}" CACHE string "major version of this package")
-set(TC_VERSION_MINOR "${MINOR}" CACHE string "minor version of this package")
-set(TC_VERSION_PATCH "${PATCH}" CACHE string "patch version of this package")
+set(Faodel_PERFTOOLS_TC_VERSION_MAJOR "${MAJOR}" CACHE string "major version of this package")
+set(Faodel_PERFTOOLS_TC_VERSION_MINOR "${MINOR}" CACHE string "minor version of this package")
+set(Faodel_PERFTOOLS_TC_VERSION_PATCH "${PATCH}" CACHE string "patch version of this package")
+mark_as_advanced(Faodel_PERFTOOLS_TC_VERSION_MAJOR)
+mark_as_advanced(Faodel_PERFTOOLS_TC_VERSION_MINOR)
+mark_as_advanced(Faodel_PERFTOOLS_TC_VERSION_PATCH)
 
-set(PRIdS "%d" CACHE string "printf format code for printing size_t and ssize_t")
-set(PRIuS "%u" CACHE string "printf format code for printing size_t and ssize_t")
-set(PRIxS "%x" CACHE string "printf format code for printing size_t and ssize_t")
+set(Faodel_PERFTOOLS_PRIdS "%d" CACHE string "printf format code for printing size_t and ssize_t")
+set(Faodel_PERFTOOLS_PRIuS "%u" CACHE string "printf format code for printing size_t and ssize_t")
+set(Faodel_PERFTOOLS_PRIxS "%x" CACHE string "printf format code for printing size_t and ssize_t")
+mark_as_advanced(Faodel_PERFTOOLS_PRIdS)
+mark_as_advanced(Faodel_PERFTOOLS_PRIuS)
+mark_as_advanced(Faodel_PERFTOOLS_PRIxS)
 
 configure_file(src/config.h.in "${CMAKE_CURRENT_SOURCE_DIR}/src/config.h")
 configure_file(src/gperftools/tcmalloc.h.in "${CMAKE_CURRENT_SOURCE_DIR}/src/gperftools/tcmalloc.h")
@@ -143,7 +157,7 @@ set(SPINLOCK_SOURCES
   src/base/atomicops-internals-x86.cc)
 
 set(spinlock_lib_target spinlock)
-add_library(spinlock STATIC src/config.h.in
+add_library(spinlock src/config.h.in
   ${SPINLOCK_INCLUDES} 
   ${SYSINFO_INCLUDES} 
   ${LOGGING_INCLUDES} 
@@ -187,7 +201,7 @@ set(TCMALLOC_MINIMAL_SOURCES
   src/malloc_hook.cc
   src/malloc_extension.cc)
 
-add_library( tcmalloc STATIC src/config.h.in ${GPERF_HEADERS} ${TCMALLOC_MINIMAL_SOURCES} )
+add_library( tcmalloc src/config.h.in ${GPERF_HEADERS} ${TCMALLOC_MINIMAL_SOURCES} )
 target_link_libraries( tcmalloc spinlock Threads::Threads )
 set_target_properties( tcmalloc PROPERTIES LINKER_LANGUAGE  CXX )
 target_include_directories( tcmalloc
@@ -199,6 +213,7 @@ install(TARGETS tcmalloc spinlock
   EXPORT        FaodelTargets
   RUNTIME       DESTINATION "${BINARY_INSTALL_DIR}" COMPONENT bin
   ARCHIVE       DESTINATION "${LIBRARY_INSTALL_DIR}" COMPONENT lib
+  LIBRARY       DESTINATION "${LIBRARY_INSTALL_DIR}" COMPONENT lib
   PUBLIC_HEADER DESTINATION "${INCLUDE_INSTALL_DIR}/faodel"
   COMPONENT dev
   INCLUDES      DESTINATION "${INCLUDE_INSTALL_DIR}"

@@ -17,8 +17,8 @@
 #include <sstream>
 #include <thread>
 
-#include "common/Configuration.hh"
-#include "common/Bootstrap.hh"
+#include "faodel-common/Configuration.hh"
+#include "faodel-common/Bootstrap.hh"
 
 #include "webhook/Server.hh"
 
@@ -35,7 +35,6 @@
 
 std::string default_config_string = R"EOF(
 nnti.transport.name                           mpi
-config.additional_files.env_name.if_defined   FAODEL_CONFIG
 )EOF";
 
 bool success=true;

@@ -4,7 +4,7 @@
 
 #include "DataObject.hh"
 
-#include "common/Common.hh"
+#include "faodel-common/Common.hh"
 
 #include "lunasa/Lunasa.hh"
 #include "lunasa/core/LunasaCoreBase.hh"
@@ -22,6 +22,7 @@
 #include <atomic>
 
 #include <execinfo.h>
+#include <lunasa/common/Allocation.hh>
 
 using namespace std;
 
@@ -33,39 +34,72 @@ static InvalidArgument invalidArgumentError;
 static UserLDOAccessError userLDOAccessError; 
 
 namespace internal {
-
 extern LunasaCoreBase *lunasa_core;
-
 }
 
-DataObject::DataObject() : internal_use_only(this)
-{
+//Use specific things from internal
+using Allocation = internal::Allocation;
+using AllocationSegment = internal::AllocationSegment;
+using AllocatorBase = internal::AllocatorBase;
+
+//Our core is hidden inside of a singleton. Use this macro to make the code easier to understand
+#define LCORE (internal::Singleton::impl.core)
+
+
+/**
+ * @brief Empty constructor. Expects user will copy another ldo handle to this one later
+ */
+DataObject::DataObject()
+        : internal_use_only(this) {
   //cout << "DataObject null CTOR" << endl;
   impl = nullptr;
 }
 
-// Allocate memory for a new LDO
-DataObject::DataObject(uint16_t metaCapacity, uint32_t dataCapacity, DataObject::AllocatorType allocator) :
-  internal_use_only(this)
-{
-  allocation_t *allocation = nullptr;
+/**
+ * @brief Full ctor for allocating a new LDO, providing meta, data, and allocators
+ * @param[in] total_user_capacity Maximum amount of space a user can use for meta+data after allocation
+ * @param[in] meta_capacity How large user's meta section should be (0 to 64KB-1)
+ * @param[in] data_capacity How large data section should be (4GB - 1 - metaCapacity)
+ * @param[in] allocator Whether this is allocated in eager (pre-registered) memory or not
+ * @param[in] tag Optional data type tag for identifying what kind of LDO this is
+ * @throw     invalidArgmentError if capacity problems (total less than meta+data) or unsupported allocator
+ */
+DataObject::DataObject(uint32_t total_user_capacity,
+                       uint16_t meta_capacity, uint32_t data_capacity,
+                       DataObject::AllocatorType allocator,
+                       dataobject_type_t tag)
+        : internal_use_only(this) {
+
+  //Sanity check. Have to convert to uint64 to avoid max overflow
+  if(((uint64_t)meta_capacity + (uint64_t)data_capacity > (uint64_t)total_user_capacity)) {
+    throw invalidArgumentError;
+  }
+
+  Allocation *allocation = nullptr;
   if( allocator ==  DataObject::AllocatorType::eager ) {
-    allocation = internal::Singleton::impl.core->AllocateEager(metaCapacity, dataCapacity);
+    allocation = LCORE->AllocateEager(total_user_capacity);
+
   } else if( allocator ==  DataObject::AllocatorType::lazy ) {
-    allocation = internal::Singleton::impl.core->AllocateLazy(metaCapacity, dataCapacity);
+    allocation = LCORE->AllocateLazy(total_user_capacity);
+
   } else {
     /* THROW exception */
     throw invalidArgumentError;
   }
 
-  allocation->setHeader(1, metaCapacity, dataCapacity);
+  allocation->setHeader(1, meta_capacity, data_capacity, tag);
   impl = allocation;
 }
 
-// A shortcut for the most common use of this constructor
-DataObject::DataObject(uint32_t dataCapacity) : 
-  DataObject::DataObject(0, dataCapacity, DataObject::AllocatorType::eager)
-{}
+/**
+ * @brief Minimal ctor that allocates a single chunk of user data from eager memory
+ * @param dataCapacity How big this allocation is
+ * @note Allocates from EAGER memory
+ * @note Users may adjust the meta/data sizes later
+ */
+DataObject::DataObject(uint32_t dataCapacity)
+        : DataObject::DataObject(0, dataCapacity, DataObject::AllocatorType::eager) {
+}
 
 // === Create an LDO from user-allocated memory ===
 //
@@ -85,20 +119,21 @@ DataObject::DataObject(uint32_t dataCapacity) :
 // the memory.  NOTE: using stack memory to create LDOs is potentially fraught; the
 // user will need to be vigilant to make sure that the LDO is destroyed before the
 // function returns.
-DataObject::DataObject(void *userMemory, uint16_t metaCapacity, uint32_t dataCapacity, 
-                       void (*userCleanupFunc)(void *)) : internal_use_only(this)
-{
-  /* only ALLOCATE memory for the headers. */
-  allocation_t *allocation = internal::Singleton::impl.core->AllocateEager(0, 0);
-  allocation->setHeader(1, 0, 0);
+DataObject::DataObject(void *userMemory,
+                       uint16_t metaCapacity, uint32_t dataCapacity,
+                       void (*userCleanupFunc)(void *))
+        : internal_use_only(this) {
+
+  //Only allocate memory for the headers.
+  Allocation *allocation = LCORE->AllocateEager(0);
+  allocation->setHeader(1, 0, 0, 0);
   impl = allocation;
 
-  /* ADD our user data segment */
+  // Add our user data segment
   AddUserDataSegment(userMemory, metaCapacity, dataCapacity, userCleanupFunc);
 }
 
-DataObject::~DataObject()
-{
+DataObject::~DataObject() {
   //cout << "DataObject DTOR" << endl;
   if(impl!=nullptr){
     impl->DecrRef(); //Deallocates when gets to zero
@@ -106,42 +141,64 @@ DataObject::~DataObject()
 }
 
 //Shallow copy
-DataObject::DataObject(const DataObject &source) : internal_use_only(this)
-{
+DataObject::DataObject(const DataObject &source)
+        : internal_use_only(this) {
+
   //cout << "DataObject copy CTOR" << endl;
   if(source.impl != nullptr)
     source.impl->IncrRef();
   impl = source.impl;
 }
+
 //move
-DataObject::DataObject(DataObject &&source) : internal_use_only(this)
-{
+DataObject::DataObject(DataObject &&source)
+        : internal_use_only(this) {
   //cout << "DataObject move CTOR" << endl;
   impl = source.impl;
 
   source.impl = nullptr;
 }
 
-lunasa::AllocatorBase* DataObject::Allocator()
-{
+AllocatorBase * DataObject::Allocator() {
   return (impl!=nullptr) ? impl->local.allocator : nullptr;
 }
 
-void DataObject::DropReference(lunasa::AllocatorBase* allocator)
-{
+void DataObject::DropReference(AllocatorBase *allocator) {
   if( (impl != nullptr) && (allocator == impl->local.allocator) ) {
     impl->DropRef();
   }
 }
 
-int DataObject::InternalUseOnly::GetRefCount() const
-{
-  allocation_t *impl = ldo->impl;
+/**
+ * @brief Get the number of ldo's that are referencing this data
+ * @return Reference count for item
+ * @note This function is for Internal Use Only. Users MUST NOT rely on these counts
+ */
+int DataObject::InternalUseOnly::GetRefCount() const {
+  Allocation *impl = ldo->impl;
   return (impl==nullptr) ? 0 : impl->GetRefCount(); 
 }
 
-DataObject& DataObject::operator=(const DataObject& source) 
-{
+/**
+ * @brief Get a pointer to the underlying allocation's data structures
+ * @return Pointer to Allocation
+ * @note This function is for Internal Use Only. Users should not use it
+ */
+void *DataObject::InternalUseOnly::GetLocalHeaderPtr() const {
+  return (void *)ldo->impl;
+}
+
+/**
+ * @brief Get a pointer to the start of the on-wire data, which is the header
+ * @return Pointer to allocation header
+ * @note This function is for Internal Use Only. Users should use functions to manipulate header.
+ */
+void *DataObject::InternalUseOnly::GetHeaderPtr() const {
+  Allocation *impl = ldo->impl;
+  return (impl==nullptr) ? nullptr : (void *)&impl->header;
+}
+
+DataObject& DataObject::operator=(const DataObject &source) {
   //cout << "DataObject copy assignment" << endl;
   //Get rid of old version, point to new version
   if( impl != nullptr ) {
@@ -154,7 +211,7 @@ DataObject& DataObject::operator=(const DataObject& source)
   return *this;
 }
 
-DataObject& DataObject::operator=(DataObject&& source) {
+DataObject& DataObject::operator=(DataObject &&source) {
   //cout << "DataObject move assignment" << endl;
   //Get rid of old version, point to new version
   if(impl != nullptr) {
@@ -165,8 +222,8 @@ DataObject& DataObject::operator=(DataObject&& source) {
   return *this;
 }
 
-DataObject& DataObject::deepcopy(const DataObject &source)
-{
+DataObject& DataObject::deepcopy(const DataObject &source) {
+
   // !!!! TODO: not currently supported for user LDOs
   assert(source.impl->local.user_data_segments == nullptr);
 
@@ -175,34 +232,45 @@ DataObject& DataObject::deepcopy(const DataObject &source)
     impl = nullptr;
   }
   
-  /* ALLOCATE a mirror of the source's allocation. */
-  allocation_t *allocation = source.impl->local.allocator->Allocate(source.impl->header.meta_bytes +
-                                                                    source.impl->header.data_bytes);
-  allocation->setHeader(1, source.impl->header.meta_bytes, source.impl->header.data_bytes);
+  //ALLOCATE a mirror of the source's allocation.
+  Allocation *allocation = source.impl->local.allocator->Allocate(source.impl->header.meta_bytes +
+                                                                  source.impl->header.data_bytes);
+  allocation->setHeader(1, source.impl->header.meta_bytes, source.impl->header.data_bytes, source.impl->header.type);
   impl = allocation;
 
-  /* COPY the source to the mirror */
+  //COPY the source to the mirror
   memcpy(GetMetaPtr(), source.GetMetaPtr(), impl->header.meta_bytes+impl->header.data_bytes);
 
   return *this;
 }
 
-// !!!! TODO handle user segments !!!!
-uint32_t DataObject::writeToFile(const char *filename) const
-{
+/**
+ * @brief Snapshot the user section of LDO out to disk (header+meta+data)
+ * @param[in] filename to write data to
+ * @return 0
+ * @todo This does not yet handle multiple allocation segments yet
+ */
+uint32_t DataObject::writeToFile(const char *filename) const {
+
   ofstream f;
   f.open(filename, ios::out | ios::binary);
-  const char *p = reinterpret_cast<const char *>(GetHeaderPtr());
+  const char *p = reinterpret_cast<const char *>(internal_use_only.GetHeaderPtr());
   f.write(p, GetHeaderSize() + GetMetaSize() + GetDataSize());
   f.close();
   return 0;
 }
 
-uint32_t DataObject::readFromFile(const char *filename) 
-{
+/**
+ * @brief Read a snapshotted LDO from disk into this LDO's memory (includes header)
+ * @param[in] filename to read from
+ * @return 0
+ * @todo Currently requires LDO to have already been allocated. Should allocate based on file size
+ */
+uint32_t DataObject::readFromFile(const char *filename) {
+
   ifstream f;
   f.open(filename, ios::in | ios::binary);
-  char *p = reinterpret_cast<char *>(GetHeaderPtr());
+  char *p = reinterpret_cast<char *>(internal_use_only.GetHeaderPtr());
   struct stat results;
 
   assert(stat(filename, &results) == 0);
@@ -213,90 +281,125 @@ uint32_t DataObject::readFromFile(const char *filename)
   return 0;
 }
 
-/* GET size of LDO segments */
-uint32_t DataObject::GetLocalHeaderSize()  const 
-{ 
-  return offsetof(struct allocation_s, header); 
+/**
+ * @brief Get the meta_tag (an id for this particular LDO type) from the header
+ * @return meta_tag A hash id value that can be used to verify an LDO is an expected LDO
+ */
+dataobject_type_t DataObject::GetTypeID() const {
+  if( impl==nullptr) return 0;
+  return impl->getType();
 }
 
-uint32_t DataObject::GetHeaderSize() const 
-{ 
-  return offsetof(struct allocation_s, meta_and_user_data[0]) -
-         offsetof(struct allocation_s, header); 
+/**
+ * @brief Set the header's meta_tag (an id for this particular LDO type)
+ * @param[in] type_id The id to store in this LDO's header
+ * @note Value is NOT set if this ldo has not been allocated yet
+ */
+void DataObject::SetTypeID(dataobject_type_t type_id) {
+  if( impl==nullptr) return;
+  impl->setType(type_id);
 }
 
-uint32_t DataObject::GetMetaSize() const 
-{ 
-  if( impl == nullptr ) {
-    return 0;
-  }
-
-  return impl->header.meta_bytes; 
+/**
+ * @brief Get the size of the local bookkeeping required for this LDO (everything up to header)
+ * @return Size of the local bookkeeping
+ */
+uint32_t DataObject::GetLocalHeaderSize()  const {
+  return offsetof(Allocation, header); //Get everything up to where header starts
 }
 
-uint32_t DataObject::GetDataSize() const 
-{ 
-  if( impl == nullptr ) {
-    return 0;
-  }
+/**
+ * @brief Get the size of the header that travels with the LDO (meta_tag, meta_size, data_size)
+ * @return Size of the header
+ */
+uint32_t DataObject::GetHeaderSize() const {
+  return offsetof(Allocation, user[0]) -
+         offsetof(Allocation, header);
+}
 
+/**
+ * @brief Get the size of the user-defined meta data included in the user section
+ * @return Size of the meta data (0 to 64KB-1)
+ */
+uint32_t DataObject::GetMetaSize() const {
+  if( impl == nullptr ) return 0;
+  return impl->header.meta_bytes;
+}
+
+/**
+ * @brief Get the size of the data portion of the user section
+ * @return Size of user data (0 to 4GB-1-meta_size)
+ */
+uint32_t DataObject::GetDataSize() const {
+  if( impl == nullptr ) return 0;
   return impl->header.data_bytes; 
 }
 
-uint32_t DataObject::GetUserSize() const 
-{ 
-  if( impl == nullptr ) {
-    return 0;
-  }
-
-  return impl->header.meta_bytes + impl->header.data_bytes; 
+/**
+ * @brief Get the size of the user section (meta_size + data_size)
+ * @return Size of meta and data sections
+ */
+uint32_t DataObject::GetUserSize() const {
+  if( impl == nullptr ) return 0;
+  return impl->header.meta_bytes + impl->header.data_bytes;
 }
 
-uint32_t DataObject::GetTotalSize() const 
-{
-  if( impl == nullptr ) {
-    return 0;
-  }
+/**
+ * @brief Get the amount of space this LDO takes when put on the wire (header + meta + data)
+ * @return Size of header + meta + data sections
+ */
+uint32_t DataObject::GetWireSize() const {
+  if( impl == nullptr ) return 0;
+  return GetHeaderSize() + impl->header.meta_bytes + impl->header.data_bytes;
+}
 
+/**
+ * @brief Get the raw amount of space Lunasa allocated for this (local, header, and data)
+ * @return Size of the entire allocation
+ * @note It is UNCOMMON to use this function. This may be deprecated in the future
+ */
+uint32_t DataObject::GetRawAllocationSize() const {
+  if( impl == nullptr ) return 0;
   return impl->local.allocated_bytes;
 }
 
-/* Get HEAP addresses */
-void *DataObject::GetBasePtr() const
-{ 
+/**
+ * Get the heap address for the bookkeeping
+ * @deprecated This should be marked iuo or removed
+ */
+void *DataObject::GetBasePtr() const {
   return (void *)impl; 
 }
 
-void *DataObject::GetLocalHeaderPtr() const
-{ 
-  return (void *)impl; 
-}
 
-void *DataObject::GetHeaderPtr() const
-{ 
-  return (void *)&impl->header; 
-}
 
-void *DataObject::GetMetaPtr() const
-{ 
+/**
+ * @brief Get a pointer to the meta data part of the user section
+ * @return Metadata pointer
+ * @note This will be the same as the Data pointer of meta size is zero
+ */
+void *DataObject::GetMetaPtr() const {
+
   if( impl == nullptr ) {
     return nullptr;
+
   } else if( impl->local.user_data_segments != nullptr ) {
     /* === Allocation only contains headers === */
     assert(impl->local.user_data_segments->empty() == false); 
-    assert(impl->local.allocated_bytes == sizeof(allocation_t));
+    assert(impl->local.allocated_bytes == sizeof(Allocation));
 
     /* First data segment must contain the User Metadata segment. */
-    AllocationSegment &segment = impl->local.user_data_segments->front(); 
+    AllocationSegment &segment = impl->local.user_data_segments->front();
 
     /* Segment must be big enough to store the entire User Metadata segment. */
     assert(segment.size > impl->header.meta_bytes); 
 
     return segment.buffer_ptr;
-  } else if( impl->local.allocated_bytes >= sizeof(allocation_t) ) {
+
+  } else if( impl->local.allocated_bytes >= sizeof(Allocation) ) {
     /* === Allocation contains User Metadata === */
 
-    return (void *)&impl->meta_and_user_data[0];
+    return (void *)&impl->user[0];
   } else {
     /* This can only mean that the allocation is smaller than the header.  Not good. */
     assert(0);
@@ -305,26 +408,31 @@ void *DataObject::GetMetaPtr() const
   return nullptr; 
 }
 
-void *DataObject::GetDataPtr() const
-{ 
+/**
+ * @brief Get a pointer to the data part of the user section
+ * @return Data pointer
+ * @note This will be the same as the Meta pointer if meta_size is zero
+ */
+void *DataObject::GetDataPtr() const {
   /* USER DATA segment begins at the first byte after the USER META segment. */
 
   if( impl == nullptr ) {
     return nullptr;
+
   } else if( impl->local.user_data_segments != nullptr ) {
     /* === Allocation only contains headers === */
     assert(impl->local.user_data_segments->empty() == false); 
-    assert(impl->local.allocated_bytes == sizeof(allocation_t));
+    assert(impl->local.allocated_bytes == sizeof(Allocation));
 
     /* First data segment must contain the User Metadata segment. */
-    AllocationSegment &segment = impl->local.user_data_segments->front(); 
+    AllocationSegment &segment = impl->local.user_data_segments->front();
     /* Segment must be big enough to store the entire User Metadata and User Data segments. */
     assert(segment.size > (impl->header.meta_bytes+impl->header.data_bytes));
 
     return (void *)((uint8_t *)segment.buffer_ptr + impl->header.meta_bytes);
-  } else if( impl->local.allocated_bytes >= sizeof(allocation_t) ) {
+  } else if( impl->local.allocated_bytes >= sizeof(Allocation) ) {
     /* === Allocation contains User Data === */
-    return (void *)(impl->meta_and_user_data + impl->header.meta_bytes);
+    return (void *)(impl->user + impl->header.meta_bytes);
   } else {
     /* This can only mean that the allocation is smaller than the header.  Not good. */
     assert(0);
@@ -334,11 +442,9 @@ void *DataObject::GetDataPtr() const
 }
 
 /* Get RDMA handles */
-int DataObject::GetBaseRdmaHandles(std::queue<rdma_segment_desc> &rdma_segments) const
-{
-  if( impl == nullptr ) {
-    return 0;
-  }
+int DataObject::GetBaseRdmaHandles(std::queue<rdma_segment_desc> &rdma_segments) const {
+
+  if( impl == nullptr ) return 0;
 
   /* If memory is EAGERLY registered, then this handle will never be NULL.  As a result,
      if this handle is NULL, we can assume that it's LAZILY registered. */
@@ -366,8 +472,8 @@ int DataObject::GetBaseRdmaHandles(std::queue<rdma_segment_desc> &rdma_segments)
   return 0;
 }
 
-int DataObject::GetBaseRdmaHandle(void **rdma_handle, uint32_t &offset) const
-{
+int DataObject::GetBaseRdmaHandle(void **rdma_handle, uint32_t &offset) const {
+
   std::queue<rdma_segment_desc> segments;
   GetBaseRdmaHandles(segments);
   assert(segments.size() == 1);
@@ -377,8 +483,7 @@ int DataObject::GetBaseRdmaHandle(void **rdma_handle, uint32_t &offset) const
   return 0;
 }
 
-int DataObject::GetLocalHeaderRdmaHandles(std::queue<rdma_segment_desc> &rdma_segments) const
-{
+int DataObject::GetLocalHeaderRdmaHandles(std::queue<rdma_segment_desc> &rdma_segments) const {
   /* From an API-design perspective, it's important to distinguish between
      the BASE of the allocation and the LOCAL HEADER because they may not
      be forever and always the same.  *But*, at the moment, they are, so there's
@@ -386,17 +491,14 @@ int DataObject::GetLocalHeaderRdmaHandles(std::queue<rdma_segment_desc> &rdma_se
   return GetBaseRdmaHandles(rdma_segments);
 }
 
-int DataObject::GetLocalHeaderRdmaHandle(void **rdma_handle, uint32_t &offset) const
-{
+int DataObject::GetLocalHeaderRdmaHandle(void **rdma_handle, uint32_t &offset) const {
   return GetBaseRdmaHandle(rdma_handle, offset);
 }
 
-int DataObject::GetHeaderRdmaHandles(std::queue<rdma_segment_desc> &rdma_segments) const
-{
+int DataObject::GetHeaderRdmaHandles(std::queue<rdma_segment_desc> &rdma_segments) const {
+
   assert(rdma_segments.size() == 0);
-  if( impl == nullptr ) {
-    return 0;
-  }
+  if( impl == nullptr ) return 0;
 
   /* If memory is EAGERLY registered, then this handle will never be NULL.  As a result,
      if this handle is NULL, we can assume that it's LAZILY registered. */
@@ -405,8 +507,8 @@ int DataObject::GetHeaderRdmaHandles(std::queue<rdma_segment_desc> &rdma_segment
     impl->local.allocator->RegisterMemory(impl, impl->local.allocated_bytes, impl->local.net_buffer_handle);
   }
 
-  uint32_t offset = impl->local.net_buffer_offset + offsetof(struct allocation_s, header); 
-  uint32_t size = impl->local.allocated_bytes - offsetof(struct allocation_s, header); 
+  uint32_t offset = impl->local.net_buffer_offset + offsetof(Allocation, header);
+  uint32_t size = impl->local.allocated_bytes - offsetof(Allocation, header);
   rdma_segment_desc header_segment(impl->local.net_buffer_handle, offset, size);
   rdma_segments.push(header_segment);
   rdma_segment_desc &segment = rdma_segments.front();
@@ -425,8 +527,7 @@ int DataObject::GetHeaderRdmaHandles(std::queue<rdma_segment_desc> &rdma_segment
   return 0;
 }
 
-int DataObject::GetHeaderRdmaHandle(void **rdma_handle, uint32_t &offset) const
-{
+int DataObject::GetHeaderRdmaHandle(void **rdma_handle, uint32_t &offset) const {
   std::queue<rdma_segment_desc> segments;
   assert(segments.size() == 0);
   GetHeaderRdmaHandles(segments);
@@ -437,8 +538,7 @@ int DataObject::GetHeaderRdmaHandle(void **rdma_handle, uint32_t &offset) const
   return 0;
 }
 
-int DataObject::GetMetaRdmaHandles(std::queue<rdma_segment_desc> &rdma_segments) const
-{
+int DataObject::GetMetaRdmaHandles(std::queue<rdma_segment_desc> &rdma_segments) const {
   if( impl == nullptr ) {
     return 0;
   }
@@ -447,10 +547,12 @@ int DataObject::GetMetaRdmaHandles(std::queue<rdma_segment_desc> &rdma_segments)
      if this handle is NULL, we can assume that it's LAZILY registered. */
   if( impl->local.net_buffer_handle == nullptr ) {
     assert(impl->local.allocator->UsingLazyRegistration() == true);
-    impl->local.allocator->RegisterMemory(impl, impl->local.allocated_bytes, impl->local.net_buffer_handle);
+    impl->local.allocator->RegisterMemory(impl,
+                                          impl->local.allocated_bytes,
+                                          impl->local.net_buffer_handle);
   }
 
-  if( impl->local.allocated_bytes == sizeof(allocation_t) ) {
+  if( impl->local.allocated_bytes == sizeof(Allocation) ) {
     /* === Allocation only contains headers === */
     rdma_segment_desc header_segment(impl->local.net_buffer_handle, 
                                      impl->local.net_buffer_offset, 
@@ -459,7 +561,7 @@ int DataObject::GetMetaRdmaHandles(std::queue<rdma_segment_desc> &rdma_segments)
 
     /* First data segment must contain the User Metadata section. */
     assert(impl->local.user_data_segments->size() == 1); 
-    AllocationSegment &allocation_segment = impl->local.user_data_segments->front(); 
+    AllocationSegment &allocation_segment = impl->local.user_data_segments->front();
 
     /* Segment must be big enough to store the entire User Metadata segment. */
     rdma_segment_desc user_segment(allocation_segment.net_buffer_handle, 
@@ -468,15 +570,15 @@ int DataObject::GetMetaRdmaHandles(std::queue<rdma_segment_desc> &rdma_segments)
 
     rdma_segments.push(user_segment);
     
-  } else if( impl->local.allocated_bytes > sizeof(allocation_t) ) {
+  } else if( impl->local.allocated_bytes > sizeof(Allocation) ) {
     /* === Allocation contains User METADATA === */
 
     /* Allocation must be big enough to store the entire User METADATA segment. */
-    uint32_t meta_offset = offsetof(struct allocation_s, meta_and_user_data); 
+    uint32_t meta_offset = offsetof(Allocation, user);
     assert(impl->local.allocated_bytes >= meta_offset + impl->header.meta_bytes);
 
-    uint32_t total_offset = impl->local.net_buffer_offset + offsetof(struct allocation_s, meta_and_user_data); 
-    uint32_t size = impl->local.allocated_bytes - offsetof(struct allocation_s, meta_and_user_data); 
+    uint32_t total_offset = impl->local.net_buffer_offset + offsetof(Allocation, user);
+    uint32_t size = impl->local.allocated_bytes - offsetof(Allocation, user);
     rdma_segment_desc rdma_segment(impl->local.net_buffer_handle, total_offset, size);
     rdma_segments.push(rdma_segment);
   } else {
@@ -487,8 +589,8 @@ int DataObject::GetMetaRdmaHandles(std::queue<rdma_segment_desc> &rdma_segments)
   return 0;
 }
 
-int DataObject::GetMetaRdmaHandle(void **rdma_handle, uint32_t &offset) const
-{
+int DataObject::GetMetaRdmaHandle(void **rdma_handle, uint32_t &offset) const {
+
   std::queue<rdma_segment_desc> segments;
   GetMetaRdmaHandles(segments);
   assert(segments.size() == 1);
@@ -498,11 +600,9 @@ int DataObject::GetMetaRdmaHandle(void **rdma_handle, uint32_t &offset) const
   return 0;
 }
 
-int DataObject::GetDataRdmaHandles(std::queue<rdma_segment_desc> &rdma_segments) const
-{
-  if( impl == nullptr ) {
-    return 0;
-  }
+int DataObject::GetDataRdmaHandles(std::queue<rdma_segment_desc> &rdma_segments) const {
+
+  if( impl == nullptr ) return 0;
 
   /* If memory is EAGERLY registered, then this handle will never be NULL.  As a result,
      if this handle is NULL, we can assume that it's LAZILY registered. */
@@ -511,34 +611,34 @@ int DataObject::GetDataRdmaHandles(std::queue<rdma_segment_desc> &rdma_segments)
     impl->local.allocator->RegisterMemory(impl, impl->local.allocated_bytes, impl->local.net_buffer_handle);
   }
 
-  if( impl->local.allocated_bytes == sizeof(allocation_t) ) {
+  if( impl->local.allocated_bytes == sizeof(Allocation) ) {
     /* === Allocation only contains headers === */
     assert(impl->local.user_data_segments->empty() == false); 
 
     /* First data segment must contain the User Metadata segment. */
-    AllocationSegment &allocation_segment = impl->local.user_data_segments->front(); 
+    AllocationSegment &allocation_segment = impl->local.user_data_segments->front();
 
     /* Segment must be equal to the combined size of the User METADATA and DATA sections. */
     assert(allocation_segment.size == impl->header.meta_bytes + impl->header.data_bytes); 
 
     uint32_t offset = impl->local.net_buffer_offset + 
-                      offsetof(struct allocation_s, meta_and_user_data) +
+                      offsetof(Allocation, user) +
                       impl->header.meta_bytes;
 
     uint32_t size = impl->header.data_bytes;
 
     rdma_segment_desc header_segment(impl->local.net_buffer_handle, offset, size);
     rdma_segments.push(header_segment);
-  } else if( impl->local.allocated_bytes > sizeof(allocation_t) ) {
+  } else if( impl->local.allocated_bytes > sizeof(Allocation) ) {
     /* === Allocation contains User METADATA === */
 
     /* Segment must be equal to the combined size of the User METADATA and DATA sections. */
-    assert(impl->local.allocated_bytes == offsetof(struct allocation_s, meta_and_user_data) +
+    assert(impl->local.allocated_bytes == offsetof(Allocation, user) +
                                           impl->header.meta_bytes + 
                                           impl->header.data_bytes);
 
     uint32_t offset = impl->local.net_buffer_offset + 
-                      offsetof(struct allocation_s, meta_and_user_data) +
+                      offsetof(Allocation, user) +
                       impl->header.meta_bytes;
 
     uint32_t size = impl->header.data_bytes;
@@ -553,8 +653,7 @@ int DataObject::GetDataRdmaHandles(std::queue<rdma_segment_desc> &rdma_segments)
   return 0;
 }
 
-int DataObject::GetDataRdmaHandle(void **rdma_handle, uint32_t &offset) const
-{
+int DataObject::GetDataRdmaHandle(void **rdma_handle, uint32_t &offset) const {
   std::queue<rdma_segment_desc> segments;
   GetDataRdmaHandles(segments);
   assert(segments.size() == 1);
@@ -564,16 +663,66 @@ int DataObject::GetDataRdmaHandle(void **rdma_handle, uint32_t &offset) const
   return 0;
 }
 
-bool DataObject::isPinned() const
-{ 
+/**
+ * @brief Do a detailed comparison of two LDO and determine if they're equal
+ * @param[in] other Another data object to compare against
+ * @retval 0 The two objects are equal (either by reference or deep comparison)
+ * @retval -1 One of the objects is empty while the other is not
+ * @retval -2 The Object type fields do not match
+ * @retval -3 The Meta sizes are different
+ * @retval -4 The Data sizes are different
+ * @retval -5 The Meta sections are not identical
+ * @retval -6 The Data sections are not identical
+ */
+int DataObject::DeepCompare(const DataObject &other) const {
+
+  if(*this == other) return 0; //References to same thing
+
+  if(isNull() || other.isNull()) return -1;
+  if(GetTypeID() != other.GetTypeID()) return -2;
+  if(GetMetaSize() != other.GetMetaSize()) return -3;
+  if(GetDataSize() != other.GetDataSize()) return -4;
+
+  int rc;
+  //Byte compare the meta section
+  rc = memcmp(GetMetaPtr(), other.GetMetaPtr(), GetMetaSize());
+  if(rc!=0) return -5;
+
+  //Byte compare the data section
+  rc = memcmp(GetDataPtr(), other.GetDataPtr(), GetDataSize());
+  if(rc!=0) return -6;
+
+  return 0;
+}
+
+
+bool DataObject::isPinned() const {
   if( impl == nullptr ) {
     return false;
   }
   return (impl->local.net_buffer_handle != nullptr);
 }
 
-void DataObject::sstr(stringstream &ss, int depth, int indent) const
-{
+void DataObject::AddUserDataSegment(
+        void *userMemory,
+        uint32_t metaCapacity, uint32_t dataCapacity,
+        void (*userCleanupFunc)(void *)) {
+
+  void *pinnedMemory;
+  impl->local.allocator->RegisterMemory(userMemory, metaCapacity+dataCapacity, pinnedMemory);
+
+  /* Because we have just registered the entirety of the user's memory, the offset is 0 */
+  AllocationSegment segment(userMemory, pinnedMemory, metaCapacity, dataCapacity, userCleanupFunc);
+
+  if( impl->local.user_data_segments == nullptr ) {
+    impl->local.user_data_segments = new std::vector<AllocationSegment>();
+  }
+  impl->local.user_data_segments->push_back(segment);
+  impl->header.meta_bytes += metaCapacity;
+  impl->header.data_bytes += dataCapacity;
+}
+
+void DataObject::sstr(stringstream &ss, int depth, int indent) const {
   assert(0 &&"TODO");
 #if 0
   // !!!! TODO : needs to be updated to account for API changes
@@ -597,21 +746,33 @@ void DataObject::sstr(stringstream &ss, int depth, int indent) const
 #endif
 }
 
-void DataObject::AddUserDataSegment(void *userMemory, uint32_t metaCapacity, uint32_t dataCapacity, 
-                                    void (*userCleanupFunc)(void *))
-{
-  void *pinnedMemory;
-  impl->local.allocator->RegisterMemory(userMemory, metaCapacity+dataCapacity, pinnedMemory);
+/**
+ * @brief Adjust the meta/data boundaries in the header of this message
+ * @param[in] new_meta_size How big the meta portion of user section should be
+ * @param[in] new_data_size How big the data portion of user section should be
+ * @retval 0 success
+ * @retval -1 Values were NOT adjusted due to a lack of capacity
+ * @note This does NOT move data. It just updates the header. USE AT YOUR OWN RISK
+ */
+int DataObject::ModifyUserSizes(uint16_t new_meta_size, uint32_t new_data_size) {
 
-  /* Because we have just registered the entirety of the user's memory, the offset is 0 */
-  AllocationSegment segment(userMemory, pinnedMemory, metaCapacity, dataCapacity, userCleanupFunc);
+  if(impl==nullptr) return -1;
 
-  if( impl->local.user_data_segments == nullptr ) {
-    impl->local.user_data_segments = new std::vector<AllocationSegment>();
-  }
-  impl->local.user_data_segments->push_back(segment);
-  impl->header.meta_bytes += metaCapacity;
-  impl->header.data_bytes += dataCapacity;
+  uint64_t capacity = ((uint64_t)impl->GetUserCapacity());
+  uint64_t new_size = ((uint64_t)new_meta_size) + ((uint64_t)new_data_size);
+
+  if(new_size > capacity) return -1;
+
+  impl->header.meta_bytes = new_meta_size;
+  impl->header.data_bytes = new_data_size;
+
+  return 0;
 }
+
+uint32_t DataObject::GetUserCapacity() const {
+  if(impl==nullptr) return 0;
+  return impl->GetUserCapacity();
+}
+
 
 } // namespace lunasa

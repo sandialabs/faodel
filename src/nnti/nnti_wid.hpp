@@ -88,8 +88,8 @@ public:
 
         return;
     }
-    virtual ~nnti_work_id()
-    {
+
+  ~nnti_work_id() override {
         nthread_lock_fini(&lock_);
         return;
     }
@@ -115,9 +115,9 @@ public:
     {
         return nthread_unlock(&lock_);
     }
-    virtual std::string
-    toString(void)
-    {
+
+  std::string
+    toString(void) override {
         std::stringstream out;
         out << "id_==" << id_;
         return out.str();

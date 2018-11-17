@@ -16,7 +16,7 @@ public:
   void WriterInitialize(int producer_id);
   void WriterStartTimestep(int timestep, int max_vals);
   int  WriterAppend(int value);
-  int  WriterFinishTimestep();
+  void WriterFinishTimestep();
 
   int ReaderGetTimestep(int timestep, int **vals, int *num_vals);
 

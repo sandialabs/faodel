@@ -6,19 +6,19 @@
 #include <iostream>
 #include <sstream>
 
-#include <sys/unistd.h>		//gethostname
+#include <sys/unistd.h> //gethostname
 #include <assert.h>
 #include "opbox/net/net.hh"
 #include "opbox/net/peer.hh"
 
 #include "webhook/Server.hh"
 #include "webhook/client/Client.hh"
-#include "webhook/common/QuickHTML.hh"
+#include "faodel-common/QuickHTML.hh"
 
 #include <boost/algorithm/string.hpp>
 
-#include "shared.hh"
-#include "fab_transport.hh"
+#include "opbox/net/libfabric_wrapper/shared.hh"
+#include "opbox/net/libfabric_wrapper/fab_transport.hh"
 
 #if HAVE_CONFIG_H
 #  include <config.h>
@@ -44,6 +44,7 @@
 #include <rdma/fi_domain.h>
 #include <rdma/fi_cm.h>
 #include <rdma/fi_errno.h>
+#include <rdma/fi_atomic.h>
 
 #include <netinet/in.h>
 #include <sys/socket.h>
@@ -66,7 +67,7 @@
 #include <unistd.h>
 
 
-#include "common/Configuration.hh"
+#include "faodel-common/Configuration.hh"
 #include "lunasa/Lunasa.hh"
 #include "lunasa/DataObject.hh"
 
@@ -94,42 +95,37 @@ typedef std::map <faodel::nodeid_t,fab_peer * >::iterator nodeid_peer_iter_t;
 #ifndef HEXDUMP_COLS
 #define HEXDUMP_COLS 8
 #endif
-void hexdump(void *mem, unsigned int len)
+void
+hexdump(
+    void *mem,
+    unsigned int len)
 {
     unsigned int i, j;
 
-    for(i = 0; i < len + ((len % HEXDUMP_COLS) ? (HEXDUMP_COLS - len % HEXDUMP_COLS) : 0); i++)
-    {
+    for(i = 0; i < len + ((len % HEXDUMP_COLS) ? (HEXDUMP_COLS - len % HEXDUMP_COLS) : 0); i++) {
         /* print offset */
-        if(i % HEXDUMP_COLS == 0)
-        {
+        if(i % HEXDUMP_COLS == 0) {
             printf("0x%06x: ", i);
         }
         /* print hex data */
-        if(i < len)
-        {
+        if(i < len) {
             printf("%02x ", 0xFF & ((char*)mem)[i]);
-        }
-        else /* end of block, just aligning for ASCII dump */
-        {
+        } else {
+            /* end of block, just aligning for ASCII dump */
             printf("   ");
         }
 
         /* print ASCII dump */
-        if(i % HEXDUMP_COLS == (HEXDUMP_COLS - 1))
-        {
-            for(j = i - (HEXDUMP_COLS - 1); j <= i; j++)
-            {
-                if(j >= len) /* end of block, not really printing */
-                {
+        if(i % HEXDUMP_COLS == (HEXDUMP_COLS - 1)) {
+            for(j = i - (HEXDUMP_COLS - 1); j <= i; j++) {
+                if(j >= len) {
+                    /* end of block, not really printing */
                     putchar(' ');
-                }
-                else if(isprint(((char*)mem)[j])) /* printable char */
-                {
+                } else if(isprint(((char*)mem)[j])) {
+                    /* printable char */
                     putchar(0xFF & ((char*)mem)[j]);
-                }
-                else /* other char */
-                {
+                } else {
+                    /* other char */
                     putchar('.');
                 }
             }
@@ -140,24 +136,30 @@ void hexdump(void *mem, unsigned int len)
 
 #define FAB_PRINTERR(call, retv) \
 do {fprintf(stderr, call "(): %s:%d, ret=%d (%s)\n", __FILE__, __LINE__, (int) retv, fi_strerror((int) -retv));} while (0)
+
 //default constructor
-fab_transport::fab_transport(faodel::Configuration &config)
-{
-
-}
-
-fab_transport* fab_transport::get_instance() {
-    if(single_fab==NULL) single_fab = new fab_transport();
-    return single_fab;
-}
-
 fab_transport::fab_transport()
 {
 
 }
 
+fab_transport::fab_transport(
+    faodel::Configuration &config)
+{
+
+}
+
+fab_transport*
+fab_transport::get_instance()
+{
+    if(single_fab==NULL) single_fab = new fab_transport();
+    return single_fab;
+}
+
 //This is to print verbose  fi_info
-static int print_long_info(struct fi_info *info)
+static int
+print_long_info(
+    struct fi_info *info)
 {
     for (struct fi_info *cur = info; cur; cur = cur->next) {
         fprintf(stderr, "---\n");
@@ -167,12 +169,15 @@ static int print_long_info(struct fi_info *info)
 }
 
 //This is to print verbose  fi_info
-fi_info*  select_fi_info(struct fi_info *info, struct fi_info *hints)
+fi_info*
+select_fi_info(
+    struct fi_info *info,
+    struct fi_info *hints)
 {
 //    fprintf(stderr, "---%d  %s\n", hints->ep_attr->type, hints->fabric_attr->prov_name);
     for (struct fi_info *cur = info; cur; cur = cur->next) {
 //        fprintf(stderr, "cur ---%d  %s\n", cur->ep_attr->type, cur->fabric_attr->prov_name);
-        if((cur->ep_attr->type == hints->ep_attr->type) && strcmp(cur->fabric_attr->prov_name, hints->fabric_attr->prov_name) == 0){
+        if((cur->ep_attr->type == hints->ep_attr->type) && strcmp(cur->fabric_attr->prov_name, hints->fabric_attr->prov_name) == 0) {
 //            fprintf(stderr, "%s", fi_tostr(cur, FI_TYPE_INFO));
             return cur;
         }
@@ -180,12 +185,15 @@ fi_info*  select_fi_info(struct fi_info *info, struct fi_info *hints)
     return NULL;
 }
 
-int error_check (int ret, std::string err_string)
+int
+error_check(
+    int ret,
+    std::string err_string)
 {
-    if (ret){
+    if (ret) {
         fprintf(stderr, "%s\n",err_string.c_str(), ret);
         abort();
-    }else {
+    } else {
         return FI_SUCCESS;
     }
 }
@@ -193,19 +201,18 @@ int error_check (int ret, std::string err_string)
 // Error entry reading event queue
 //
 void
-eq_readerr (struct fid_eq *eq, const char *eq_str)
+fab_transport::eq_readerr(
+    struct fid_eq *eq,
+    const char *eq_str)
 {
     struct fi_eq_err_entry eq_err;
     const char *err_str;
     int rd;
 
     rd = fi_eq_readerr (eq, &eq_err, 0);
-    if (rd != sizeof (eq_err))
-    {
-        fprintf (stderr, "ERROR: fi_eq_readerr");
-    }
-    else
-    {
+    if (rd != sizeof (eq_err)) {
+        fprintf (stderr, "ERROR: fi_eq_readerr\n");
+    } else {
         err_str = fi_eq_strerror (eq, eq_err.prov_errno, eq_err.err_data, NULL, 0);
         fprintf (stderr, "%s: %d %s\n", eq_str, eq_err.err,
             fi_strerror (eq_err.err));
@@ -214,7 +221,8 @@ eq_readerr (struct fid_eq *eq, const char *eq_str)
     }
 }
 
-void  fab_transport::print_addr(fid_ep *ep)
+void
+fab_transport::print_addr(fid_ep *ep)
 {
     void *localaddr;
     void *remoteaddr;
@@ -225,34 +233,58 @@ void  fab_transport::print_addr(fid_ep *ep)
     uint16_t dst_port;
 
 
-    if (ep !=NULL){
+    if (ep !=NULL) {
         localaddr = malloc(fi->src_addrlen);
         remoteaddr = malloc(fi->src_addrlen);
         fi_getname (&ep->fid, localaddr, &addrlen);
         assert(addrlen!=0);
 
-        if(localaddr !=NULL){
-            src_addr =
-                (char*) inet_ntoa(((struct sockaddr_in *) localaddr)->sin_addr);
-            src_port =
-                (uint16_t) ntohs (((struct sockaddr_in *) localaddr)->sin_port);
+        if(localaddr !=NULL) {
+            src_addr = (char*) inet_ntoa(((struct sockaddr_in *) localaddr)->sin_addr);
+            src_port = (uint16_t) ntohs (((struct sockaddr_in *) localaddr)->sin_port);
         }
         fi_getpeer (ep, remoteaddr, &addrlen);
-        if(remoteaddr !=NULL){
-            dst_addr =
-                (char*) inet_ntoa(((struct sockaddr_in *) remoteaddr)->sin_addr);
-            dst_port =
-                (uint16_t) ntohs (((struct sockaddr_in *) remoteaddr)->sin_port);
+        if(remoteaddr !=NULL) {
+            dst_addr = (char*) inet_ntoa(((struct sockaddr_in *) remoteaddr)->sin_addr);
+            dst_port = (uint16_t) ntohs (((struct sockaddr_in *) remoteaddr)->sin_port);
         }
-        cout << "inside print addr" << "src addr :  "<< src_addr << " src_port:  " << src_port << "dst_addr : " << dst_addr << "dst_port  : " << dst_port << std::endl;
+//        cout << "inside print addr - " << "local addr: "<< src_addr << " local port: " << src_port << "remote addr: " << dst_addr << " remote port: " << dst_port << std::endl;
     } else {
-        cout << "ep is NULL" << std::endl;
+//        cout << "ep is NULL" << std::endl;
     }
 }
 
 //// Transport related methods
-void fab_transport::start()
+void
+fab_transport::start()
 {
+    int ret;
+
+    operand1_ptr = (int64_t*)malloc(sizeof(int64_t));
+    operand2_ptr = (int64_t*)malloc(sizeof(int64_t));
+
+    ret = fi_mr_reg(domain,
+                    operand1_ptr,
+                    sizeof(int64_t),
+                    FI_READ | FI_WRITE | FI_REMOTE_READ | FI_REMOTE_WRITE,
+                    0,
+                    FAB_MR_KEY,
+                    0,
+                    &operand1_mr,
+                    NULL);
+    error_check(ret,"fi_mr_reg");
+
+    ret = fi_mr_reg(domain,
+                    operand2_ptr,
+                    sizeof(int64_t),
+                    FI_READ | FI_WRITE | FI_REMOTE_READ | FI_REMOTE_WRITE,
+                    0,
+                    FAB_MR_KEY,
+                    0,
+                    &operand2_mr,
+                    NULL);
+    error_check(ret,"fi_mr_reg");
+
     //setupRecvQueue();  Now implementing per connection recv buffer
     if(my_transport_id == 1){
         start_ib_connection_thread();
@@ -260,7 +292,8 @@ void fab_transport::start()
     start_progress_thread();
 }
 
-void fab_transport::stop()
+void
+fab_transport::stop()
 {
     shutdown_requested = true;
 
@@ -271,10 +304,14 @@ void fab_transport::stop()
 //    cout << "Transport closing" << std::endl;
 }
 
-void fab_transport::register_memory (void *base_addr, int length, struct fab_buf *send_buf)
+void
+fab_transport::register_memory (
+    void *base_addr,
+    int length,
+    struct fab_buf *send_buf)
 {
     int ret =0;
-    ret = fi_mr_reg(domain, base_addr, length, FI_RECV | FI_SEND | FI_REMOTE_READ | FI_REMOTE_WRITE,
+    ret = fi_mr_reg(domain, base_addr, length, FI_RECV | FI_SEND | FI_READ | FI_WRITE | FI_REMOTE_READ | FI_REMOTE_WRITE,
                     0, FAB_MR_KEY, 0, &send_buf->buf_mr, NULL);
     error_check(ret,"fi_mr_reg");
     send_buf->buf = (uint64_t)static_cast<void*>(base_addr);
@@ -284,24 +321,33 @@ void fab_transport::register_memory (void *base_addr, int length, struct fab_buf
     //cout << "Came to register memory buffer  addr " << send_buf->buf << " key  "<< send_buf->key << std::endl;
 }
 
+void
+fab_transport::unregister_memory (
+    struct fab_buf *send_buf)
+{
+    int ret =0;
+    ret = fi_close(&send_buf->buf_mr->fid);
+    error_check(ret,"fi_close");
+}
+
 fab_peer*
-fab_transport::find_peer (faodel::nodeid_t nodeid)
+fab_transport::find_peer (
+    faodel::nodeid_t nodeid)
 {
     fab_peer *peer;
 
     std::lock_guard < std::mutex > lock (conn_mutex);
-    if (peer_map.find (nodeid) != peer_map.end ())
-    {
+    if (peer_map.find (nodeid) != peer_map.end ()) {
         peer = peer_map[nodeid];        // add to connection map
-    }
-    else
+    } else {
         peer = NULL;
+    }
     return peer;
 }
 
-void fab_transport::setupRecvQueue()
+void
+fab_transport::setupRecvQueue()
 {
-
     int ret;
     fid_mr *mr;
     struct fab_buf rx_buf;
@@ -311,12 +357,12 @@ void fab_transport::setupRecvQueue()
         //ret = fi_mr_reg(domain, ldo.rawPtr(), ldo.rawSize(), FI_RECV, 0, 0, 0, &mr, NULL);
         //CDU: TODO should the length be replaced with a better header+meta+data size?
         ret = fi_mr_reg(domain,
-                        ldo.GetHeaderPtr(),
+                        ldo.internal_use_only.GetHeaderPtr(),
                         ldo.GetHeaderSize()+meta_size+fi->ep_attr->max_msg_size, FI_RECV, 0, 0, 0, &mr, NULL); //CDU-check
         error_check(ret,"fi_mr_reg");
-        if (ret ==FI_SUCCESS){
+        if (ret ==FI_SUCCESS) {
             //rx_buf.buf= (uint64_t)ldo.rawPtr();
-            rx_buf.buf= (uint64_t)ldo.GetHeaderPtr();
+            rx_buf.buf= (uint64_t)ldo.internal_use_only.GetHeaderPtr();
             rx_buf.offset=0;
             rx_buf.len = ldo.GetHeaderSize()+meta_size+fi->ep_attr->max_msg_size;// ldo.rawSize(); //CDU
             rx_buf.buf_mr = mr;
@@ -325,7 +371,8 @@ void fab_transport::setupRecvQueue()
     }
 }
 
-void fab_transport::teardownRecvQueue()
+void
+fab_transport::teardownRecvQueue()
 {
     while(!recv_buffers_.empty()) {
         fab_buf  rbuf = recv_buffers_.front();
@@ -345,6 +392,48 @@ fab_transport::stop_progress_thread(void)
     progress_thread_.join();
 }
 
+void
+print_fi_wc(struct fi_cq_data_entry *wc)
+{
+    stringstream ss;
+    int indent=0;
+
+    ss << string(indent,' ')  <<"[wc] "<<endl
+       << string(indent+1,' ')<<"flags:    "<<std::hex<<wc->flags<<std::dec<<endl
+       << string(indent+1,' ')<<"len:      "<<wc->len<<endl
+       << string(indent+1,' ')<<"buf:      "<<wc->buf<<endl
+       << string(indent+1,' ')<<"data:     "<<wc->data<<endl;
+    cout << ss.str();
+}
+
+void
+print_fab_peer(stringstream &ss, struct fab_peer *peer, int indent=0)
+{
+    ss << string(indent,' ')  <<"[fab_peer] "<<endl
+       << string(indent+1,' ')<<"ep_addr:            "<<peer->ep_addr<<endl
+//       << string(indent+1,' ')<<"dst_addr:           "<<peer->dst_addr<<endl
+//       << string(indent+1,' ')<<"dst_port:           "<<peer->dst_port<<endl
+       << string(indent+1,' ')<<"remote_addr:        "<<peer->remote_addr<<endl
+       << string(indent+1,' ')<<"remote_nodeid:      "<<peer->remote_nodeid.GetHex()<<endl
+       << string(indent+1,' ')<<"rem_addrlen:        "<<peer->rem_addrlen<<endl;
+}
+
+void
+print_fab_recvreq(struct fab_recvreq *rreq)
+{
+    stringstream ss;
+    int indent=0;
+
+    ss << string(indent,' ')  <<"[rreq] "<<endl
+       << string(indent+1,' ')<<"repost_buf:    "<<(void*)rreq->repost_buf<<endl
+       << string(indent+1,' ')<<"mr:            "<<rreq->mr<<endl
+       << string(indent+1,' ')<<"len:           "<<rreq->len<<endl
+       << string(indent+1,' ')<<"offset:        "<<rreq->offset<<endl
+       << string(indent+1,' ')<<"peer:          "<<rreq->peer<<endl;
+    print_fab_peer(ss, rreq->peer, 4);
+    cout << ss.str();
+}
+
 int
 fab_transport::check_completion ()
 {
@@ -354,16 +443,18 @@ fab_transport::check_completion ()
     struct fab_op_context* context;
     int rd, rc;
 
-    while(!shutdown_requested){
+    while(!shutdown_requested) {
         do {
             rd = fi_cq_read (cq, &wc, 1);
-	} while ((rd == -FI_EAGAIN) && !shutdown_requested);
+        } while ((rd == -FI_EAGAIN) && !shutdown_requested);
+
+//        print_fi_wc(&wc);
 
         if (shutdown_requested == true) {
             return 0;
         }
 
-        if (rd < 0){
+        if (rd < 0) {
             fi_cq_readerr (cq, &cq_err, 0);
             fprintf (stderr, "cq fi_cq_readerr() %s (%d)\n",
                 fi_cq_strerror (cq, cq_err.err, cq_err.err_data, NULL, 0),
@@ -372,43 +463,89 @@ fab_transport::check_completion ()
             return -1;
         }
         if (wc.flags & FI_RECV) {
-//            cout << "got a RECV completion" <<std::endl;
-            if(wc.op_context != NULL){
-                //cout << "successful recv   " << " flag at recv  cq read " << wc.flags << " length " << wc.len << std::endl;
+//            fprintf(stdout, "got a RECV completion - wc.flags=%X\n", wc.flags);
+            if(wc.op_context != NULL) {
+//                cout << "successful recv - wc.flags=" << std::hex << wc.flags << std::dec << " length " << wc.len << std::endl;
                 rreq=(fab_recvreq*)wc.op_context;
-                peer_t        *sender = new peer_t(rreq->peer);
+                peer_t *sender = new peer_t(rreq->peer);
                 message_t *msg = (message_t*)((char*) rreq->repost_buf);
+                fab_peer *msg_src_peer = find_peer(rreq->peer->remote_nodeid);
+                if (!(rreq->peer->remote_nodeid == msg_src_peer->remote_nodeid)) {
+                    cout << "************** rreq->peer != msg->src -- using msg->src" << endl;
+                    abort();
+                    delete sender;
+                    sender = new peer_t(msg_src_peer);
+                }
+//                cout << "incoming message from " << rreq->peer->remote_nodeid.GetHex() << endl;
+//                cout << msg->str() << endl;
                 recv_cb_(sender, msg);
                 rc = fi_recv(rreq->peer->ep_addr, (char*) rreq->repost_buf, FAB_MTU_SIZE , fi_mr_desc(rreq->mr),
                              0, rreq);
             }
         } else if (wc.flags & FI_SEND) {
-//            cout << "got a SEND completion" <<std::endl;
+//            fprintf(stdout, "got a SEND completion - wc.flags=%X\n", wc.flags);
             context = (struct fab_op_context*)wc.op_context;
             OpArgs args(UpdateType::send_success);
             if (context->user_cb) {
+//                fprintf(stdout, "invoking user callback\n");
                 WaitingType cb_rc = context->user_cb(&args);
             }
-        } else if (wc.flags & (FI_RMA | FI_READ)) {
-//            cout << "got a GET completion" <<std::endl;
+//            fprintf(stdout, "check_completion - ldo value=%X\n", *(uint64_t*)((char *)context->ldo.GetDataPtr() + context->loffset));
+        } else if (wc.flags == (FI_RMA | FI_READ)) {
+//            fprintf(stdout, "got a RMA+READ completion - wc.flags=%X\n", wc.flags);
             context = (struct fab_op_context*)wc.op_context;
             OpArgs args(UpdateType::get_success);
             if (context->user_cb) {
+//                fprintf(stdout, "invoking user callback\n");
                 WaitingType cb_rc = context->user_cb(&args);
             }
-        } else if (wc.flags & (FI_RMA | FI_WRITE)) {
-//            cout << "got a PUT completion" <<std::endl;
+//            fprintf(stdout, "check_completion - ldo value=%X\n", *(uint64_t*)((char *)context->ldo.GetDataPtr() + context->loffset));
+        } else if (wc.flags == (FI_RMA | FI_WRITE)) {
+//            fprintf(stdout, "got a RMA+WRITE completion - wc.flags=%X\n", wc.flags);
             context = (struct fab_op_context*)wc.op_context;
             OpArgs args(UpdateType::put_success);
             if (context->user_cb) {
+//                fprintf(stdout, "invoking user callback\n");
                 WaitingType cb_rc = context->user_cb(&args);
             }
+//            fprintf(stdout, "check_completion - ldo value=%X\n", *(uint64_t*)((char *)context->ldo.GetDataPtr() + context->loffset));
+        } else if (wc.flags == (FI_ATOMIC | FI_READ)) {
+//            fprintf(stdout, "got a ATOMIC+READ completion - wc.flags=%X\n", wc.flags);
+            context = (struct fab_op_context*)wc.op_context;
+            OpArgs args(UpdateType::atomic_success);
+            if (context->user_cb) {
+//                fprintf(stdout, "invoking user callback\n");
+                WaitingType cb_rc = context->user_cb(&args);
+            }
+//            fprintf(stdout, "check_completion - ldo value=%X\n", *(uint64_t*)((char *)context->ldo.GetDataPtr() + context->loffset));
+        } else if (wc.flags == (FI_ATOMIC | FI_WRITE)) {
+//            fprintf(stdout, "got a ATOMIC+WRITE completion - wc.flags=%X\n", wc.flags);
+            context = (struct fab_op_context*)wc.op_context;
+            OpArgs args(UpdateType::atomic_success);
+            if (context->user_cb) {
+//                fprintf(stdout, "invoking user callback\n");
+                WaitingType cb_rc = context->user_cb(&args);
+            }
+//            fprintf(stdout, "check_completion - ldo value=%X\n", *(uint64_t*)((char *)context->ldo.GetDataPtr() + context->loffset));
+        } else if (wc.flags == FI_ATOMIC) {
+//            fprintf(stdout, "got a ATOMIC completion - wc.flags=%X\n", wc.flags);
+            context = (struct fab_op_context*)wc.op_context;
+            OpArgs args(UpdateType::atomic_success);
+            if (context->user_cb) {
+//                fprintf(stdout, "invoking user callback\n");
+                WaitingType cb_rc = context->user_cb(&args);
+            }
+//            fprintf(stdout, "check_completion - ldo value=%X\n", *(uint64_t*)((char *)context->ldo.GetDataPtr() + context->loffset));
+        } else {
+            fprintf(stdout, "got completion with unknown flags - wc.flags=%X\n", wc.flags);
         }
     }
     return 0;
 }
 
-int fab_transport::init_endpoint(fid_ep *ep)
+int
+fab_transport::init_endpoint(
+    fid_ep *ep)
 {
     int ret;
 
@@ -424,14 +561,16 @@ int fab_transport::init_endpoint(fid_ep *ep)
     ret = fi_enable(ep);
     error_check(ret, "fi_enable");
 
+    return ret; //TODO: Is this right?
 }
 
 void
-fab_transport::create_rdm_connection_server(const std::map<std::string,std::string> &args, std::stringstream &results)
+fab_transport::create_rdm_connection_server(
+    const std::map<std::string,std::string> &args,
+    std::stringstream &results)
 {
-
     int ret;
-    void	*nep_name;
+    void   *nep_name;
     size_t  len;
     struct fab_peer* peer=new fab_peer();
     struct fab_recvbuf* rcvbuf=new fab_recvbuf();
@@ -454,7 +593,9 @@ fab_transport::create_rdm_connection_server(const std::map<std::string,std::stri
     }
     faodel::nodeid_t remote_nodeid(hostname, port);
 
-    ret = fi_getinfo (FI_VERSION(1,4), hostname.c_str(), rem_port.c_str(), 0, hints, &my_fi);
+//    cout << "inbound connection from " << remote_nodeid.GetHex() << endl;
+
+    ret = fi_getinfo (FI_VERSION(1,0), hostname.c_str(), rem_port.c_str(), 0, hints, &my_fi);
     if (ret){
         cerr << "ERROR: RDM client_server for dest: fi_getinfo" << endl;
         exit(-1);
@@ -467,32 +608,43 @@ fab_transport::create_rdm_connection_server(const std::map<std::string,std::stri
             exit(-1);
         }
     }
+
+    peer->ep_addr = ep;
+    peer->remote_nodeid = remote_nodeid;
+
     rcvbuf->buf = malloc(FAB_MTU_SIZE * FAB_NRECV); // post 1000 recv 4k each for each connection
     fi_mr_reg(domain,rcvbuf->buf, FAB_MTU_SIZE * FAB_NRECV, FI_RECV, 0, 0, 0, &rcvbuf->mr, NULL);
     for (int i=0; i< 1000; ++i){
         struct fab_recvreq* rreq = new fab_recvreq();
         offset = (FAB_MTU_SIZE * i);
         rreq->repost_buf = (uint64_t) ((char*)rcvbuf->buf + offset);
-        rreq->peer = peer;
-        rreq->mr= rcvbuf->mr;
-        ret = fi_recv(ep, (char*)rcvbuf->buf + offset, FAB_MTU_SIZE , fi_mr_desc(rcvbuf->mr),
-                      0, rreq);
+        rreq->peer       = peer;
+        rreq->mr         = rcvbuf->mr;
+//        print_fab_recvreq(rreq);
+        ret = fi_recv(
+            rreq->peer->ep_addr,
+            (char*)rreq->repost_buf,
+            FAB_MTU_SIZE,
+            fi_mr_desc(rreq->mr),
+            0,
+            rreq);
     }
     std::lock_guard < std::mutex > lock (conn_mutex);
-    peer->ep_addr = ep;
-    peer->remote_nodeid = remote_nodeid;
     peer_map[remote_nodeid] = peer;
-    std::string my_port = to_string(my_fab_port);
     string s_host, s_port;
     mynodeid.GetIPPort(&s_host, &s_port);
     std::string s_port_aux = std::to_string(my_fab_port);
     results<< s_host<<"/"<<s_port_aux<<"\n";
+
+//    fprintf(stdout, "create_rdm_connection_server(): result fab_peer=%p  fab_peer->nodeid=%s\n", peer, peer->remote_nodeid.GetHex().c_str());
+
     //Note: could this just be the hex nodeid?
 //    cout << "gni_server_connection sent result" << results.str() << "\n";
 }
 
 
-int fab_transport::fab_init_rdm()
+int
+fab_transport::fab_init_rdm(const char *provider_name)
 {
 
     int ret = 0;
@@ -507,11 +659,12 @@ int fab_transport::fab_init_rdm()
         return -1;
 
     hints->ep_attr->type = FI_EP_RDM;
-    hints->ep_attr->protocol = FI_PROTO_SOCK_TCP;
-    hints->caps = FI_MSG | FI_RMA;
+//    hints->ep_attr->protocol = FI_PROTO_SOCK_TCP;
+//    hints->caps = FI_MSG | FI_RMA;
+    hints->caps = FI_MSG | FI_RMA | FI_ATOMIC;
     hints->mode = FI_LOCAL_MR | FI_CONTEXT;
-    hints->addr_format = FI_SOCKADDR_IN;
-    hints->fabric_attr->prov_name = strdup("sockets");
+//    hints->addr_format = FI_SOCKADDR_IN;
+    hints->fabric_attr->prov_name = strdup(provider_name);
     hints->domain_attr->mr_mode = FI_MR_BASIC;
 
     //src_port = webhook::port();
@@ -527,7 +680,7 @@ int fab_transport::fab_init_rdm()
 //    cout << "webhook " << s_host<<" / "<<s_port<<std::endl;
     my_fab_port = b_port + FAB_PORT_AUX;
     std::string s_port_aux = std::to_string(my_fab_port);
-    ret = fi_getinfo(FI_VERSION(1,4), s_host.c_str(), s_port_aux.c_str(), FI_SOURCE, hints, &fi);
+    ret = fi_getinfo(FI_VERSION(1,0), s_host.c_str(), s_port_aux.c_str(), FI_SOURCE, hints, &fi);
 
     if (ret) {
         cerr << "fi_getinfo in rdm init failed " << "return value " << ret << std::endl;
@@ -576,6 +729,8 @@ int fab_transport::fab_init_rdm()
     //cout << "Fab init RDM done " << std::endl;
     initialized = true;
 
+    return ret; //TODO: is this right?
+
 }
 
 fab_peer*
@@ -593,12 +748,20 @@ fab_transport::create_rdm_connection_client(
 
     std::string s = std::to_string(my_fab_port);
 
+    fab_peer *existing_peer = find_peer(peer_nodeid);
+    if (existing_peer != NULL) {
+//        cout << "found existing connection to " << peer_nodeid.GetHex() << endl;
+        return existing_peer;
+    }
+
+//    cout << "outbound connection to " << peer_nodeid.GetHex() << endl;
+
     ss_path << "/fab/rdmlookup&rem_webhook_hostname="<<mynodeid.GetIP()<<"&rem_webhook_port="<<mynodeid.GetPort()<< "&rem_peer_port=" <<s;
     ret = webhook::retrieveData(peer_nodeid.GetIP() , peer_nodeid.GetPort() , ss_path.str(), &result);
     boost::trim_right(result);
     vector<string> result_parts = faodel::SplitPath(result);
     //cout <<"Result is : '" << result_parts[0] << "' part 1  '" << result_parts[1] << "'\n";
-    ret = fi_getinfo (FI_VERSION(1,4), result_parts[0].c_str(), result_parts[1].c_str(), 0, hints, &my_fi);
+    ret = fi_getinfo (FI_VERSION(1,0), result_parts[0].c_str(), result_parts[1].c_str(), 0, hints, &my_fi);
     if (ret){
         cerr << "ERROR: RDM client_connect: fi_getinfo" << endl;
         return NULL;
@@ -622,9 +785,16 @@ fab_transport::create_rdm_connection_client(
         rreq->repost_buf = (uint64_t) ((char*)rcvbuf->buf + offset);
         rreq->peer = peer;
         rreq->mr= rcvbuf->mr;
+//        print_fab_recvreq(rreq);
         ret = fi_recv(ep, (char*)rcvbuf->buf + offset, FAB_MTU_SIZE , fi_mr_desc(rcvbuf->mr),
                       0, rreq);
     }
+    if (peer != NULL) {
+        peer_map[peer_nodeid] = peer;
+    }
+
+//    fprintf(stdout, "create_rdm_connection_client(): result fab_peer=%p  fab_peer->nodeid=%s\n", peer, peer->remote_nodeid.GetHex().c_str());
+
     return peer;
 }
 
@@ -632,7 +802,9 @@ fab_transport::create_rdm_connection_client(
 
 /* Infiniband related methods */
 
-int  get_ipofIBaddr(char *hostname)
+int
+get_ipofIBaddr(
+    char *hostname)
 {
     struct ifaddrs *ifaddr, *ifa;
     int family, s, n;
@@ -643,7 +815,7 @@ int  get_ipofIBaddr(char *hostname)
     }
 
     /* Walk through linked list of interfaces, maintaining head pointer so we
-can free list later */
+       can free list later */
 
     for (ifa = ifaddr, n = 0; ifa != NULL; ifa = ifa->ifa_next, n++) {
         if (ifa->ifa_addr == NULL)
@@ -668,9 +840,8 @@ can free list later */
 
 
 int
-fab_transport::fab_init_ib ()
+fab_transport::fab_init_ib (const char *provider_name)
 {
-
     struct fi_info *cur_fi;
     int rx_depth_default = 500;
     int rc=0;
@@ -683,20 +854,19 @@ fab_transport::fab_init_ib ()
     if (!hints)
         return -1; //ENOMEM
 
-    hints->ep_attr->type = FI_EP_MSG;
-    //hints->ep_attr->protocol = FI_PROTO_RDMA_CM_IB_RC;
-    hints->caps = FI_MSG| FI_RMA| FI_ATOMIC| FI_READ| FI_WRITE| FI_RECV| FI_SEND| FI_REMOTE_READ| FI_REMOTE_WRITE;
-    //hints->caps = FI_MSG| FI_RMA;
-    hints->mode = FI_LOCAL_MR;
-    hints->addr_format = FI_SOCKADDR_IN;
-    hints->fabric_attr->prov_name = strdup("sockets");
-
-    //hints->domain_attr->resource_mgmt=FI_RM_ENABLED;
-    hints->domain_attr->mr_mode= FI_MR_BASIC;
+    hints->ep_attr->type          = FI_EP_MSG;
+//    hints->ep_attr->protocol      = FI_PROTO_RDMA_CM_IB_RC;
+//    hints->caps                   = FI_MSG | FI_RMA | FI_ATOMIC | FI_READ | FI_WRITE | FI_RECV | FI_SEND | FI_REMOTE_READ | FI_REMOTE_WRITE;
+    hints->caps                   = FI_MSG | FI_RMA | FI_ATOMIC;
+    hints->mode                   = FI_LOCAL_MR | FI_CONTEXT;
+//    hints->addr_format            = FI_SOCKADDR_IN;
+    hints->fabric_attr->prov_name = strdup(provider_name);
+    hints->domain_attr->mr_mode   = FI_MR_BASIC;
 
     faodel::nodeid_t nid = webhook::Server::GetNodeID();;
     string s_host, s_port;
-    uint32_t b_host; uint16_t b_port;
+    uint32_t b_host;
+    uint16_t b_port;
 
     nid.GetIPPort(&s_host, &s_port);
     nid.GetIPPort(&b_host, &b_port);
@@ -704,15 +874,17 @@ fab_transport::fab_init_ib ()
     my_fab_port = b_port + FAB_PORT_AUX;
     std::string s_port_aux = std::to_string(my_fab_port);
 
-    rc = fi_getinfo (FI_VERSION(FI_MAJOR_VERSION, FI_MINOR_VERSION), s_host.c_str() , s_port_aux.c_str(), FI_SOURCE, hints, &cur_fi);
+    rc = fi_getinfo (FI_VERSION(1,0), s_host.c_str() , s_port_aux.c_str(), FI_SOURCE, hints, &cur_fi);
+//    rc = fi_getinfo (FI_VERSION(1,0), NULL, NULL, FI_SOURCE, hints, &cur_fi);
     if (rc){
         cerr << "fab_init_ib:fi_getinfo failed" << endl;
         FAB_PRINTERR("fi_getinfo", rc);
+        abort();
         return rc;
     }
-    //cout << "successful getinfo for init IB " << std::endl;
+//    cout << "successful getinfo for init IB " << std::endl;
 
-    //print_long_info(cur_fi);
+//    print_long_info(cur_fi);
     fi = select_fi_info(cur_fi, hints);
     rc = fi_fabric (fi->fabric_attr, &fabric, NULL);
     error_check(rc,"fi_fabric");
@@ -736,15 +908,28 @@ fab_transport::fab_init_ib ()
     error_check(rc,"fi_cq_open");
     // Register for webhooks to lookup my IB Ip address and port, where fabric connection mgmt running
     webhook::Server::registerHook("/fab/iblookup", [this] (const map<string,string> &args, stringstream &results) {
-        create_ib_pending_connection(args);
+        struct fab_connection *conn=create_ib_pending_connection(args);
         std::string my_port = to_string(my_fab_port);
         string s_host, s_port;
         mynodeid.GetIPPort(&s_host, &s_port);
         std::string s_port_aux = std::to_string(my_fab_port);
+        //
+        //
+        //
+        //
+        //
+        // TODO THK: s_host is the nodeid host.  should send back the fabric IP.
+        //
+        //
+        //
+        //
+        //
         results<< s_host<<"/"<<s_port_aux<<"\n";
     });
     //cout << "fab_ib_init complete " << std::endl;
     initialized = true;
+
+    return rc;  //TODO: Is this right?
 }
 
 
@@ -753,7 +938,9 @@ fab_transport::fab_init_ib ()
 // client will not send src_addr but ep from Connect call
 //
 void
-fab_transport::create_connections (faodel::nodeid_t nodeid, fid_ep * ep)
+fab_transport::create_connections (
+    faodel::nodeid_t nodeid,
+    fid_ep * ep)
 {
     struct fab_connection* conn= new fab_connection;
 
@@ -768,7 +955,9 @@ fab_transport::create_connections (faodel::nodeid_t nodeid, fid_ep * ep)
     }
 }
 
-void fab_transport::create_peer_connection(struct fi_eq_cm_entry entry)
+void
+fab_transport::create_peer_connection(
+    struct fi_eq_cm_entry entry)
 {
 
     int ret;
@@ -784,7 +973,7 @@ void fab_transport::create_peer_connection(struct fi_eq_cm_entry entry)
     {
         conn = it->second;
         if(conn!=NULL){
-            if (&conn->ep->fid == entry.fid) // Now pending conn comepleted
+            if (&conn->ep->fid == entry.fid) // Now pending conn completed
             {
                 rcvbuf->buf = malloc(FAB_MTU_SIZE * FAB_NRECV); // post 1000 recv 4k each for each connection
                 fi_mr_reg(domain,rcvbuf->buf, FAB_MTU_SIZE * FAB_NRECV, FI_RECV, 0, 0, 0, &rcvbuf->mr, NULL);
@@ -796,6 +985,7 @@ void fab_transport::create_peer_connection(struct fi_eq_cm_entry entry)
                     rreq->repost_buf = (uint64_t) ((char*)rcvbuf->buf + offset);
                     rreq->peer = peer;
                     rreq->mr= rcvbuf->mr;
+//                    print_fab_recvreq(rreq);
                     ret = fi_recv(conn->ep, (char*)rcvbuf->buf + offset, FAB_MTU_SIZE , fi_mr_desc(rcvbuf->mr),
                                   0, rreq);
                 }
@@ -806,7 +996,9 @@ void fab_transport::create_peer_connection(struct fi_eq_cm_entry entry)
     }
 }
 
-void  fab_transport::find_and_update_connection(fid_ep* ep)
+void
+fab_transport::find_and_update_connection(
+    fid_ep* ep)
 {
 
     char*  src_addr;
@@ -859,10 +1051,10 @@ void  fab_transport::find_and_update_connection(fid_ep* ep)
 }
 
 
-void
-fab_transport::create_ib_pending_connection (const map<string,string> &args)
+struct fab_connection*
+fab_transport::create_ib_pending_connection (
+    const map<string,string> &args)
 {
-
     string hostname, port, rem_name, rem_port;
     char* addr;
     uint16_t lport;
@@ -884,6 +1076,9 @@ fab_transport::create_ib_pending_connection (const map<string,string> &args)
         rem_port = new_val->second;
     }
     faodel::nodeid_t remote_nodeid(hostname, port);
+
+//    cout << "inbound connection from " << remote_nodeid.GetHex() << endl;
+
     conn->src_ip = rem_name;
     conn->sport = rem_port;
     //cout << "creating server side connection for  :" << conn->src_ip << "conn port  " << conn->sport << std::endl;
@@ -894,6 +1089,7 @@ fab_transport::create_ib_pending_connection (const map<string,string> &args)
         pending_connections[remote_nodeid] = conn;      // add to connection map
     }
     //cout << "All done creating pending connection" << "\n";
+    return conn;
 }
 
 void
@@ -907,12 +1103,20 @@ fab_transport::ib_server_conn ()
     int routs;
     struct fab_connection *conn;
     struct fab_peer* peer=new fab_peer();
+    char errstr[1024];
 
     while(!shutdown_requested){
         rd = fi_eq_sread (eq, &event, &entry, sizeof entry, 500, 0);
 
+        if (rd < 0) {
+            eq_readerr(eq, errstr);
+            fprintf(stderr, "ib_server_conn() - rd=%d, event=%d, errstr=%s, errno=%d (%s)\n", rd, event, errstr, errno, strerror(errno));
+            continue;
+        }
+
         switch(event){
             case FI_CONNREQ: //Server receives this event
+//                cout << "Got a connect request event" << std::endl;
                 rc = fi_endpoint (domain, entry.info, &conn_ep, NULL);
                 error_check(rc, "fi_endpoint");
                 rc = fi_ep_bind (conn_ep, &eq->fid, 0);
@@ -926,12 +1130,12 @@ fab_transport::ib_server_conn ()
                 error_check(rc, "fi_enable");
                 rc = fi_accept (conn_ep, NULL, 0);
                 error_check(rc, "fi_accept");
-                //print_addr(conn_ep);
+//                print_addr(conn_ep);
                 find_and_update_connection(conn_ep);
                 break;
 
             case FI_CONNECTED:
-                //cout << "Got a connected event client or server " << std::endl;
+//                cout << "Got a connected event" << std::endl;
                 create_peer_connection(entry);
                 break;
             default:
@@ -943,7 +1147,8 @@ fab_transport::ib_server_conn ()
 
 
 fab_peer*
-fab_transport::client_connect_ib (faodel::nodeid_t   peer_nodeid)
+fab_transport::client_connect_ib (
+    faodel::nodeid_t   peer_nodeid)
 {
     int ret;
     struct fi_info *my_fi;
@@ -960,18 +1165,37 @@ fab_transport::client_connect_ib (faodel::nodeid_t   peer_nodeid)
     char* my_port;
     char* my_src;
 
+    fab_peer *existing_peer = find_peer(peer_nodeid);
+    if (existing_peer != NULL) {
+//        cout << "found existing connection to " << peer_nodeid.GetHex() << endl;
+        return existing_peer;
+    }
+
+//    cout << "outbound connection to " << peer_nodeid.GetHex() << endl;
+
     src_addr =
         (char*) inet_ntoa(((struct sockaddr_in *) fi->src_addr)->sin_addr);
     src_port =
         (uint16_t) ntohs (((struct sockaddr_in *) fi->src_addr)->sin_port);
-    //cout << "client_ib_connect My :" << src_addr << " conn port  " << src_port << " addrlen " << fi->src_addrlen <<std::endl;
+//    cout << "client_ib_connect() - My addr:" << src_addr << " conn port  " << src_port << " addrlen " << fi->src_addrlen <<std::endl;
 
     ss_path << "/fab/iblookup&rem_webhook_hostname=" << mynodeid.GetIP()<<"&rem_webhook_port="<<mynodeid.GetPort()<<"&rem_peer_name="<<src_addr<<"&rem_peer_port="<<src_port;
+//    cout << "client_ib_connect() - ss_path='" << ss_path.str() << "'" << endl;
+
+    int retries = 5;
     ret = webhook::retrieveData(peer_nodeid.GetIP() , peer_nodeid.GetPort() , ss_path.str(), &result);
+    while (ret != 0 && --retries) {
+        sleep(1);
+        ret = webhook::retrieveData(peer_nodeid.GetIP() , peer_nodeid.GetPort() , ss_path.str(), &result);
+    }
+    if (ret != 0) {
+        std::cout << "client_connect_ib() - webhook::retrieveData() timed out" << std::endl;
+        return(NULL);
+    }
 
     boost::trim_right(result);
     vector<string> result_parts = faodel::SplitPath(result);
-    //cout <<"Result is : '" << result_parts[0] << "' part 1  '" << result_parts[1] << "'\n";
+//    cout <<"Result is '" << result_parts[0] << "'  '" << result_parts[1] << "'\n";
 
     if (!hints)
         return NULL;
@@ -982,7 +1206,7 @@ hints->mode = FI_LOCAL_MR;
 hints->addr_format = FI_SOCKADDR_IN;
 hints->fabric_attr->prov_name = strdup("verbs");
      */
-    ret = fi_getinfo (FI_VERSION(1,4), result_parts[0].c_str(), result_parts[1].c_str(), 0, hints, &my_fi);
+    ret = fi_getinfo (FI_VERSION(1,0), result_parts[0].c_str(), result_parts[1].c_str(), 0, hints, &my_fi);
     if (ret){
         cerr << "ERROR: client_connect: fi_getinfo" << endl;
         return NULL;
@@ -1019,7 +1243,7 @@ hints->fabric_attr->prov_name = strdup("verbs");
         if (p == NULL ){
             usleep(100);
         }else{
-            //cout << "new peer is " << p << "endpoint " << ep << std::endl;
+//            cout << "new peer is " << p << " endpoint " << ep << std::endl;
             p->ep_addr=ep;
             return p;
         }
@@ -1043,7 +1267,11 @@ fab_transport::stop_connection_thread(void)
 
 
 void
-fab_transport::Send(fab_peer *remote_peer, fab_buf *msg, DataObject ldo, std::function< WaitingType(OpArgs *args) > user_cb)
+fab_transport::Send(
+    fab_peer *remote_peer,
+    fab_buf *msg,
+    DataObject ldo,
+    std::function< WaitingType(OpArgs *args) > user_cb)
 {
     int rc, ret;
     struct fi_cq_data_entry wc = { 0 };
@@ -1053,12 +1281,16 @@ fab_transport::Send(fab_peer *remote_peer, fab_buf *msg, DataObject ldo, std::fu
     context->remote_peer = remote_peer;
     context->msg         = msg;
     context->ldo         = ldo;
+    context->loffset     = 0;
     context->user_cb     = user_cb;
 
-    //cout << "Trying to send to  Send buffer "<< ldo.dataPtr() <<  " length " << ldo.dataSize() << std::endl;
-    //cout << " Send  peer  "<< remote_peer <<  " endpoint " << remote_peer->ep_addr << std::endl;
+//    message_t *msgt = (message_t*)((char*) ldo.GetDataPtr());
+//    cout << "outgoing message to " << remote_peer->remote_nodeid.GetHex() << endl;
+//    cout << msgt->str() << endl;
+
+//    cout << "Trying to send to  Send buffer "<< ldo.GetDataPtr() <<  " length " << ldo.GetDataSize() << std::endl;
+//    cout << "Send  peer "<< remote_peer <<  " endpoint " << remote_peer->ep_addr << std::endl;
     //CDU: Note- we send starting with the data ptr
-    //rc = fi_send (remote_peer->ep_addr, ldo.dataPtr(), ldo.dataSize(), fi_mr_desc(msg->buf_mr), remote_peer->remote_addr, NULL);
     rc = fi_send(remote_peer->ep_addr,
                  ldo.GetDataPtr(),
                  ldo.GetDataSize(),
@@ -1068,47 +1300,15 @@ fab_transport::Send(fab_peer *remote_peer, fab_buf *msg, DataObject ldo, std::fu
     if (rc) {
         cerr << "fi_send error " << rc << endl;
     }
-//    while (true) {
-//        ret = fi_cq_read(scq, (void *)&wc, 1);
-//        if (ret > 0) {
-//            if (NULL != user_cb) {
-//                //peer_t    sender(remote_peer);
-//                OpArgs args(UpdateType::send_success);
-//                //CDU: Do we need to pass in the sender/message here?
-//                //OpArgs    args;
-//                //results_t results;
-//                //args.type                 = UpdateType::send_success;
-//                //args.data.msg.sender      = &sender;
-//                //args.data.msg.ptr = (message_t*)((char*)ldo.dataPtr());
-//                WaitingType cb_rc = user_cb(&args);
-//            }
-//            //cout << "successful send   return " << ret << " LDO " << ldo.dataPtr() << std::endl;
-//            break;
-//        } else if (ret == -FI_EAVAIL) {
-//            cout << "Error entry in  send   " << std::endl;
-//            ret = fi_cq_readerr(scq,
-//                                &error,
-//                                0);
-//            if (0 > ret) {
-//                fprintf(stderr,
-//                        "Error returned from fi_cq_readerr: %zd", ret);
-//                abort();
-//            }
-//        } else {
-//            //cout << " send CQ is empty  " << std::endl;
-//            ;
-//        }
-//    }
 }
 
-/*
-FI_RMA] : Indicates that an RMA operation completed.
-This flag may be combined with an FI_READ, FI_WRITE, FI_REMOTE_READ, or
-FI_REMOTE_WRITE flag.
-
- */
 void
-fab_transport::Put(fab_peer *remote_peer, fab_buf *msg, DataObject ldo, struct fi_rma_iov remote, std::function< WaitingType(OpArgs *args) > user_cb)
+fab_transport::Get(
+    fab_peer *remote_peer,
+    fab_buf *msg,
+    DataObject ldo,
+    struct fi_rma_iov remote,
+    std::function< WaitingType(OpArgs *args) > user_cb)
 {
     int rc, ret, retry;
     struct fi_cq_data_entry wc = { 0 };
@@ -1119,136 +1319,13 @@ fab_transport::Put(fab_peer *remote_peer, fab_buf *msg, DataObject ldo, struct f
     context->remote_peer = remote_peer;
     context->msg         = msg;
     context->ldo         = ldo;
-    context->user_cb     = user_cb;
-
-    //cout << "Put  remote addr : "<< remote.addr <<  " key " << remote.key << std::endl;
-    //cout << " Put  peer  "<< remote_peer <<  " endpoint " << remote_peer->ep_addr << std::endl;
-    //rc = fi_write (remote_peer->ep_addr, ldo.dataPtr(), ldo.dataSize(), fi_mr_desc(msg->buf_mr), remote_peer->remote_addr, remote.addr, remote.key, NULL);
-    rc = fi_write (remote_peer->ep_addr,
-                   ldo.GetDataPtr(),
-                   ldo.GetDataSize(),
-                   fi_mr_desc(msg->buf_mr),
-                   remote_peer->remote_addr,
-                   remote.addr,
-                   remote.key,
-                   context); //cdu
-    if (rc) {
-        cerr << "fi_write error " << rc << endl;
-    }
-//    while (true) {
-//        ret = fi_cq_read(scq, (void *)&wc, 1);
-//        if (ret > 0) {
-//            cout << "successful Put   " << " flag at put cq read " << wc.flags <<std::endl;
-//            if (NULL != user_cb) {
-//                OpArgs args(UpdateType::put_success);
-//                //peer_t    sender(remote_peer);
-//                //OpArgs    args;
-//                //results_t results;
-//                //args.type                 = UpdateType::put_success;
-//                //args.data.msg.sender      = &sender;
-//                //args.data.msg.ptr = (message_t*)((char*)ldo.dataPtr());
-//                WaitingType cb_rc = user_cb(&args);
-//            }
-//            break;
-//        } else if (ret == -FI_EAVAIL) {
-//            cout << "Error entry in  Put   " << std::endl;
-//            ret = fi_cq_readerr(scq,
-//                                &error,
-//                                0);
-//            if (0 > ret) {
-//                fprintf(stderr,
-//                        "Error returned from fi_cq_readerr: %zd", ret);
-//                abort();
-//            }
-//        } else {
-//            retry++;
-//            //cout << " Put CQ is empty  " << std::endl;
-//            if (retry == 1000)
-//                break;
-//        }
-//    }
-}
-
-void
-fab_transport::Put(fab_peer *remote_peer, fab_buf *msg, DataObject ldo, uint64_t local_offset, struct fi_rma_iov remote, uint64_t len, std::function< WaitingType(OpArgs *args) > user_cb)
-{
-    int rc, ret, retry;
-    struct fi_cq_data_entry wc = { 0 };
-    struct fi_cq_err_entry error = { 0 };
-    uint64_t  cq_data;
-
-    struct fab_op_context *context = new struct fab_op_context;
-    context->remote_peer = remote_peer;
-    context->msg         = msg;
-    context->ldo         = ldo;
-    context->user_cb     = user_cb;
-
-    //cout << "Put  remote addr with offset : "<< remote.addr <<  " key " << remote.key << std::endl;
-    //rc = fi_write (remote_peer->ep_addr, (char *)ldo.dataPtr() + local_offset, len, fi_mr_desc(msg->buf_mr), remote_peer->remote_addr, remote.addr, remote.key, NULL);
-    rc = fi_write(remote_peer->ep_addr,
-                  (char *)ldo.GetDataPtr() + local_offset,
-                  len,
-                  fi_mr_desc(msg->buf_mr),
-                  remote_peer->remote_addr,
-                  remote.addr,
-                  remote.key,
-                  context); //cdu
-    if (rc) {
-        cerr << "fi_write error " << rc << endl;
-    }
-//    while (true) {
-//        ret = fi_cq_read(scq, (void *)&wc, 1);
-//        if (ret > 0) {
-//            cout << "successful Put   Offset case " << " flag at put cq read " << wc.flags <<std::endl;
-//            if (NULL != user_cb) {
-//                OpArgs args(UpdateType::put_success);
-//                //peer_t    sender(remote_peer);
-//                //OpArgs    args;
-//                //results_t results;
-//                //args.type                 = UpdateType::put_success;
-//                //args.data.msg.sender      = &sender;
-//                //args.data.msg.ptr = (message_t*)((char*)ldo.dataPtr());
-//                WaitingType cb_rc = user_cb(&args);
-//            }
-//            break;
-//        } else if (ret == -FI_EAVAIL) {
-//            cout << "Error entry in  Put   " << std::endl;
-//            ret = fi_cq_readerr(scq,
-//                                &error,
-//                                0);
-//            if (0 > ret) {
-//                fprintf(stderr,
-//                        "Error returned from fi_cq_readerr: %zd", ret);
-//                abort();
-//            }
-//        } else {
-//            retry++;
-//            //cout << " Put CQ is empty  " << std::endl;
-//            if (retry == 1000)
-//                break;
-//        }
-//    }
-}
-
-void
-fab_transport::Get(fab_peer *remote_peer, fab_buf *msg, DataObject ldo, struct fi_rma_iov remote, std::function< WaitingType(OpArgs *args) > user_cb)
-{
-    int rc, ret, retry;
-    struct fi_cq_data_entry wc = { 0 };
-    struct fi_cq_err_entry error = { 0 };
-    uint64_t  cq_data;
-
-    struct fab_op_context *context = new struct fab_op_context;
-    context->remote_peer = remote_peer;
-    context->msg         = msg;
-    context->ldo         = ldo;
+    context->loffset     = 0;
     context->user_cb     = user_cb;
 
     //cout << " Get  peer  "<< remote_peer <<  " endpoint " << remote_peer->ep_addr << std::endl;
-    //rc = fi_read (remote_peer->ep_addr, ldo.rawPtr(), ldo.rawSize(), fi_mr_desc(msg->buf_mr), remote_peer->remote_addr, remote.addr, remote.key, NULL); //CDU
     rc = fi_read(remote_peer->ep_addr,
-                 ldo.GetHeaderPtr(),
-                 ldo.GetHeaderSize() + ldo.GetMetaSize() + ldo.GetDataSize(),
+                 ldo.internal_use_only.GetHeaderPtr(),
+                 ldo.GetWireSize(),
                  fi_mr_desc(msg->buf_mr),
                  remote_peer->remote_addr,
                  remote.addr,
@@ -1257,42 +1334,17 @@ fab_transport::Get(fab_peer *remote_peer, fab_buf *msg, DataObject ldo, struct f
     if (rc) {
         cerr << "fi_write error " << rc << endl;
     }
-//    while (true) {
-//        ret = fi_cq_read(scq, (void *)&wc, 1);
-//        if (ret > 0) {
-//            cout << "successful Get first case   " << " flag at put cq read " << wc.flags <<std::endl;
-//            if (NULL != user_cb) {
-//                OpArgs args(UpdateType::put_success);
-//                // peer_t    sender(remote_peer);
-//                // OpArgs    args;
-//                // results_t results;
-//                // args.type                 = UpdateType::put_success;
-//                // args.data.msg.sender      = &sender;
-//                // args.data.msg.ptr = (message_t*)((char*)ldo.dataPtr());
-//                WaitingType cb_rc = user_cb(&args);
-//            }
-//            break;
-//        } else if (ret == -FI_EAVAIL) {
-//            cout << "Error entry in  Put   " << std::endl;
-//            ret = fi_cq_readerr(scq,
-//                                &error,
-//                                0);
-//            if (0 > ret) {
-//                fprintf(stderr,
-//                        "Error returned from fi_cq_readerr: %zd", ret);
-//                abort();
-//            }
-//        } else {
-//            retry++;
-//            //cout << " Put CQ is empty  " << std::endl;
-//            if (retry == 1000)
-//                break;
-//        }
-//    }
 }
 
 void
-fab_transport::Get(fab_peer *remote_peer, fab_buf *msg, DataObject ldo, uint64_t local_offset, struct fi_rma_iov remote, uint64_t len, std::function< WaitingType(OpArgs *args) > user_cb)
+fab_transport::Get(
+    fab_peer *remote_peer,
+    fab_buf *msg,
+    DataObject ldo,
+    uint64_t local_offset,
+    struct fi_rma_iov remote,
+    uint64_t len,
+    std::function< WaitingType(OpArgs *args) > user_cb)
 {
     int rc, ret, retry;
     struct fi_cq_data_entry wc = { 0 };
@@ -1303,12 +1355,12 @@ fab_transport::Get(fab_peer *remote_peer, fab_buf *msg, DataObject ldo, uint64_t
     context->remote_peer = remote_peer;
     context->msg         = msg;
     context->ldo         = ldo;
+    context->loffset     = local_offset;
     context->user_cb     = user_cb;
 
     //cout << "Get  remote addr with offset : "<< remote.addr <<  " key " << remote.key << std::endl;
-    //rc = fi_read (remote_peer->ep_addr,(char *)ldo.rawPtr() + local_offset, len, fi_mr_desc(msg->buf_mr), remote_peer->remote_addr, remote.addr, remote.key, NULL);
     rc = fi_read(remote_peer->ep_addr,
-                 (char *)ldo.GetHeaderPtr() + local_offset,
+                 (char *)ldo.internal_use_only.GetHeaderPtr() + local_offset,
                  len,
                  fi_mr_desc(msg->buf_mr),
                  remote_peer->remote_addr,
@@ -1318,39 +1370,188 @@ fab_transport::Get(fab_peer *remote_peer, fab_buf *msg, DataObject ldo, uint64_t
     if (rc) {
         cerr << "fi_write error " << rc << endl;
     }
-//    while (true) {
-//        ret = fi_cq_read(scq, (void *)&wc, 1);
-//        if (ret > 0) {
-//            cout << "successful Get   Offset case " << " flag at put cq read " << wc.flags <<std::endl;
-//            if (NULL != user_cb) {
-//                OpArgs args(UpdateType::put_success);
-//                // peer_t    sender(remote_peer);
-//                // OpArgs    args;
-//                // results_t results;
-//                // args.type                 = UpdateType::put_success;
-//                // args.data.msg.sender      = &sender;
-//                // args.data.msg.ptr = (message_t*)((char*)ldo.dataPtr());
-//                WaitingType cb_rc = user_cb(&args);
-//            }
-//            break;
-//        } else if (ret == -FI_EAVAIL) {
-//            cout << "Error entry in  Put   " << std::endl;
-//            ret = fi_cq_readerr(scq,
-//                                &error,
-//                                0);
-//            if (0 > ret) {
-//                fprintf(stderr,
-//                        "Error returned from fi_cq_readerr: %zd", ret);
-//                abort();
-//            }
-//        } else {
-//            retry++;
-//            //cout << " Put CQ is empty  " << std::endl;
-//            if (retry == 1000)
-//                break;
-//        }
-//    }
 }
+
+/*
+FI_RMA] : Indicates that an RMA operation completed.
+This flag may be combined with an FI_READ, FI_WRITE, FI_REMOTE_READ, or
+FI_REMOTE_WRITE flag.
+
+ */
+void
+fab_transport::Put(
+    fab_peer *remote_peer,
+    fab_buf *msg,
+    DataObject ldo,
+    struct fi_rma_iov remote,
+    std::function< WaitingType(OpArgs *args) > user_cb)
+{
+    int rc, ret, retry;
+    struct fi_cq_data_entry wc = { 0 };
+    struct fi_cq_err_entry error = { 0 };
+    uint64_t  cq_data;
+
+    struct fab_op_context *context = new struct fab_op_context;
+    context->remote_peer = remote_peer;
+    context->msg         = msg;
+    context->ldo         = ldo;
+    context->loffset     = 0;
+    context->user_cb     = user_cb;
+
+    //cout << "Put  remote addr : "<< remote.addr <<  " key " << remote.key << std::endl;
+    //cout << " Put  peer  "<< remote_peer <<  " endpoint " << remote_peer->ep_addr << std::endl;
+    rc = fi_write (remote_peer->ep_addr,
+                   ldo.internal_use_only.GetHeaderPtr(),
+                   ldo.GetWireSize(),
+                   fi_mr_desc(msg->buf_mr),
+                   remote_peer->remote_addr,
+                   remote.addr,
+                   remote.key,
+                   context); //cdu
+    if (rc) {
+        cerr << "fi_write error " << rc << endl;
+    }
+}
+
+void
+fab_transport::Put(
+    fab_peer *remote_peer,
+    fab_buf *msg,
+    DataObject ldo,
+    uint64_t local_offset,
+    struct fi_rma_iov remote,
+    uint64_t len,
+    std::function< WaitingType(OpArgs *args) > user_cb)
+{
+    int rc, ret, retry;
+    struct fi_cq_data_entry wc = { 0 };
+    struct fi_cq_err_entry error = { 0 };
+    uint64_t  cq_data;
+
+    struct fab_op_context *context = new struct fab_op_context;
+    context->remote_peer = remote_peer;
+    context->msg         = msg;
+    context->ldo         = ldo;
+    context->loffset     = local_offset;
+    context->user_cb     = user_cb;
+
+    //cout << "Put  remote addr with offset : "<< remote.addr <<  " key " << remote.key << std::endl;
+    rc = fi_write(remote_peer->ep_addr,
+                  (char *)ldo.internal_use_only.GetHeaderPtr() + local_offset,
+                  len,
+                  fi_mr_desc(msg->buf_mr),
+                  remote_peer->remote_addr,
+                  remote.addr,
+                  remote.key,
+                  context); //cdu
+    if (rc) {
+        cerr << "fi_write error " << rc << endl;
+    }
+}
+
+void
+fab_transport::Atomic(
+    fab_peer *remote_peer,
+    AtomicOp op,
+    fab_buf *msg,
+    DataObject ldo,
+    uint64_t loffset,
+    struct fi_rma_iov remote,
+    uint64_t length,
+    int64_t operand,
+    std::function< WaitingType(OpArgs *args) > user_cb)
+{
+    int rc, ret, retry;
+
+    *operand1_ptr = operand;
+
+    struct fab_op_context *context = new struct fab_op_context;
+    context->remote_peer = remote_peer;
+    context->msg         = msg;
+    context->ldo         = ldo;
+    context->loffset     = loffset;
+    context->user_cb     = user_cb;
+
+//    fprintf(stdout, "fab::Atomic(fadd) - operand=%ld  &operand=%p  *operand_ptr=%ld  operand_ptr=%p\n", operand, &operand, *operand1_ptr, operand1_ptr);
+//    fprintf(stdout, "fab::Atomic(fadd) - ldo value=%X\n", *(uint64_t*)((char *)ldo.GetDataPtr() + loffset));
+//    fprintf(stdout, "fab::Atomic(fadd) - ldo.data_ptr=%p, loffset=%lX\n", ldo.GetDataPtr(), loffset);
+
+    rc = fi_fetch_atomic(
+        remote_peer->ep_addr,
+
+        (void*)operand1_ptr,
+        1,
+        fi_mr_desc(operand1_mr),
+
+        (char *)ldo.GetDataPtr() + loffset,
+        fi_mr_desc(msg->buf_mr),
+
+        remote_peer->remote_addr,
+        remote.addr,
+        remote.key,
+
+        FI_INT64,
+        FI_SUM,
+        context);
+    if (rc) {
+        cerr << "fi_fetch_atomic error " << rc << endl;
+    }
+}
+
+void
+fab_transport::Atomic(
+    fab_peer *remote_peer,
+    AtomicOp op,
+    fab_buf *msg,
+    DataObject ldo,
+    uint64_t loffset,
+    struct fi_rma_iov remote,
+    uint64_t length,
+    int64_t operand1,
+    int64_t operand2,
+    std::function< WaitingType(OpArgs *args) > user_cb)
+{
+    int rc, ret, retry;
+
+    *operand1_ptr = operand1;
+    *operand2_ptr = operand2;
+
+    struct fab_op_context *context = new struct fab_op_context;
+    context->remote_peer = remote_peer;
+    context->msg         = msg;
+    context->ldo         = ldo;
+    context->loffset     = loffset;
+    context->user_cb     = user_cb;
+
+//    fprintf(stdout, "fab::Atomic(cswap) - operand1=%ld  operand2=%ld  *operand1_ptr=%ld  operand1_ptr=%lu  *operand2_ptr=%ld  operand2_ptr=%lu\n",
+//            operand1, operand2, *operand1_ptr, operand1_ptr, *operand2_ptr, operand2_ptr);
+//    fprintf(stdout, "fab::Atomic(cswap) - ldo value=%X\n", *(uint64_t*)((char *)ldo.GetDataPtr() + loffset));
+
+    rc = fi_compare_atomic(
+        remote_peer->ep_addr,
+
+        (void*)operand2_ptr,
+        1,
+        fi_mr_desc(operand2_mr),
+
+        (void*)operand1_ptr,
+        fi_mr_desc(operand1_mr),
+
+        (char *)ldo.GetDataPtr() + loffset,
+        fi_mr_desc(msg->buf_mr),
+
+        remote_peer->remote_addr,
+        remote.addr,
+        remote.key,
+
+        FI_INT64,
+        FI_CSWAP,
+        context);
+    if (rc) {
+        cerr << "fi_compare_atomic error " << rc << endl;
+    }
+}
+
 
 } // end of namespace
 } // end of namespace

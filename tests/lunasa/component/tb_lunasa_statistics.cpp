@@ -9,7 +9,7 @@
 #include <pthread.h>
 #include <sys/time.h>
 
-#include "common/Common.hh"
+#include "faodel-common/Common.hh"
 #include "lunasa/Lunasa.hh"
 #include "lunasa/DataObject.hh"
 
@@ -30,12 +30,12 @@ node_role server
 )EOF";
 
 static const char *mem_suffixes[] = {"bytes", "KB", "MB", "GB"};
-static void memory_text(unsigned long num_bytes, char *buffer, char length)
-{
+
+static void memory_text(unsigned long num_bytes, char *buffer, char length) {
   int i = 0;
-  double text_bytes = (double)num_bytes;
-  for( i = 0; i < 4; i++ ) {
-    if( text_bytes < 1024 ) {
+  double text_bytes = (double) num_bytes;
+  for(i = 0; i<4; i++) {
+    if(text_bytes<1024) {
       break;
     } else {
       text_bytes /= 1024;
@@ -44,32 +44,33 @@ static void memory_text(unsigned long num_bytes, char *buffer, char length)
 
   snprintf(buffer, length, "%.2f %s", text_bytes, mem_suffixes[i]);
 }
-  
+
 static const char *time_suffixes[] = {"s", "ms", "us", "ns"};
-static void time_text(double num_seconds, char *buffer, char length)
-{
+
+static void time_text(double num_seconds, char *buffer, char length) {
   int i = 0;
-  for( i = 0; i < 4; i++ ) {
-    if( num_seconds >= 1.0 ) {
+  for(i = 0; i<4; i++) {
+    if(num_seconds>=1.0) {
       break;
     } else {
       num_seconds *= 1000;
     }
   }
-  
+
   snprintf(buffer, length, "%.2f %s", num_seconds, time_suffixes[i]);
 }
 
 class LunasaStatisticsTest : public testing::Test {
 protected:
-  virtual void SetUp(){
+  void SetUp() override {
     Configuration config(default_config);
     config.AppendFromReferences();
 
     bootstrap::Init(config, lunasa::bootstrap);
     bootstrap::Start();
   }
-  virtual void TearDown(){
+
+  void TearDown() override {
     bootstrap::Finish();
   }
 
@@ -77,31 +78,31 @@ protected:
 };
 
 int ops = 10;
-#define BUFFER_LENGTH 32 
+#define BUFFER_LENGTH 32
 
 TEST_F(LunasaStatisticsTest, FixedSizeAllocations) {
-  srand ((int) clock ());
+  srand((int) clock());
 
   unsigned long num_bytes[] = {2*1024, 8*1024*1024, 0};
   int i = 0;
 
   DataObject *allocs = new DataObject[ops];
   char buffer[BUFFER_LENGTH];
-    
+
   EXPECT_EQ(0, Lunasa::TotalAllocated());
-  while( num_bytes[i] > 0 ) {
+  while(num_bytes[i]>0) {
     long sum = 0;
     // ALLOCATE
-    for (int j = 0; j < ops; j ++) {
+    for(int j = 0; j<ops; j++) {
       allocs[j] = DataObject(0, num_bytes[i], DataObject::AllocatorType::eager);
-      sum += allocs[j].GetTotalSize();
+      sum += allocs[j].GetRawAllocationSize();
       EXPECT_EQ(sum, Lunasa::TotalAllocated());
     }
 
     // DE-ALLOCATE
-    for (int j = 0; j < ops; j ++) {
-      sum -= allocs[j].GetTotalSize();
-      allocs[j] = DataObject ();
+    for(int j = 0; j<ops; j++) {
+      sum -= allocs[j].GetRawAllocationSize();
+      allocs[j] = DataObject();
       EXPECT_EQ(sum, Lunasa::TotalAllocated());
     }
     EXPECT_EQ(0, sum);
@@ -113,32 +114,31 @@ TEST_F(LunasaStatisticsTest, FixedSizeAllocations) {
 }
 
 TEST_F(LunasaStatisticsTest, RandomSizeAllocations) {
-  srand ((int) clock ());
+  srand((int) clock());
 
-  unsigned long num_bytes[] = {2*1024, 8*1024*1024, 0};
+  unsigned long *num_bytes = (unsigned long *) malloc(ops*sizeof(unsigned long));
   int i = 0;
 
   DataObject *allocs = new DataObject[ops];
   char buffer[BUFFER_LENGTH];
-    
-  for (int i = 0; i < ops; i ++)
-  {
-    num_bytes[i] = rand()%1048576 * sizeof (int);
+
+  for(int i = 0; i<ops; i++) {
+    num_bytes[i] = rand()%1048576*sizeof(int);
   }
 
   EXPECT_EQ(0, Lunasa::TotalAllocated());
   long sum = 0;
   // ALLOCATE
-  for (int i = 0; i < ops; i ++) {
+  for(int i = 0; i<ops; i++) {
     allocs[i] = DataObject(0, num_bytes[i], DataObject::AllocatorType::eager);
-    sum += allocs[i].GetTotalSize();
+    sum += allocs[i].GetRawAllocationSize();
     EXPECT_EQ(sum, Lunasa::TotalAllocated());
   }
 
   // DE-ALLOCATE
-  for (int i = 0; i < ops; i ++) {
-    sum -= allocs[i].GetTotalSize();
-    allocs[i] = DataObject ();
+  for(int i = 0; i<ops; i++) {
+    sum -= allocs[i].GetRawAllocationSize();
+    allocs[i] = DataObject();
     EXPECT_EQ(sum, Lunasa::TotalAllocated());
   }
   EXPECT_EQ(0, sum);
@@ -147,21 +147,21 @@ TEST_F(LunasaStatisticsTest, RandomSizeAllocations) {
 }
 
 
-int main(int argc, char **argv)
-{
-  if( argc != 2 ) {
+int main(int argc, char **argv) {
+  if(argc != 2) {
     cout << "[usage]: " << argv[0] << " <fixed|random>" << endl;
     return 0;
   }
 
   ::testing::InitGoogleTest(&argc, argv);
-  if( strcmp(argv[1], "fixed") == 0 ) {
+  if(strcmp(argv[1], "fixed") == 0) {
     ::testing::GTEST_FLAG(filter) = "LunasaStatisticsTest.FixedSizeAllocations";
-  } else if( strcmp(argv[1], "random") == 0 ) {
+  } else if(strcmp(argv[1], "random") == 0) {
     ::testing::GTEST_FLAG(filter) = "LunasaStatisticsTest.RandomSizeAllocations";
   } else {
     cout << "ERROR: Unrecognized test (" << argv[1] << ")" << endl;
   }
   int rc = RUN_ALL_TESTS();
+  return rc;
 }
 

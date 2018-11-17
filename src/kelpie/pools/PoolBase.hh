@@ -11,8 +11,8 @@
 #include <future>
 #include <inttypes.h>
 
-#include "common/Common.hh"
-#include "opbox/services/dirman/DirectoryManager.hh"
+#include "faodel-common/Common.hh"
+#include "faodel-common/LoggingInterface.hh"
 
 #include "kelpie/Key.hh"
 #include "kelpie/common/Types.hh"
@@ -38,12 +38,14 @@ class Kelpie;  //Forward reference
  * to implement different behaviors for each function.
  *
  */
-class PoolBase :
-    public faodel::InfoInterface {
+class PoolBase
+        : public faodel::InfoInterface,
+          public faodel::LoggingInterface {
 
 public:
   PoolBase(faodel::ResourceURL const &pool_url);
-  virtual ~PoolBase() { }  //Fill in if creates anything
+
+  ~PoolBase() override { }  //Fill in if creates anything
 
   virtual rc_t Publish(const Key &key, fn_publish_callback_t callback) = 0;
   virtual rc_t Publish(const Key &key, const lunasa::DataObject &user_ldo, fn_publish_callback_t callback) = 0;
@@ -63,19 +65,23 @@ public:
 
   faodel::bucket_t GetBucket() { return default_bucket; }
   faodel::ResourceURL GetURL() { return pool_url; }
-  opbox::DirectoryInfo GetDirectoryInfo() { return dir_info; }
-  std::string GetIomName(bool use_web_formatting=false);
+  faodel::DirectoryInfo GetDirectoryInfo() { return dir_info; }
+  pool_behavior_t GetBehavior() { return behavior_flags; }
+  std::string GetIomName(bool use_web_formatting=false, bool add_details=false);
+  iom_hash_t GetIomHash() { return iom_hash; }
 
 protected:
 
   faodel::nodeid_t my_nodeid;
   faodel::bucket_t default_bucket;
   faodel::ResourceURL pool_url;
-  opbox::DirectoryInfo dir_info;
+  faodel::DirectoryInfo dir_info;
 
   LocalKV *lkv;  //Not allocated here
   internal::IomBase *iom;  //Not allocated here - for local reference
-  uint32_t iom_hash; //For remote reference
+  iom_hash_t iom_hash; //For remote reference
+
+  pool_behavior_t behavior_flags;
 
   std::string pool_type;  //Which class this resolves to
 

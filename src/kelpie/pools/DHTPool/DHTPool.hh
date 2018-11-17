@@ -12,10 +12,9 @@
 #include <memory>
 #include <sstream>
 
-#include "common/Common.hh"
+#include "faodel-common/Common.hh"
 
 #include "opbox/net/net.hh"
-#include "opbox/services/dirman/DirectoryManager.hh"
 
 #include "kelpie/Key.hh"
 #include "kelpie/localkv/LocalKV.hh"
@@ -51,7 +50,7 @@ class DHTPool : public PoolBase {
 public:
 
   DHTPool(const faodel::ResourceURL &pool_url);
-  ~DHTPool();
+  ~DHTPool() override;
 
   //PoolBase functions
   rc_t Publish(const Key &key, fn_publish_callback_t callback) override;  //Lookup a local k/v and publish it
@@ -72,10 +71,10 @@ public:
   //InfoInterface function
   void sstr(std::stringstream &ss, int depth=0, int indent=0) const override;
 
-private:
+protected:
   std::vector<std::pair<faodel::nodeid_t, net::peer_ptr_t>> nodes;
 
-  uint32_t findNodeIndex(const Key &key);
+  virtual uint32_t findNodeIndex(const Key &key);
 
 };  //DHTPool
 

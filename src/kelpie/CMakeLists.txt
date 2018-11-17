@@ -15,6 +15,7 @@ set( HEADERS_PUBLIC
      localkv/LocalKVCell.hh
      localkv/LocalKVRow.hh
      pools/Pool.hh
+        services/PoolServerDriver.hh
 )
 
 set( HEADERS
@@ -35,6 +36,7 @@ set( HEADERS
      pools/DHTPool/DHTPool.hh
      pools/PoolRegistry.hh
      pools/UnconfiguredPool/UnconfiguredPool.hh
+        services/PoolServerDriver.hh
 )
 
 set( SOURCES
@@ -65,23 +67,51 @@ set( SOURCES
      pools/PoolBase.cpp
      pools/PoolRegistry.cpp
      pools/UnconfiguredPool/UnconfiguredPool.cpp
+        services/PoolServerDriver.cpp
 )
 
+if( Faodel_ENABLE_MPI_SUPPORT )
+  LIST( APPEND HEADERS pools/RFTPool/RFTPool.hh)
+  LIST( APPEND SOURCES pools/RFTPool/RFTPool.cpp)
+endif( Faodel_ENABLE_MPI_SUPPORT )
+
+
 LIST( APPEND Kelpie_imports
+  dirman
   opbox ${NETLIB_TARGETS}
-  webhook common sbl
+  webhook common sbl  
   Boost::program_options
   )
 
+# IomLevelDB needs LevelDB
+if( FAODEL_HAVE_LEVELDB AND Faodel_ENABLE_IOM_LEVELDB )
+  LIST( APPEND Kelpie_imports leveldb::leveldb )
+  LIST( APPEND Kelpie_extra_compile_defs "FAODEL_HAVE_LEVELDB" )
+
+  LIST( APPEND HEADERS ioms/IomLevelDB.hh )
+  LIST( APPEND SOURCES ioms/IomLevelDB.cpp )
+endif()
+
+# IomHDF5 needs HDF5
+if( FAODEL_HAVE_HDF5 AND Faodel_ENABLE_IOM_HDF5 )
+  LIST( APPEND Kelpie_imports Faodel::HDF5 )
+  LIST( APPEND Kelpie_extra_compile_defs "FAODEL_HAVE_HDF5" )
+  LIST( APPEND HEADERS ioms/IomHDF5.hh )
+  LIST( APPEND SOURCES ioms/IomHDF5.cpp )
+endif()
 
 # All things go in kelpie lib now
-add_library( kelpie STATIC ${HEADERS} ${SOURCES})
+add_library( kelpie ${HEADERS} ${SOURCES})
+if( Kelpie_extra_compile_defs )
+  target_compile_definitions( kelpie PUBLIC ${Kelpie_extra_compile_defs} )
+endif()
 target_link_libraries( kelpie PUBLIC ${Kelpie_imports} )
 
 install(TARGETS kelpie
   EXPORT        FaodelTargets
   RUNTIME       DESTINATION "${BINARY_INSTALL_DIR}" COMPONENT bin
   ARCHIVE       DESTINATION "${LIBRARY_INSTALL_DIR}" COMPONENT lib
+  LIBRARY       DESTINATION "${LIBRARY_INSTALL_DIR}" COMPONENT lib
   INCLUDES      DESTINATION "${INCLUDE_INSTALL_DIR}"
   )
 
@@ -95,15 +125,8 @@ install( FILES localkv/LocalKV.hh localkv/LocalKVCell.hh localkv/LocalKVRow.hh
   DESTINATION ${INCLUDE_INSTALL_DIR}/faodel/kelpie/localkv )
 install( FILES pools/Pool.hh
   DESTINATION ${INCLUDE_INSTALL_DIR}/faodel/kelpie/pools )
+install( FILES services/PoolServerDriver.hh
+  DESTINATION ${INCLUDE_INSTALL_DIR}/faodel/kelpie/services )
 
   
-configure_file(${CMAKE_CURRENT_SOURCE_DIR}/kelpieConfig.h.in
-    "${CMAKE_CURRENT_SOURCE_DIR}/kelpieConfig.h"
-    @ONLY
-    )
-
-# ... puts kelpieConfig.h in include/${PROJECT_NAME}
-install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/kelpieConfig.h"
-    DESTINATION include/faodel/kelpie
-    )
 #-----------------------------------------

@@ -18,7 +18,7 @@
 #include <map>
 #include <vector>
 
-#include "common/Configuration.hh"
+#include "faodel-common/Configuration.hh"
 
 #include "nnti/nnti_transport.hpp"
 #include "nnti/transports/base/base_transport.hpp"
@@ -71,6 +71,8 @@ mpi_transport::mpi_transport(
     faodel::rc_t rc = 0;
     uint64_t uint_value = 0;
 
+    nthread_lock_init(&new_connection_lock_);
+
     rc = config.GetUInt(&uint_value, "nnti.freelist.size", "128");
     if (rc == 0) {
         event_freelist_size_     = uint_value;
@@ -89,6 +91,8 @@ mpi_transport::mpi_transport(
  */
 mpi_transport::~mpi_transport()
 {
+    nthread_lock_fini(&new_connection_lock_);
+
     return;
 }
 
@@ -114,7 +118,12 @@ mpi_transport::start(void)
     MPI_Comm_size(nnti_comm_, &nnti_comm_size_);
     MPI_Comm_rank(nnti_comm_, &nnti_comm_rank_);
 
+    faodel::nodeid_t nodeid = webhook::Server::GetNodeID();
+    std::string addr = nodeid.GetIP();
+    std::string port = nodeid.GetPort();
+    url_ = nnti::core::nnti_url(addr, port);
     me_ = nnti::datatype::mpi_peer(this, url_, nnti_comm_rank_);
+    log_debug_stream("mpi_transport") << "me_ = " << me_.url().url();
 
     cmd_msg_size_  = 2048;
     cmd_msg_count_ = 64;
@@ -154,6 +163,11 @@ mpi_transport::start(void)
 
     started_ = true;
 
+    log_debug("mpi_transpoprt", "conn_map_ at startup contains:");
+    for (auto it = conn_map_.begin() ; it != conn_map_.end() ; ++it) {
+        log_debug("mpi_transpoprt", "conn to peer=%p pid=%016lx", (*it)->peer(), (*it)->peer_pid());
+    }
+
     log_debug("mpi_transport", "exit");
 
     return NNTI_OK;
@@ -163,16 +177,28 @@ NNTI_result_t
 mpi_transport::stop(void)
 {
     NNTI_result_t rc=NNTI_OK;;
+    nnti::core::nnti_connection_map_iter_t iter;
 
     log_debug("mpi_transport", "enter");
 
     started_ = false;
 
-//    close_all_conn();
+    // purge any remaining connections from the map
+    // FIX: this will leak memory and IB resources - do it better
+    nthread_lock(&new_connection_lock_);
+    for (iter = conn_map_.begin() ; iter != conn_map_.end() ; ) {
+        nnti::core::nnti_connection *conn = *iter;
+        ++iter;
+        conn_map_.remove(conn);
+    }
+    nthread_unlock(&new_connection_lock_);
 
     unregister_webhook_cb();
 
     stop_progress_thread();
+
+    purge_outstanding_cmd_ops();
+    purge_outstanding_cmd_msgs();
 
     teardown_command_buffer();
     teardown_freelists();
@@ -261,22 +287,64 @@ mpi_transport::connect(
     NNTI_peer_t *peer_hdl)
 {
     nnti::core::nnti_url        peer_url(url);
-    std::string                 reply;
-    std::string                 wh_path = build_webhook_connect_path();
+    nnti::datatype::nnti_peer  *peer = new nnti::datatype::mpi_peer(this, peer_url, -1);
+    nnti::core::mpi_connection *conn;
 
+    nthread_lock(&new_connection_lock_);
+
+    log_debug("mpi_transport", "In connect(), before conn_map_.insert():");
+    for (auto it = conn_map_.begin() ; it != conn_map_.end() ; ++it) {
+        log_debug("mpi_transpoprt", "conn to peer=%p pid=%016lx", (*it)->peer(), (*it)->peer_pid());
+    }
+
+    // look for an existing connection to reuse
+    log_debug("mpi_transport", "Looking for connection with pid=%016lx", peer->pid());
+    conn = (nnti::core::mpi_connection*)conn_map_.get(peer->pid());
+    if (conn != nullptr) {
+        log_debug("mpi_transport", "Found connection with pid=%016lx", peer->pid());
+        // reuse an existing connection
+        *peer_hdl = (NNTI_peer_t)conn->peer();
+        nthread_unlock(&new_connection_lock_);
+        return NNTI_OK;
+    }
+    log_debug("mpi_transport", "Couldn't find connection with pid=%016lx", peer->pid());
+
+    conn = new nnti::core::mpi_connection(this);
+
+    peer->conn(conn);
+    conn->peer(peer);
+
+    conn_map_.insert(conn);
+
+    log_debug("mpi_transport", "In connect(), after conn_map_.insert():");
+    for (auto it = conn_map_.begin() ; it != conn_map_.end() ; ++it) {
+        log_debug("mpi_transpoprt", "conn to peer=%p pid=%016lx", (*it)->peer(), (*it)->peer_pid());
+    }
+
+    nthread_unlock(&new_connection_lock_);
+
+    std::string reply;
+    std::string wh_path = build_webhook_connect_path();
     int wh_rc = 0;
     int retries = 5;
-    do {
+    wh_rc = webhook::retrieveData(peer_url.hostname(), peer_url.port(), wh_path, &reply);
+    while (wh_rc != 0 && --retries) {
+        sleep(1);
         wh_rc = webhook::retrieveData(peer_url.hostname(), peer_url.port(), wh_path, &reply);
-    } while (wh_rc != 0 && --retries);
-//    assert(wh_rc == 0);
+        log_debug("mpi_transport", "retrieveData() rc=%d", wh_rc);
+    }
     if (wh_rc != 0) {
         return(NNTI_ETIMEDOUT);
     }
 
-    nnti::core::mpi_connection *conn = new nnti::core::mpi_connection(this, reply);
+    log_debug("mpi_transport", "connect - reply=%s", reply.c_str());
 
-    conn_map_.insert(conn);
+    conn->peer_params(reply);
+
+    log_debug("mpi_transport", "After connect() conn_map_ contains:");
+    for (auto it = conn_map_.begin() ; it != conn_map_.end() ; ++it) {
+        log_debug("mpi_transpoprt", "conn to peer=%p pid=%016lx", (*it)->peer(), (*it)->peer_pid());
+    }
 
     *peer_hdl = (NNTI_peer_t)conn->peer();
 
@@ -298,16 +366,30 @@ mpi_transport::disconnect(
     std::string                  reply;
     nnti::core::nnti_connection *conn     = peer->conn();
 
-    if (conn==nullptr) {
-        log_warn("ibverbs_transport", "disconnect failed.  peer conn (%x) is nullptr", peer->pid());
+    log_debug("mpi_transport", "disconnecting from %s", peer_url.url().c_str());
+
+    nthread_lock(&new_connection_lock_);
+
+    conn = (nnti::core::mpi_connection*)conn_map_.get(peer->pid());
+    if (conn == nullptr) {
+        log_debug("mpi_transport", "disconnect couldn't find connection to %s. Already disconnected?", peer_url.url().c_str());
+        nthread_unlock(&new_connection_lock_);
         return NNTI_EINVAL;
     }
 
-    std::string wh_path = build_webhook_disconnect_path();
-
-    int wh_rc = webhook::retrieveData(peer_url.hostname(), peer_url.port(), wh_path, &reply);
-
     conn_map_.remove(conn);
+
+    nthread_unlock(&new_connection_lock_);
+
+    if (*peer != me_) {
+        std::string wh_path = build_webhook_disconnect_path();
+        int wh_rc = webhook::retrieveData(peer_url.hostname(), peer_url.port(), wh_path, &reply);
+        if (wh_rc != 0) {
+            return(NNTI_ETIMEDOUT);
+        }
+    }
+
+    log_debug("mpi_transport", "disconnect from %s (pid=%x) succeeded", peer->url(), peer->pid());
 
     delete conn;
     delete peer;
@@ -1200,14 +1282,41 @@ mpi_transport::connect_cb(
     const std::map<std::string,std::string> &args,
     std::stringstream                       &results)
 {
-    nnti::core::mpi_connection *conn = new nnti::core::mpi_connection(this, args);
+    nnti::core::mpi_connection *conn;
+
+    log_debug("mpi_transport", "inbound connection from %s", std::string(args.at("hostname")+":"+args.at("port")).c_str());
+
+    nthread_lock(&new_connection_lock_);
+
+    log_debug("mpi_transport", "In connect_cb(), before conn_map_.insert():");
+    for (auto it = conn_map_.begin() ; it != conn_map_.end() ; ++it) {
+        log_debug("mpi_transpoprt", "conn to peer=%p pid=%016lx", (*it)->peer(), (*it)->peer_pid());
+    }
+
+    nnti::core::nnti_url peer_url = nnti::core::nnti_url(args.at("hostname"), args.at("port"));
+
+    log_debug("mpi_transport", "Looking for connection with pid=%016lx", peer_url.pid());
+    conn = (nnti::core::mpi_connection*)conn_map_.get(peer_url.pid());
+    if (conn != nullptr) {
+        log_debug("mpi_transport", "Found connection with pid=%016lx", peer_url.pid());
+    } else {
+        log_debug("mpi_transport", "Couldn't find connection with pid=%016lx", peer_url.pid());
+
+        conn = new nnti::core::mpi_connection(this, args);
+        conn_map_.insert(conn);
+    }
+
+    log_debug("mpi_transport", "In connect_cb(), after conn_map_.insert():");
+    for (auto it = conn_map_.begin() ; it != conn_map_.end() ; ++it) {
+        log_debug("mpi_transpoprt", "conn to peer=%p pid=%016lx", (*it)->peer(), (*it)->peer_pid());
+    }
+
+    nthread_unlock(&new_connection_lock_);
 
     results << "hostname=" << url_.hostname() << std::endl;
     results << "addr="     << url_.addr()     << std::endl;
     results << "port="     << url_.port()     << std::endl;
     results << "rank="     << nnti_comm_rank_ << std::endl;
-
-    conn_map_.insert(conn);
 
     log_debug("mpi_transport", "connect_cb - results=%s", results.str().c_str());
 }
@@ -1220,13 +1329,18 @@ mpi_transport::disconnect_cb(
     nnti::core::nnti_connection *conn = nullptr;
     nnti::core::nnti_url         peer_url(args.at("hostname"), args.at("port"));
 
+    nthread_lock(&new_connection_lock_);
+
     log_debug("mpi_transport", "%s is disconnecting", peer_url.url().c_str());
     conn = conn_map_.get(peer_url.pid());
     log_debug("mpi_transport", "connection map says %s => conn(%p)", peer_url.url().c_str(), conn);
 
-    conn_map_.remove(conn);
+    if (conn != nullptr) {
+        conn_map_.remove(conn);
+        delete conn;
+    }
 
-    delete conn;
+    nthread_unlock(&new_connection_lock_);
 
     log_debug("mpi_transport", "disconnect_cb - results=%s", results.str().c_str());
 }
@@ -1267,7 +1381,6 @@ mpi_transport::peers_cb(
     nnti::core::nnti_connection_map_iter_t iter;
     for (iter = conn_map_.begin() ; iter != conn_map_.end() ; iter++) {
         std::string p((*iter)->peer()->url().url());
-        p.replace(0,2,"http");
         links.push_back(html::mkLink(p, p));
     }
     html::mkList(results, links);
@@ -1393,6 +1506,14 @@ mpi_transport::remove_outstanding_cmd_op(
     remove_outstanding_cmd_op(req_lock, op->index());
     req_lock.unlock();
 }
+void
+mpi_transport::purge_outstanding_cmd_ops()
+{
+    outstanding_op_requests_.clear();
+    outstanding_ops_.clear();
+
+    log_debug("mpi_transport", "cleared outstanding ops vector");
+}
 
 void
 mpi_transport::add_outstanding_cmd_msg(
@@ -1446,7 +1567,6 @@ mpi_transport::remove_outstanding_cmd_msg(
         }
     }
 }
-
 void
 mpi_transport::remove_outstanding_cmd_msg(
     int index)
@@ -1462,6 +1582,14 @@ mpi_transport::remove_outstanding_cmd_msg(
     std::unique_lock<std::mutex> req_lock(outstanding_requests_mutex_);
     remove_outstanding_cmd_msg(req_lock, msg->index());
     req_lock.unlock();
+}
+void
+mpi_transport::purge_outstanding_cmd_msgs()
+{
+    outstanding_msg_requests_.clear();
+    outstanding_msgs_.clear();
+
+    log_debug("mpi_transport", "cleared outstanding msgs vector");
 }
 
 NNTI_result_t
@@ -1627,6 +1755,12 @@ mpi_transport::execute_rdma_op(
                                 MPI_COMM_WORLD,
                                 &rdma_op->rdma_request());
             mpi_lock.unlock();
+            break;
+        case NNTI_OP_NOOP:
+        case NNTI_OP_SEND:
+        case NNTI_OP_ATOMIC_FADD:
+        case NNTI_OP_ATOMIC_CSWAP:
+            log_error("mpi_transport", "Should never get here!!!");
             break;
     }
 
@@ -1844,6 +1978,8 @@ mpi_transport::complete_send_command(nnti::core::mpi_cmd_msg *cmd_msg)
     }
 
     log_debug("mpi_transport", "complete_send_command() - exit");
+
+    return NNTI_OK;
 }
 
 NNTI_result_t
@@ -1876,6 +2012,8 @@ mpi_transport::complete_get_command(nnti::core::mpi_cmd_msg *cmd_msg)
     add_outstanding_cmd_msg(cmd_msg->cmd_request(), cmd_msg);
 
     log_debug("mpi_transport", "complete_get_command() - exit");
+
+    return NNTI_OK;
 }
 
 NNTI_result_t
@@ -1908,6 +2046,8 @@ mpi_transport::complete_put_command(nnti::core::mpi_cmd_msg *cmd_msg)
     add_outstanding_cmd_msg(cmd_msg->cmd_request(), cmd_msg);
 
     log_debug("mpi_transport", "complete_put_command() - exit");
+
+    return NNTI_OK;
 }
 
 NNTI_result_t
@@ -1956,6 +2096,8 @@ mpi_transport::complete_fadd_command(nnti::core::mpi_cmd_msg *cmd_msg)
     log_debug("mpi_transport", "fadd result (fetch=%ld ; sum=%ld)", current, *op_addr);
 
     log_debug("mpi_transport", "complete_fadd_command() - exit");
+
+    return NNTI_OK;
 }
 
 NNTI_result_t
@@ -2006,6 +2148,8 @@ mpi_transport::complete_cswap_command(nnti::core::mpi_cmd_msg *cmd_msg)
     log_debug("mpi_transport", "cswap result (operand1=%ld ; operand2=%ld ; target=%ld)", h->operand1, h->operand2, *op_addr);
 
     log_debug("mpi_transport", "complete_cswap_command() - exit");
+
+    return NNTI_OK;
 }
 
 int
@@ -2153,8 +2297,12 @@ mpi_transport::progress_op_requests(void)
 
             bool need_event = true;
 
+            std::unique_lock<std::mutex> mpi_lock(mpi_mutex_, std::defer_lock);
             nnti::datatype::nnti_work_request &wr = cmd_op->wid()->wr();
             switch (wr.op()) {
+                case NNTI_OP_NOOP:
+                    log_error("mpi_transport", "Should never get here!!!");
+                    break;
                 case NNTI_OP_SEND:
                     if (!cmd_op->eager()) {
                         std::unique_lock<std::mutex> mpi_lock(mpi_mutex_);
@@ -2172,7 +2320,7 @@ mpi_transport::progress_op_requests(void)
                 case NNTI_OP_PUT:
                 case NNTI_OP_ATOMIC_FADD:
                 case NNTI_OP_ATOMIC_CSWAP:
-                    std::unique_lock<std::mutex> mpi_lock(mpi_mutex_);
+                    mpi_lock.lock();
                     MPI_Wait(&cmd_op->rdma_request(), &event);
                     mpi_lock.unlock();
                     log_debug("mpi_transport", "RDMA Event= {");

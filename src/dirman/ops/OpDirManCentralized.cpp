@@ -4,16 +4,17 @@
 
 #include <iostream>
 
-#include "common/Debug.hh"
+#include "faodel-common/Debug.hh"
 
-#include "opbox/services/dirman/DirectoryManager.hh"
-#include "opbox/services/dirman/ops/OpDirManCentralized.hh"
+#include "dirman/DirMan.hh"
+#include "dirman/ops/OpDirManCentralized.hh"
 
-#include "opbox/services/dirman/ops/msg_dirman.hh"
+#include "dirman/ops/msg_dirman.hh"
 
 
 using namespace std;
-using namespace opbox;
+
+namespace dirman {
 
 //Static names/ids for this op
 const unsigned int OpDirManCentralized::op_id = const_hash("OpDirManCentralized");
@@ -26,14 +27,13 @@ const string OpDirManCentralized::op_name = "OpDirManCentralized";
  * @param[in] root_id The root node where this message should be transmitted
  * @param[in] dir_info The DirectoryInfo structure (which can include a list of participating nodes) to register
  */
-OpDirManCentralized::OpDirManCentralized(RequestType req_type, faodel::nodeid_t root_id, DirectoryInfo dir_info)
-  : Op(true), state(State::start), ldo_msg(), request_type(RequestType::HostNewDir)
-     {
+OpDirManCentralized::OpDirManCentralized(RequestType req_type, faodel::nodeid_t root_id, faodel::DirectoryInfo dir_info)
+        : Op(true), state(State::start), ldo_msg(), request_type(RequestType::HostNewDir) {
 
   kassert(req_type == RequestType::HostNewDir, "Only supports hostnewdir now");
 
-  opbox::net::Connect(&peer, root_id); //Retrieve the root's peer ptr
-
+  int rc = opbox::net::Connect(&peer, root_id); //Retrieve the root's peer ptr
+  kassert((rc==0), "Connect failed?");
 
   msg_dirman::AllocateRequest(ldo_msg,
                               RequestType::HostNewDir,
@@ -50,14 +50,15 @@ OpDirManCentralized::OpDirManCentralized(RequestType req_type, faodel::nodeid_t 
  * @param[in] url The name of the resource that we're looking up
  */
 OpDirManCentralized::OpDirManCentralized(RequestType req_type, faodel::nodeid_t root_id, faodel::ResourceURL url)
-  : Op(true), state(State::start), ldo_msg(), request_type(req_type) {
+        : Op(true), state(State::start), ldo_msg(), request_type(req_type) {
 
-  kassert( (req_type==RequestType::GetInfo)  ||
-           (req_type==RequestType::JoinDir)  ||
-           (req_type==RequestType::LeaveDir) ||
-           (req_type==RequestType::ReturnDirInfo), "Request type not handled");
+  kassert((req_type == RequestType::GetInfo) ||
+          (req_type == RequestType::JoinDir) ||
+          (req_type == RequestType::LeaveDir) ||
+          (req_type == RequestType::ReturnDirInfo), "Request type not handled");
 
-  opbox::net::Connect(&peer, root_id); //Retrieve the root's peer ptr
+  int rc = opbox::net::Connect(&peer, root_id); //Retrieve the root's peer ptr
+  kassert((rc==0), "Connect failed?");
 
   msg_dirman::AllocateRequest(ldo_msg,
                               req_type,
@@ -72,7 +73,7 @@ OpDirManCentralized::OpDirManCentralized(RequestType req_type, faodel::nodeid_t 
  * @return OpDirManCentralized - The target state machine, ready to be triggered for handling a new message
  */
 OpDirManCentralized::OpDirManCentralized(op_create_as_target_t t)
-  : Op(t), state(State::start), ldo_msg()  {
+        : Op(t), state(State::start), ldo_msg() {
   //No work to do - done in target's state machine
 }
 
@@ -87,7 +88,7 @@ OpDirManCentralized::~OpDirManCentralized() = default;
  * @return future
  * @note This function must be executed **before** launching the Op
  */
-future<DirectoryInfo> OpDirManCentralized::GetFuture(){
+future<faodel::DirectoryInfo> OpDirManCentralized::GetFuture() {
   return di_promise.get_future();
 }
 
@@ -96,10 +97,15 @@ future<DirectoryInfo> OpDirManCentralized::GetFuture(){
  * @return string label
  */
 string OpDirManCentralized::GetStateName() const {
-  switch(state){
-  case State::start:              return "Start";
-  case State::snd_wait_for_reply: return "Sender-WaitForReply";
-  case State::done:               return "Done";
+  switch (state) {
+    case State::start:
+      return "Start";
+    case State::snd_wait_for_reply:
+      return "Sender-WaitForReply";
+    case State::done:
+      return "Done";
   }
   KFAIL();
 }
+
+} // namespace dirman

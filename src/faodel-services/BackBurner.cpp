@@ -3,13 +3,14 @@
 // the U.S. Government retains certain rights in this software. 
 
 #include <iostream>
+#include <utility>
 #include <vector>
 #include <string>
 
 
-#include "common/BackBurner.hh"
-#include "common/Bootstrap.hh"
-#include "common/Debug.hh"
+#include "faodel-services/BackBurner.hh"
+#include "faodel-common/Bootstrap.hh"
+#include "faodel-common/Debug.hh"
 
 #if FAODEL_LOGGING_INTERFACE_DISABLE==1
 #define dbg(a) {}
@@ -35,11 +36,11 @@ BackBurner::~BackBurner() {
     Finish();
   }
 }
-void BackBurner::RegisterPollingFunction(string name, uint32_t group_id, fn_backburner_work polling_function) {
+void BackBurner::RegisterPollingFunction(const string &name, uint32_t group_id, fn_backburner_work polling_function) {
 
   kassert(!configured, "BackBurner RegisterPollingFunction called after Start called");
 
-  workers->at(group_id%worker_count).RegisterPollingFunction(name, group_id, polling_function);
+  workers->at(group_id%worker_count).RegisterPollingFunction(name, group_id, std::move(polling_function));
 }
 
 void BackBurner::DisablePollingFunction(string name) {
@@ -48,7 +49,7 @@ void BackBurner::DisablePollingFunction(string name) {
   }
 }
 
-void BackBurner::DisablePollingFunction(string name, uint32_t group_id) {
+void BackBurner::DisablePollingFunction(const string &name, uint32_t group_id) {
 
   workers->at(group_id%worker_count).DisablePollingFunction(name);
 }
@@ -66,7 +67,7 @@ void BackBurner::Init(const Configuration &config) {
   //Note: Don't use push_back(worker(id)) here, because doing so means
   //      you need to define copy operator.
   workers = new std::vector<Worker>(worker_count);
-  for(int i=0; i<worker_count; i++) {
+  for(size_t i=0; i<worker_count; i++) {
     workers->at(i).SetConfiguration(config, i);
   }
 }
@@ -97,7 +98,7 @@ void BackBurner::GetBootstrapDependencies(
 
 void BackBurner::AddWork(fn_backburner_work work) {
   dbg("Add Work");
-  workers->at(0).AddWork(work);
+  workers->at(0).AddWork(std::move(work));
 }
 
 void BackBurner::AddWork(vector<fn_backburner_work> work) {
@@ -107,7 +108,7 @@ void BackBurner::AddWork(vector<fn_backburner_work> work) {
 
 void BackBurner::AddWork(uint32_t tag, fn_backburner_work work) {
   dbg("Add work with tag "+std::to_string(tag));
-  workers->at(tag%worker_count).AddWork(work);
+  workers->at(tag%worker_count).AddWork(std::move(work));
 }
 
 void BackBurner::AddWork(uint32_t tag, vector<fn_backburner_work> work) {
@@ -171,7 +172,7 @@ void BackBurner::Worker::RegisterPollingFunction(string name, uint32_t group_id,
     cerr <<"Attempted to register function "<<name<<" more than once in BackBurner\n";
     exit(-1);
   }
-  registered_poll_functions[name] = polling_function;
+  registered_poll_functions[name] = std::move(polling_function);
 }
 
 void BackBurner::Worker::DisablePollingFunction(string name) {
@@ -244,26 +245,26 @@ BackBurner bb;
 
 } // namespace internal
 
-void RegisterPollingFunction(string name, uint32_t group_id, fn_backburner_work polling_function) {
-  return internal::bb.RegisterPollingFunction(name, group_id, polling_function);
+void RegisterPollingFunction(const string &name, uint32_t group_id, fn_backburner_work polling_function) {
+  return internal::bb.RegisterPollingFunction(name, group_id, std::move(polling_function));
 }
-void DisablePollingFunction(string name) {
+void DisablePollingFunction(const string &name) {
   return internal::bb.DisablePollingFunction(name);
 }
-void DisablePollingFunction(string name, uint32_t group_id) {
+void DisablePollingFunction(const string &name, uint32_t group_id) {
   return internal::bb.DisablePollingFunction(name, group_id);
 }
 void AddWork(fn_backburner_work work) {
-  return internal::bb.AddWork(work);
+  return internal::bb.AddWork(std::move(work));
 }
 void AddWork(vector<fn_backburner_work> work) {
-  return internal::bb.AddWork(work);
+  return internal::bb.AddWork(std::move(work));
 }
 void AddWork(uint32_t tag, fn_backburner_work work) {
-  return internal::bb.AddWork(tag, work);
+  return internal::bb.AddWork(tag, std::move(work));
 }
 void AddWork(uint32_t tag, vector<fn_backburner_work> work) {
-  return internal::bb.AddWork(tag, work);
+  return internal::bb.AddWork(tag, std::move(work));
 }
 
 std::string bootstrap() {

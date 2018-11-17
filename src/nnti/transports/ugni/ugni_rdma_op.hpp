@@ -16,7 +16,7 @@
 #include <sstream>
 #include <string>
 
-#include "common/MutexWrapper.hh"
+#include "faodel-common/MutexWrapper.hh"
 
 #include "nnti/nnti_packable.h"
 #include "nnti/nnti_types.h"

@@ -23,10 +23,6 @@ using namespace kelpie;
 //The configuration used in this example
 std::string default_config_string = R"EOF(
 
-# Note: node_role is defined when we determine if this is a client or a server
-nnti.transport.name   mpi
-config.additional_files.env_name.if_defined   FAODEL_CONFIG
-
 # For local testing, tell kelpie to use the nonet implementation
 kelpie.type nonet
 
@@ -51,7 +47,7 @@ lunasa.eager_memory_manager malloc
 
 class IomPosixIOSimple : public testing::Test {
 protected:
-  virtual void SetUp() {
+  void SetUp() override {
 
     char p1[] = "/tmp/gtestXXXXXX";
     char p2[] = "/tmp/gtestXXXXXX";
@@ -96,7 +92,7 @@ lunasa::DataObject createLDO(int id, string name, int data_bytes) {
   mptr->block_id = id;
   mptr->data_bytes=0;
 
-  memset(dptr->name, 0, 256);
+  memset(mptr->name, 0, 256);
   memset(dptr->name, 0, 256);
 
   string meta_name = "id-"+std::to_string(id);
@@ -127,7 +123,8 @@ bool checkLDO(const lunasa::DataObject &ldo, int id) {
   for(int i=0; i<dptr->data_bytes; i++)
     if( dptr->data[i] != (i&0x0FF) ) bad_count++;
   EXPECT_EQ(0, bad_count);
-  
+
+  return true;
 }
 
 

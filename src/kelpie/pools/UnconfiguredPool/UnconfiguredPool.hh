@@ -12,7 +12,7 @@
 #include <memory>
 #include <sstream>
 
-#include "common/Common.hh"
+#include "faodel-common/Common.hh"
 
 
 #include "kelpie/Key.hh"
@@ -37,24 +37,24 @@ class UnconfiguredPool : public PoolBase {
 public:
 
   UnconfiguredPool();
-  ~UnconfiguredPool();
+  ~UnconfiguredPool() override;
 
   //PoolBase functions
-  rc_t Publish(const Key &key, fn_publish_callback_t callback);
-  rc_t Publish(const Key &key, const lunasa::DataObject &user_ldo, fn_publish_callback_t callback);
+  rc_t Publish(const Key &key, fn_publish_callback_t callback) override;
+  rc_t Publish(const Key &key, const lunasa::DataObject &user_ldo, fn_publish_callback_t callback) override;
 
-  rc_t Want(const Key &key, size_t expected_ldo_user_bytes, fn_want_callback_t callback);
+  rc_t Want(const Key &key, size_t expected_ldo_user_bytes, fn_want_callback_t callback) override;
 
   rc_t Need(const Key &key, size_t expected_ldo_user_bytes, lunasa::DataObject *returned_ldo);  //Block until get
-  rc_t Info(const Key &key, kv_col_info_t *col_info);
-  rc_t RowInfo(const Key &key, kv_row_info_t *row_info);
-  rc_t Drop(const Key &key);
+  rc_t Info(const Key &key, kv_col_info_t *col_info) override;
+  rc_t RowInfo(const Key &key, kv_row_info_t *row_info) override;
+  rc_t Drop(const Key &key) override;
 
-  int FindTargetNode(const Key &key, faodel::nodeid_t *node_id=nullptr, net::peer_ptr_t *peer_ptr=nullptr);
-  std::string TypeName() const { return "unconfigured"; }
+  int FindTargetNode(const Key &key, faodel::nodeid_t *node_id=nullptr, net::peer_ptr_t *peer_ptr=nullptr) override;
+  std::string TypeName() const override { return "unconfigured"; }
 
   //InfoInterface function
-  void sstr(std::stringstream &ss, int depth=0, int indent=0) const;
+  void sstr(std::stringstream &ss, int depth=0, int indent=0) const override;
 
 private:
   void Panic(std::string caller) const;

@@ -5,7 +5,7 @@
 #include <iostream>
 #include <sstream>
 
-#include <sys/unistd.h>		//gethostname
+#include <sys/unistd.h> //gethostname
 #include <assert.h>
 
 #include "opbox/net/net.hh"
@@ -13,9 +13,9 @@
 
 #include "webhook/Server.hh"
 #include "webhook/client/Client.hh"
-#include "webhook/common/QuickHTML.hh"
+#include "faodel-common/QuickHTML.hh"
 
-#include "fab_transport.hh"
+#include "opbox/net/libfabric_wrapper/fab_transport.hh"
 
 #if HAVE_CONFIG_H
 #  include <config.h>
@@ -63,7 +63,7 @@
 #include <unistd.h>
 
 
-#include "common/Configuration.hh"
+#include "faodel-common/Configuration.hh"
 #include "lunasa/Lunasa.hh"
 #include "lunasa/DataObject.hh"
 
@@ -94,12 +94,16 @@ lunasa::Lunasa *lunasa_;
 std::map<faodel::nodeid_t, opbox::net::peer_t *>  node_peermap;
 
 
-class initiator_callback {
+class initiator_callback
+{
 private:
     std::function< WaitingType(OpArgs *args) > user_cb_;
     struct fab_buf *send_buf;
 
-    UpdateType completion_to_update_type(struct fi_cq_msg_entry  entry) {
+    UpdateType
+    completion_to_update_type(
+        struct fi_cq_msg_entry  entry)
+    {
         switch(entry.flags) {
             case FI_SEND:  return UpdateType::send_success;
             case FI_WRITE: return UpdateType::put_success;
@@ -110,17 +114,24 @@ private:
     }
 
 public:
-    initiator_callback() {
+    initiator_callback()
+    {
         return;
     }
 
-    initiator_callback(std::function< WaitingType(OpArgs *args) > user_cb, struct fab_buf *buf) {
+    initiator_callback(
+        std::function< WaitingType(OpArgs *args) > user_cb,
+        struct fab_buf *buf)
+    {
         user_cb_ = user_cb;
         send_buf = buf;
         return;
     }
 
-    int operator() (struct fi_cq_msg_entry entry, struct fab_buf *buf) {
+    int operator() (
+        struct fi_cq_msg_entry entry,
+        struct fab_buf *buf)
+    {
         int rc = 0;
         /*
         faodel::nodeid_t  nodeid= *entry.op_context;
@@ -142,27 +153,32 @@ public:
 
 initiator_callback *client_cb;
 
-struct fabBufferRemote {
+struct fabBufferRemote
+{
     uint64_t base;
     uint32_t offset;
     uint32_t length;
     uint64_t key;
 };
 
-struct fabBufferLocal : NetBufferLocal {
+struct fabBufferLocal : NetBufferLocal
+{
     struct fab_buf fbuf;
 
-    void makeRemoteBuffer(size_t           remote_offset,   // in
-        size_t           remote_length,   // in
-        NetBufferRemote *remote_buffer);  // out
+    void
+    makeRemoteBuffer(
+        size_t           remote_offset,
+        size_t           remote_length,
+        NetBufferRemote *remote_buffer);
 };
 
-void fabBufferLocal::makeRemoteBuffer(
-    size_t           remote_offset,   // in
-    size_t           remote_length,   // in
-    NetBufferRemote *remote_buffer) { // out
-
-    auto rb = reinterpret_cast<fabBufferRemote *>(remote_buffer);
+void
+fabBufferLocal::makeRemoteBuffer(
+    size_t           remote_offset,
+    size_t           remote_length,
+    NetBufferRemote *remote_buffer)
+{
+    fabBufferRemote *rb = reinterpret_cast<fabBufferRemote *>(remote_buffer);
 
     rb->offset = remote_offset;
     rb->length = remote_length;
@@ -170,205 +186,151 @@ void fabBufferLocal::makeRemoteBuffer(
     rb->key    = fbuf.key;
     //cout << "Make Remote buffer addr base " << rb->base << " key " << rb->key << std::endl;
     //cout << "Make Remote buffer offset " << rb->offset << " length " << rb->length << std::endl;
-
 }
 
-void RegisterMemory(void *base_addr, size_t length, void *&pinned) {
+void
+RegisterMemory(
+    void *base_addr,
+    size_t length,
+    void *&pinned)
+{
     auto local=new fabBufferLocal();
     fabtrns->register_memory(base_addr, length, &local->fbuf);
     pinned = (void*)local;
 }
 
-void UnregisterMemory(void *&pinned) {
+void
+UnregisterMemory(
+    void *&pinned)
+{
     auto local = reinterpret_cast<fabBufferLocal *>(pinned);
+    fabtrns->unregister_memory(&local->fbuf);
     delete local;
     pinned = NULL;
 }
 
-void Configure(faodel::Configuration &config) {
+void
+Configure(
+    faodel::Configuration &config)
+{
     //cout <<"Net  configure\n";
     config_ = config;  // make a copy
     configured_=true;
 }
 
-/*
- *
- * Create an DataObject that can be used for zero copy sends.
- *
- */
-DataObject NewMessage(uint64_t size) {
-    //FAB_RECV_SIZE 4096 for each cmd message receive
-    uint32_t meta_size = 0;
-    DataObject ldo(meta_size, size,  DataObject::AllocatorType::eager);
-    return std::move(ldo);
-}
-
-void RegisterRecvCallback(std::function<void(opbox::net::peer_ptr_t, opbox::message_t*)> recv_cb) {
+void
+RegisterRecvCallback(
+    std::function<void(opbox::net::peer_ptr_t, opbox::message_t*)> recv_cb)
+{
     fabtrns->recv_cb_ = recv_cb;
 }
 
-void Atomic(
-    peer_ptr_t           peer,
-    AtomicOp             op,
-    DataObject          local_ldo,
-    uint64_t             local_offset,
-    NetBufferRemote     *remote_buffer,
-    uint64_t             remote_offset,
-    uint64_t             length,         // TODO: this param is ignored because we only do 64-bit atomics
-    lambda_net_update_t  user_cb) {
 
-    KTODO("Libfabric wrapper atomic");
-    return;
+void
+Init(
+    const faodel::Configuration &config)
+{
+    config_ = config; // Make a copy of config for own to use in Start()
+    fabtrns = fabtrns->get_instance();
+    //cout << "Net libfabric init Done\n";
 }
 
-/*
- * Execute a one-sided atomic operation with one operand on peer at
- * remote_buffer.  length is the width of the operands in bits.  user_cb is
- * invoked after the atomic completes.
- */
-void Atomic(
-    peer_ptr_t           peer,
-    AtomicOp             op,
-    DataObject          local_ldo,
-    uint64_t             local_offset,
-    NetBufferRemote     *remote_buffer,
-    uint64_t             remote_offset,
-    uint64_t             length,         // TODO: this param is ignored because we only do 64-bit atomics
-    uint64_t             operand,
-    lambda_net_update_t  user_cb) {
-    KTODO("Libfabric wrapper atomic");
-    return;
+void
+Start(
+    const faodel::Configuration &config)
+{
+    Init(config);
+    Start();
 }
 
-void Atomic(
-    peer_ptr_t           peer,
-    AtomicOp             op,
-    DataObject          local_ldo,
-    uint64_t             local_offset,
-    NetBufferRemote     *remote_buffer,
-    uint64_t             remote_offset,
-    uint64_t             length,         // TODO: this param is ignored because we only do 64-bit atomics
-    uint64_t             operand1,
-    uint64_t             operand2,
-    lambda_net_update_t  user_cb) {
-    KTODO("Libfabric wrapper atomic");
-    return;
+void
+Start()
+{
+
+    int rc = 0;
+    int i, ret = 0;
+    std::string trans_name;
+    std::string name_key("net.transport.name");  // verbs, gni, sockets for now
+
+    if(0 != config_.GetLowercaseString(&trans_name, name_key)) {
+        std::cerr << "NetLibfabric -> Provider name (verbs/sockets/gni) not specified.  Defaulting to 'sockets'." << std::endl;;
+        trans_name = "sockets";
+    }
+    assert(webhook::Server::IsRunning() && "Webhook not started before fabric started");
+    fabtrns->mynodeid = webhook::Server::GetNodeID();
+//    cout << "mynodeid = " << fabtrns->mynodeid.GetHex() << endl;
+    if((trans_name == "gni") || (trans_name == "ugni")) {
+        fabtrns->my_transport_id = 2;
+        fabtrns->fab_init_rdm("gni");
+    } else if((trans_name == "verbs") || (trans_name == "ibverbs")) {
+        fabtrns->my_transport_id = 1;
+        fabtrns->fab_init_ib("verbs");
+    } else if(trans_name == "sockets") {
+        fabtrns->my_transport_id = 3;
+        fabtrns->fab_init_rdm("sockets");
+    } else if(trans_name == "mpi") {
+        std::cerr << "NetLibfabric -> net.transport.name has unsupported value 'mpi'.  Failing back to 'sockets'." << std::endl;
+        fabtrns->my_transport_id = 3;
+        fabtrns->fab_init_rdm("sockets");
+    } else {
+        std::cerr << "NetLibfabric -> net.transport.name has unknown value '" << trans_name << "'.  Failing back to 'sockets'." << std::endl;
+        fabtrns->my_transport_id = 3;
+        fabtrns->fab_init_rdm("sockets");
+    }
+    //cout << "after calling init and before starting threads\n";
+
+    lunasa::RegisterPinUnpin(RegisterMemory, UnregisterMemory);
+
+    fabtrns->start();
 }
 
 
-void Put(peer_t          *peer,
-    DataObject      local_ldo,
-    NetBufferRemote *remote_buffer,
-    std::function< WaitingType(OpArgs *args) > user_cb){
-
-    //cout << "Calling put " << std::endl;
-
-    auto nbr = reinterpret_cast<fabBufferRemote *>(remote_buffer);
-    struct fi_rma_iov remote;
-    struct fab_peer* fpeer = peer->p;
-
-    fabBufferLocal   *local;
-    uint32_t         local_bl_offset;
-    //local_ldo.getRdmaPtr( (void **)&local, local_bl_offset);
-    local_ldo.GetBaseRdmaHandle( (void **)&local, local_bl_offset); //CDU: FIX
-    remote.addr = nbr->base + nbr->offset;
-    //remote.addr = nbr->base;
-    remote.key = nbr->key;
-
-    //cout << "Put Remote buffer addr base " << nbr->base << " key " << nbr->key << std::endl;
-    //cout << "Put Remote buffer offset " << nbr->offset << " length " << nbr->length << std::endl;
-    fabtrns->Put(fpeer,&local->fbuf, local_ldo, remote, user_cb);
-
-    return;
+void
+Finish()
+{
+//    cout <<"Libfabric::Finish()" << endl;
+    fabtrns->stop();
 }
 
-void Put(
-    peer_t          *peer,
-    DataObject      local_ldo,
-    uint64_t         local_offset,
-    NetBufferRemote *remote_buffer,
-    uint64_t         remote_offset,
-    uint64_t         length,
-    std::function< WaitingType(OpArgs *args) > user_cb) {
-    //cout << "Calling put " << std::endl;
-
-    auto nbr = reinterpret_cast<fabBufferRemote *>(remote_buffer);
-    struct fi_rma_iov remote;
-    struct fab_peer* fpeer = peer->p;
-
-    fabBufferLocal   *local;
-    uint32_t         local_bl_offset;
-    //local_ldo.getRdmaPtr( (void **)&local, local_bl_offset);
-    local_ldo.GetBaseRdmaHandle( (void **)&local, local_bl_offset); //CDU: FIX
-    remote.addr = nbr->base + nbr->offset + remote_offset;
-    remote.key = nbr->key;
-
-    fabtrns->Put(fpeer,&local->fbuf, local_ldo, local_offset, remote, length, user_cb);
-    return;
+faodel::nodeid_t
+GetMyID()
+{
+    int rc=0;
+    return fabtrns->mynodeid;
 }
 
-void Get(
-    peer_t          *peer,
-    NetBufferRemote *remote_buffer,
-    DataObject      local_ldo,
-    std::function< WaitingType(OpArgs *args) > user_cb) {
-
-    auto nbr = reinterpret_cast<fabBufferRemote *>(remote_buffer);
-    struct fi_rma_iov remote;
-    struct fab_peer* fpeer = peer->p;
-
-    fabBufferLocal   *local;
-    uint32_t         local_bl_offset;
-    //local_ldo.getRdmaPtr( (void **)&local, local_bl_offset);
-    local_ldo.GetBaseRdmaHandle( (void **)&local, local_bl_offset); //CDU: FIX
-    remote.addr = nbr->base + nbr->offset;
-    //remote.addr = nbr->base;
-    remote.key = nbr->key;
-
-    //cout << "Put Remote buffer addr base " << nbr->base << " key " << nbr->key << std::endl;
-    //cout << "Put Remote buffer offset " << nbr->offset << " length " << nbr->length << std::endl;
-    fabtrns->Get(fpeer,&local->fbuf, local_ldo, remote, user_cb);
-
-    return;
+faodel::nodeid_t
+ConvertPeerToNodeID(
+    opbox::net::peer_t *peer)
+{
+    auto p = reinterpret_cast<struct fab_peer *>(&peer);
+    return faodel::nodeid_t(p->remote_nodeid);
 }
 
-void Get(
-    peer_t          *peer,
-    NetBufferRemote *remote_buffer,
-    uint64_t         remote_offset,
-    DataObject      local_ldo,
-    uint64_t         local_offset,
-    uint64_t         length,
-    std::function< WaitingType(OpArgs *args) > user_cb) {
-
-    auto nbr = reinterpret_cast<fabBufferRemote *>(remote_buffer);
-    struct fi_rma_iov remote;
-    struct fab_peer* fpeer = peer->p;
-
-    fabBufferLocal   *local;
-    uint32_t         local_bl_offset;
-    //local_ldo.getRdmaPtr( (void **)&local, local_bl_offset);
-    local_ldo.GetBaseRdmaHandle( (void **)&local, local_bl_offset); //CDU: FIX
-    remote.addr = nbr->base + nbr->offset + remote_offset;
-    remote.key = nbr->key;
-
-    fabtrns->Get(fpeer,&local->fbuf, local_ldo, local_offset, remote, length, user_cb);
-    return;
-
+opbox::net::peer_ptr_t
+ConvertNodeIDToPeer(
+    faodel::nodeid_t nodeid)
+{
+    KTODO("ConvertNodeIDToPeer");
 }
 
-string GetDriverName(){
+string
+GetDriverName()
+{
     return "libfabric";
 }
 
 
-void GetAttrs(opbox::net::Attrs &attrs) {
-    attrs.mtu            = FAB_MTU_SIZE;
-    attrs.max_eager_size = FAB_MTU_SIZE;
+void
+GetAttrs(opbox::net::Attrs *attrs)
+{
+    attrs->mtu            = FAB_MTU_SIZE;
+    attrs->max_eager_size = FAB_MTU_SIZE;
     //attrs.max_eager_size = 3900;
 }
 
-int Connect(
+int
+Connect(
     peer_ptr_t *peer,
     const char *peer_addr,
     const char *peer_port)
@@ -377,7 +339,8 @@ int Connect(
     return Connect(peer, nodeid);
 }
 
-int Connect(
+int
+Connect(
     peer_ptr_t        *peer,
     faodel::nodeid_t  peer_nodeid)
 {
@@ -393,7 +356,7 @@ int Connect(
     switch (fabtrns->my_transport_id) {
         case 1:
             // IB client creates a connection with known remote_nodeid, ep  etc and return fab_peer
-            //cout << "Calling connect in wrapper verbs case" << " peer nodeid IP   " << peer_nodeid.GetIP() << " peer port : " <<peer_nodeid.GetPort() << std::endl;
+//            cout << "Calling connect in wrapper verbs case - peer nodeid IP:" << peer_nodeid.GetIP() << " peer port: " <<peer_nodeid.GetPort() << std::endl;
             p = fabtrns->client_connect_ib (peer_nodeid);
             p->remote_nodeid = peer_nodeid;
             *peer =  new peer_t(p);
@@ -413,13 +376,15 @@ int Connect(
     return 0;
 }
 
-int Disconnect(
+int
+Disconnect(
     peer_ptr_t peer)
 {
     return 0;
 }
 
-int Disconnect(
+int
+Disconnect(
     faodel::nodeid_t peer_nodeid)
 {
     struct fab_peer *p = fabtrns->find_peer(peer_nodeid);
@@ -430,133 +395,53 @@ int Disconnect(
     return Disconnect((peer_ptr_t)p);
 }
 
-
-faodel::nodeid_t GetMyID() {
-    int rc=0;
-    return fabtrns->mynodeid;
+/*
+ *
+ * Create an DataObject that can be used for zero copy sends.
+ *
+ */
+DataObject
+NewMessage(
+    uint64_t size)
+{
+    //FAB_RECV_SIZE 4096 for each cmd message receive
+    uint32_t meta_size = 0;
+    DataObject ldo(meta_size, size,  DataObject::AllocatorType::eager);
+    return std::move(ldo);
 }
 
-
-void Start() {
-
-    int rc = 0;
-    int i, ret = 0;
-    std::string trans_name;
-    std::string name_key("net.transport.name");  // verbs, gni, sockets for now
-
-    if(0 != config_.GetLowercaseString(&trans_name, name_key)) {
-        std::cerr << "NetLibfabric -> Provider name (verbs/sockets/gni) not specified.  Defaulting to 'sockets'." << std::endl;;
-        trans_name = "sockets";
-    }
-    assert(webhook::Server::IsRunning() && "Webhook not started before fabric started");
-    fabtrns->mynodeid = webhook::Server::GetNodeID();
-    if((trans_name == "gni") || (trans_name == "ugni")) {
-        fabtrns->my_transport_id = 2;
-        fabtrns->fab_init_rdm();
-    } else if((trans_name == "verbs") || (trans_name == "ibverbs")) {
-        fabtrns->my_transport_id = 1;
-        fabtrns->fab_init_ib();
-    } else if(trans_name == "sockets") {
-        fabtrns->my_transport_id = 3;
-        fabtrns->fab_init_rdm();
-    } else if(trans_name == "mpi") {
-        std::cerr << "NetLibfabric -> net.transport.name has unsupported value 'mpi'.  Failing back to 'sockets'." << std::endl;
-        fabtrns->my_transport_id = 3;
-        fabtrns->fab_init_rdm();
-    } else {
-        std::cerr << "NetLibfabric -> net.transport.name has unknown value '" << trans_name << "'.  Failing back to 'sockets'." << std::endl;
-        fabtrns->my_transport_id = 3;
-        fabtrns->fab_init_rdm();
-    }
-    //cout << "after calling init and before starting threads\n";
-
-    lunasa::RegisterPinUnpin(RegisterMemory, UnregisterMemory);
-
-    fabtrns->start();
-}
-
-void Start(const faodel::Configuration &config) {
-
-}
-
-
-void Finish() {
-//    cout <<"Libfabric::Finish()" << endl;
-    fabtrns->stop();
-}
-
-void ReleaseMessage(DataObject msg){
+void
+ReleaseMessage(
+    DataObject msg)
+{
     //  delete msg;
 }
-
-faodel::nodeid_t ConvertPeerToNodeID(opbox::net::peer_t *peer) {
-    auto p = reinterpret_cast<struct fab_peer *>(&peer);
-    return faodel::nodeid_t(p->remote_nodeid);
-}
-
-opbox::net::peer_ptr_t ConvertNodeIDToPeer(faodel::nodeid_t nodeid) {
-    KTODO("ConvertNodeIDToPeer");
-}
-
-void SendMsg(peer_t     *peer,
-    DataObject msg,
-    std::function< WaitingType(OpArgs *args) > user_cb) {
-
-    struct fab_peer *fpeer = peer->p;
-    fabBufferLocal  *msg_bl = NULL;
-    uint32_t         msg_bl_offset = 0;
-
-    //int rc = msg.getRdmaPtr( (void **)&msg_bl, msg_bl_offset);
-    int rc = msg.GetBaseRdmaHandle( (void **)&msg_bl, msg_bl_offset); //CDU: fix
-    if(rc != 0) {
-        fprintf(stderr, "msg->GetRdmaPtr() failed: %d", rc);
-        abort();
-    }
-    fabtrns->Send(fpeer, &msg_bl->fbuf, msg, user_cb);
-}
-
-void Init(const faodel::Configuration &config) {
-    config_ = config; // Make a copy of config for own to use in Start()
-    fabtrns = fabtrns->get_instance();
-    //cout << "Net libfabric init Done\n";
-}
-
-
-void SendMsg(peer_t *remote_peer, DataObject msg) {
-
-    struct fab_peer *fpeer = remote_peer->p;
-    fabBufferLocal *msg_bl        = NULL;
-    uint32_t         msg_bl_offset = 0;
-
-    //int rc = msg.getRdmaPtr( (void **)&msg_bl, msg_bl_offset);
-    int rc = msg.GetBaseRdmaHandle( (void **)&msg_bl, msg_bl_offset); //CDU: FIX
-    if(rc != 0) {
-        fprintf(stderr, "msg->GetRdmaPtr() failed: %d", rc);
-        abort();
-    }
-    fabtrns->Send(fpeer, &msg_bl->fbuf, msg, NULL);
-}
-
 
 namespace internal {
 
 //CDU: FIX GetOffset was missing
-uint32_t GetOffset(
-    opbox::net::NetBufferRemote *nbr) // in
+uint32_t
+GetOffset(
+    opbox::net::NetBufferRemote *nbr)
 {
     fabBufferRemote *b = (fabBufferRemote *)nbr;
     return b->offset;
 }
 
-uint32_t GetLength(opbox::net::NetBufferRemote *nbr) { // in
+uint32_t
+GetLength(
+    opbox::net::NetBufferRemote *nbr)
+{
 
     fabBufferRemote *b = (fabBufferRemote *)nbr;
     return b->length;
 }
 
-int IncreaseOffset(
-    opbox::net::NetBufferRemote *nbr,         // in
-    uint32_t              addend)    {  // in
+int
+IncreaseOffset(
+    opbox::net::NetBufferRemote *nbr,
+    uint32_t                     addend)
+{
 
     fabBufferRemote *b = (fabBufferRemote *)nbr;
     if ((addend >= 0) && (addend < b->length)) {
@@ -568,9 +453,11 @@ int IncreaseOffset(
     return 0;
 }
 
-int DecreaseLength(
-    opbox::net::NetBufferRemote *nbr,         // in
-    uint32_t              subtrahend) { // in
+int
+DecreaseLength(
+    opbox::net::NetBufferRemote *nbr,
+    uint32_t                     subtrahend)
+{
 
     fabBufferRemote *b = (fabBufferRemote *)nbr;
     if ((subtrahend >= 0) && (subtrahend < b->length)) {
@@ -581,9 +468,11 @@ int DecreaseLength(
     return 0;
 }
 
-int TrimToLength(
-    opbox::net::NetBufferRemote *nbr,      // in
-    uint32_t              length)   {      // in
+int
+TrimToLength(
+    opbox::net::NetBufferRemote *nbr,
+    uint32_t                     length)
+{
     fabBufferRemote *b = (fabBufferRemote *)nbr;
     if ((length > 0) && (length < b->length)) {
         b->length = length;
@@ -594,6 +483,235 @@ int TrimToLength(
 }
 
 } // namespece internal
+
+void
+SendMsg(
+    peer_t     *peer,
+    DataObject  msg,
+    std::function< WaitingType(OpArgs *args) > user_cb)
+{
+
+    struct fab_peer *fpeer = peer->p;
+    fabBufferLocal  *msg_bl = NULL;
+    uint32_t         msg_bl_offset = 0;
+
+//    fprintf(stdout, "SendMsg(): peer=%p  peer->p=%p  peer->p->nodeid=%s\n", peer, peer->p, peer->p->remote_nodeid.GetHex().c_str());
+
+    //int rc = msg.getRdmaPtr( (void **)&msg_bl, msg_bl_offset);
+    int rc = msg.GetBaseRdmaHandle( (void **)&msg_bl, msg_bl_offset); //CDU: fix
+    if(rc != 0) {
+        fprintf(stderr, "msg->GetRdmaPtr() failed: %d", rc);
+        abort();
+    }
+    fabtrns->Send(fpeer, &msg_bl->fbuf, msg, user_cb);
+}
+
+void
+SendMsg(
+    peer_t *remote_peer,
+    DataObject     msg)
+{
+    struct fab_peer *fpeer = remote_peer->p;
+    fabBufferLocal *msg_bl        = NULL;
+    uint32_t         msg_bl_offset = 0;
+
+//    fprintf(stdout, "SendMsg(): peer=%p  peer->p=%p  peer->p->nodeid=%s\n", remote_peer, remote_peer->p, remote_peer->p->remote_nodeid.GetHex().c_str());
+
+    //int rc = msg.getRdmaPtr( (void **)&msg_bl, msg_bl_offset);
+    int rc = msg.GetBaseRdmaHandle( (void **)&msg_bl, msg_bl_offset); //CDU: FIX
+    if(rc != 0) {
+        fprintf(stderr, "msg->GetRdmaPtr() failed: %d", rc);
+        abort();
+    }
+    fabtrns->Send(fpeer, &msg_bl->fbuf, msg, NULL);
+}
+
+void
+Get(
+    peer_t          *peer,
+    NetBufferRemote *remote_buffer,
+    DataObject       local_ldo,
+    std::function< WaitingType(OpArgs *args) > user_cb)
+{
+    auto nbr = reinterpret_cast<fabBufferRemote *>(remote_buffer);
+    struct fi_rma_iov remote;
+    struct fab_peer* fpeer = peer->p;
+
+    fabBufferLocal *local;
+    uint32_t        local_bl_offset;
+    uint64_t        local_size = local_ldo.GetHeaderSize() + local_ldo.GetMetaSize() + local_ldo.GetDataSize();
+    uint64_t        get_length = std::min(local_size, (uint64_t) nbr->length);
+    local_ldo.GetHeaderRdmaHandle( (void **)&local, local_bl_offset); //CDU: FIX
+    remote.addr = nbr->base + nbr->offset;
+    remote.key  = nbr->key;
+
+    //cout << "Put Remote buffer addr base " << nbr->base << " key " << nbr->key << std::endl;
+    //cout << "Put Remote buffer offset " << nbr->offset << " length " << nbr->length << std::endl;
+//    fabtrns->Get(fpeer, &local->fbuf, local_ldo, remote, user_cb);
+    fabtrns->Get(fpeer, &local->fbuf, local_ldo, 0, remote, get_length, user_cb);
+
+    return;
+}
+
+void
+Get(
+    peer_t          *peer,
+    NetBufferRemote *remote_buffer,
+    uint64_t         remote_offset,
+    DataObject       local_ldo,
+    uint64_t         local_offset,
+    uint64_t         length,
+    std::function< WaitingType(OpArgs *args) > user_cb)
+{
+    auto nbr = reinterpret_cast<fabBufferRemote *>(remote_buffer);
+    struct fi_rma_iov remote;
+    struct fab_peer* fpeer = peer->p;
+
+    fabBufferLocal *local;
+    uint32_t        local_bl_offset;
+    local_ldo.GetHeaderRdmaHandle( (void **)&local, local_bl_offset); //CDU: FIX
+    remote.addr = nbr->base + nbr->offset + remote_offset;
+    remote.key  = nbr->key;
+
+    fabtrns->Get(fpeer, &local->fbuf, local_ldo, local_offset, remote, length, user_cb);
+
+    return;
+}
+
+void
+Put(
+    peer_t          *peer,
+    DataObject      local_ldo,
+    NetBufferRemote *remote_buffer,
+    std::function< WaitingType(OpArgs *args) > user_cb)
+{
+    //cout << "Calling put " << std::endl;
+
+    auto nbr = reinterpret_cast<fabBufferRemote *>(remote_buffer);
+    struct fi_rma_iov remote;
+    struct fab_peer* fpeer = peer->p;
+
+    fabBufferLocal   *local;
+    uint32_t         local_bl_offset;
+    //local_ldo.getRdmaPtr( (void **)&local, local_bl_offset);
+    local_ldo.GetHeaderRdmaHandle( (void **)&local, local_bl_offset); //CDU: FIX
+    remote.addr = nbr->base + nbr->offset;
+    //remote.addr = nbr->base;
+    remote.key = nbr->key;
+
+    //cout << "Put Remote buffer addr base " << nbr->base << " key " << nbr->key << std::endl;
+    //cout << "Put Remote buffer offset " << nbr->offset << " length " << nbr->length << std::endl;
+//    fabtrns->Put(fpeer, &local->fbuf, local_ldo, remote, user_cb);
+    fabtrns->Put(fpeer, &local->fbuf, local_ldo, 0, remote, local_ldo.GetWireSize(), user_cb);
+
+    return;
+}
+
+void
+Put(
+    peer_t          *peer,
+    DataObject      local_ldo,
+    uint64_t         local_offset,
+    NetBufferRemote *remote_buffer,
+    uint64_t         remote_offset,
+    uint64_t         length,
+    std::function< WaitingType(OpArgs *args) > user_cb)
+{
+    //cout << "Calling put " << std::endl;
+
+    auto nbr = reinterpret_cast<fabBufferRemote *>(remote_buffer);
+    struct fi_rma_iov remote;
+    struct fab_peer* fpeer = peer->p;
+
+    fabBufferLocal   *local;
+    uint32_t         local_bl_offset;
+    //local_ldo.getRdmaPtr( (void **)&local, local_bl_offset);
+    local_ldo.GetHeaderRdmaHandle( (void **)&local, local_bl_offset); //CDU: FIX
+    remote.addr = nbr->base + nbr->offset + remote_offset;
+    remote.key = nbr->key;
+
+    fabtrns->Put(fpeer, &local->fbuf, local_ldo, local_offset, remote, length, user_cb);
+    return;
+}
+
+void
+Atomic(
+    peer_ptr_t           peer,
+    AtomicOp             op,
+    DataObject          local_ldo,
+    uint64_t             local_offset,
+    NetBufferRemote     *remote_buffer,
+    uint64_t             remote_offset,
+    int64_t              length,         // TODO: this param is ignored because we only do 64-bit atomics
+    lambda_net_update_t  user_cb)
+{
+    KTODO("Libfabric wrapper atomic");
+    return;
+}
+
+/*
+ * Execute a one-sided atomic operation with one operand on peer at
+ * remote_buffer.  length is the width of the operands in bits.  user_cb is
+ * invoked after the atomic completes.
+ */
+void
+Atomic(
+    peer_ptr_t           peer,
+    AtomicOp             op,
+    DataObject           local_ldo,
+    uint64_t             local_offset,
+    NetBufferRemote     *remote_buffer,
+    uint64_t             remote_offset,
+    uint64_t             length,         // TODO: this param is ignored because we only do 64-bit atomics
+    int64_t              operand,
+    lambda_net_update_t  user_cb)
+{
+    //cout << "Calling atomic(operand1) " << std::endl;
+
+    auto nbr = reinterpret_cast<fabBufferRemote *>(remote_buffer);
+    struct fi_rma_iov remote;
+    struct fab_peer* fpeer = peer->p;
+
+    fabBufferLocal   *local;
+    uint32_t         local_bl_offset;
+    local_ldo.GetDataRdmaHandle( (void **)&local, local_bl_offset); //CDU: FIX
+    remote.addr = nbr->base + nbr->offset + remote_offset;
+    remote.key = nbr->key;
+
+//    fprintf(stdout, "wrapper::Atomic(fadd) - nbr->base=%p, nbr->offset=%lX, remote_offset=%lX\n", nbr->base, nbr->offset, remote_offset);
+
+    fabtrns->Atomic(fpeer, op, &local->fbuf, local_ldo, local_offset, remote, 8, operand, user_cb);
+    return;
+}
+
+void
+Atomic(
+    peer_ptr_t           peer,
+    AtomicOp             op,
+    DataObject           local_ldo,
+    uint64_t             local_offset,
+    NetBufferRemote     *remote_buffer,
+    uint64_t             remote_offset,
+    uint64_t             length,         // TODO: this param is ignored because we only do 64-bit atomics
+    int64_t              operand1,
+    int64_t              operand2,
+    lambda_net_update_t  user_cb)
+{
+    //cout << "Calling atomic(operand1) " << std::endl;
+
+    auto nbr = reinterpret_cast<fabBufferRemote *>(remote_buffer);
+    struct fi_rma_iov remote;
+    struct fab_peer* fpeer = peer->p;
+
+    fabBufferLocal   *local;
+    uint32_t         local_bl_offset;
+    local_ldo.GetDataRdmaHandle( (void **)&local, local_bl_offset); //CDU: FIX
+    remote.addr = nbr->base + nbr->offset + remote_offset;
+    remote.key = nbr->key;
+
+    fabtrns->Atomic(fpeer, op, &local->fbuf, local_ldo, local_offset, remote, 8, operand1, operand2, user_cb);
+    return;
+}
 
 } // namespace net
 } // namespace opbox

@@ -8,11 +8,11 @@
 #include "gtest/gtest.h"
 #include <mpi.h>
 
-#include "common/Common.hh"
+#include "faodel-common/Common.hh"
 #include "lunasa/Lunasa.hh"
 #include "lunasa/DataObject.hh"
 
-#include "common/Configuration.hh"
+#include "faodel-common/Configuration.hh"
 
 #include "nnti/nnti.h"
 #include "nnti/nnti_logger.hpp"
@@ -23,19 +23,13 @@
 #include "webhook/Server.hh"
 
 
-
 using namespace std;
 using namespace faodel;
 using namespace lunasa;
 
+//Note: Additional configuration settings will be loaded the file specified by FAODEL_CONFIG
 string default_config = R"EOF(
-
 server.mutex_type rwlock
-
-# default to using mpi, but allow override in config file pointed to by CONFIG
-nnti.transport.name                           mpi
-config.additional_files.env_name.if_defined   FAODEL_CONFIG
-
 lunasa.eager_memory_manager tcmalloc
 node_role server
 )EOF";
@@ -43,25 +37,23 @@ node_role server
 nnti::transports::transport *transport = nullptr;
 Configuration config;
 
-void RegisterMemory(void *base_addr, size_t length, void *&pinned)
-{
+void RegisterMemory(void *base_addr, size_t length, void *&pinned) {
   NNTI_buffer_t reg_buf;
-  nnti::datatype::nnti_event_callback null_cb(transport, (NNTI_event_callback_t)0);
+  nnti::datatype::nnti_event_callback null_cb(transport, (NNTI_event_callback_t) 0);
 
   transport->register_memory(
-      (char *)base_addr,
-      length,
-      NNTI_BF_LOCAL_WRITE,
-      (NNTI_event_queue_t)0,
-      null_cb,
-      nullptr,
-      &reg_buf);
-  pinned = (void*)reg_buf;
+          (char *) base_addr,
+          length,
+          NNTI_BF_LOCAL_WRITE,
+          (NNTI_event_queue_t) 0,
+          null_cb,
+          nullptr,
+          &reg_buf);
+  pinned = (void *) reg_buf;
 }
 
-void UnregisterMemory(void *&pinned)
-{   
-  NNTI_buffer_t reg_buf = (NNTI_buffer_t)pinned;
+void UnregisterMemory(void *&pinned) {
+  NNTI_buffer_t reg_buf = (NNTI_buffer_t) pinned;
   transport->unregister_memory(reg_buf);
   pinned = nullptr;
 }
@@ -69,15 +61,13 @@ void UnregisterMemory(void *&pinned)
 class LunasaRegistrationTest : public testing::Test {
 protected:
 
-  virtual void SetUp () 
-  { }
+  virtual void SetUp() {}
 
-  virtual void TearDown () 
-  { }
+  virtual void TearDown() {}
 };
 
 
-#define NUMBER 10000 
+#define NUMBER 10000
 #define SIZE 8192
 
 #define NANOSECOND(tv) ( (unsigned long)(tv.tv_sec*1000*1000*1000 + tv.tv_nsec) )
@@ -90,7 +80,7 @@ std::chrono::duration<double, std::nano> elapsed;
 TEST_F(LunasaRegistrationTest, FixedAllocationRaw) {
 
   void *memory[NUMBER];
-  for( int i = 0; i < NUMBER; i++ ) {
+  for(int i = 0; i<NUMBER; i++) {
     memory[i] = malloc(SIZE);
   }
 
@@ -99,28 +89,28 @@ TEST_F(LunasaRegistrationTest, FixedAllocationRaw) {
   cout << "Transport URL : " << url << endl;
 
   void *pinned[NUMBER];
-  
+
   start = hi_res_clock::now();
 
-  for( int i = 0; i < NUMBER; i++ ) {
+  for(int i = 0; i<NUMBER; i++) {
     RegisterMemory(memory[i], SIZE, pinned[i]);
   }
 
   finish = hi_res_clock::now();
   elapsed = finish - start;
-  
+
   printf("REGISTRATION time = %.2f us\n", elapsed.count()/1.0e3/NUMBER);
 
   start = hi_res_clock::now();
-  for( int i = 0; i < NUMBER; i++ ) {
+  for(int i = 0; i<NUMBER; i++) {
     UnregisterMemory(pinned[i]);
   }
   finish = hi_res_clock::now();
 
-  elapsed = (finish - start) / NUMBER;
+  elapsed = (finish - start)/NUMBER;
   printf("deREGISTRATION time = %.2f us\n", elapsed.count()/1.0e3);
 
-  for( int i = 0; i < NUMBER; i++ ) {
+  for(int i = 0; i<NUMBER; i++) {
     free(memory[i]);
   }
 }
@@ -134,16 +124,16 @@ TEST_F(LunasaRegistrationTest, FixedAllocationLunasa) {
   DataObject *memory = new DataObject[NUMBER];
 
   start = hi_res_clock::now();
-  for( int i = 0; i < NUMBER; i++ ) {
+  for(int i = 0; i<NUMBER; i++) {
     memory[i] = DataObject(0, SIZE, DataObject::AllocatorType::eager);
   }
   finish = hi_res_clock::now();
   elapsed = finish - start;
   printf("Lunasa ALLOCATION time = %.2f us\n", elapsed.count()/1.0e3/NUMBER);
-  
+
   start = hi_res_clock::now();
-  for( int i = 0; i < NUMBER; i++ ) {
-    memory[i] = DataObject ();
+  for(int i = 0; i<NUMBER; i++) {
+    memory[i] = DataObject();
   }
   finish = hi_res_clock::now();
   elapsed = finish - start;
@@ -162,7 +152,7 @@ TEST_F(LunasaRegistrationTest, RepeatedAllocationRaw) {
   void *pinned;
 
   start = hi_res_clock::now();
-  for( int i = 0; i < NUMBER; i++ ) {
+  for(int i = 0; i<NUMBER; i++) {
     RegisterMemory(memory, SIZE, pinned);
     UnregisterMemory(pinned);
   }
@@ -182,7 +172,7 @@ TEST_F(LunasaRegistrationTest, RepeatedAllocationLunasa) {
   DataObject *memory = new DataObject();
 
   start = hi_res_clock::now();
-  for( int i = 0; i < NUMBER; i++ ) {
+  for(int i = 0; i<NUMBER; i++) {
     *memory = DataObject(0, SIZE, DataObject::AllocatorType::eager);
     *memory = DataObject();
   }
@@ -196,6 +186,7 @@ TEST_F(LunasaRegistrationTest, RepeatedAllocationLunasa) {
 // Want the same pseudo-random sequence for the both RANDOM allocation tests [sll]
 int seed = clock();
 
+
 TEST_F(LunasaRegistrationTest, RandomAllocationRaw) {
   int i;
   void *memory[NUMBER];
@@ -203,8 +194,8 @@ TEST_F(LunasaRegistrationTest, RandomAllocationRaw) {
 
   srand(seed);
 
-  for (int i = 0; i < NUMBER; i ++) {
-    num_bytes[i] = rand()%1048576 * sizeof (int);
+  for(int i = 0; i<NUMBER; i++) {
+    num_bytes[i] = rand()%1048576*sizeof(int);
     memory[i] = malloc(num_bytes[i]);
   }
 
@@ -214,38 +205,38 @@ TEST_F(LunasaRegistrationTest, RandomAllocationRaw) {
 
   void *pinned[NUMBER];
   start = hi_res_clock::now();
-  for( int i = 0; i < NUMBER; i++ ) {
+  for(int i = 0; i<NUMBER; i++) {
     RegisterMemory(memory[i], num_bytes[i], pinned[i]);
   }
   finish = hi_res_clock::now();
-  elapsed = finish - start; 
+  elapsed = finish - start;
   printf("REGISTRATION time = %.2f us\n", elapsed.count()/1.0e3/NUMBER);
 
   start = hi_res_clock::now();
-  for( int i = 0; i < NUMBER; i++ ) {
+  for(int i = 0; i<NUMBER; i++) {
     UnregisterMemory(pinned[i]);
   }
   finish = hi_res_clock::now();
   elapsed = finish - start;
   printf("deREGISTRATION time = %.2f us\n", elapsed.count()/1.0e3);
 
-  for( int i = 0; i < NUMBER; i++ ) {
+  for(int i = 0; i<NUMBER; i++) {
     free(memory[i]);
   }
 
   delete[] num_bytes;
 }
 
-TEST_F(LunasaRegistrationTest, RandomAllocationLunasa) 
-{
+
+TEST_F(LunasaRegistrationTest, RandomAllocationLunasa) {
   int i;
   DataObject *memory = new DataObject[NUMBER];
   size_t *num_bytes = new size_t[NUMBER];
 
   srand(seed);
 
-  for (int i = 0; i < NUMBER; i ++) {
-    num_bytes[i] = rand()%1048576 * sizeof (int);
+  for(int i = 0; i<NUMBER; i++) {
+    num_bytes[i] = rand()%1048576*sizeof(int);
   }
 
   char url[128];
@@ -253,7 +244,7 @@ TEST_F(LunasaRegistrationTest, RandomAllocationLunasa)
   cout << "Transport URL : " << url << endl;
 
   start = hi_res_clock::now();
-  for( int i = 0; i < NUMBER; i++ ) {
+  for(int i = 0; i<NUMBER; i++) {
     memory[i] = DataObject(0, num_bytes[i], DataObject::AllocatorType::eager);
   }
   finish = hi_res_clock::now();
@@ -261,8 +252,8 @@ TEST_F(LunasaRegistrationTest, RandomAllocationLunasa)
   printf("Lunasa ALLOCATION time = %.2f us\n", elapsed.count()/1.0e3/NUMBER);
 
   start = hi_res_clock::now();
-  for( int i = 0; i < NUMBER; i++ ) {
-    memory[i] = DataObject ();
+  for(int i = 0; i<NUMBER; i++) {
+    memory[i] = DataObject();
   }
   finish = hi_res_clock::now();
   elapsed = finish - start;
@@ -272,66 +263,66 @@ TEST_F(LunasaRegistrationTest, RandomAllocationLunasa)
   delete[] num_bytes;
 }
 
-int main(int argc, char *argv[])
-{
-    /* NOTE: it is important that these tests not all be run in a single execution of 
-             the test if tcmalloc is used to manage memory.  Within the constraints of
-             Lunasa (i.e., managing a subset of heap memory), tcmalloc has no way of 
-             releasing (unregistering) registered memory.  As a result, running 
-             two Lunasa tests within a single test process will simply reuse memory 
-             that was registered in the previous test. */
-    if( argc != 2 ) {
-      cout << "[usage]: " << argv[0] << " <fixed|repeated|random>" << endl;
-      return 0;
-    }
 
-    ::testing::InitGoogleTest(&argc, argv);
-    int provided;
-    MPI_Init_thread(&argc, &argv, MPI_THREAD_MULTIPLE, &provided);
+int main(int argc, char *argv[]) {
+  /* NOTE: it is important that these tests not all be run in a single execution of
+           the test if tcmalloc is used to manage memory.  Within the constraints of
+           Lunasa (i.e., managing a subset of heap memory), tcmalloc has no way of
+           releasing (unregistering) registered memory.  As a result, running
+           two Lunasa tests within a single test process will simply reuse memory
+           that was registered in the previous test. */
+  if(argc != 2) {
+    cout << "[usage]: " << argv[0] << " <fixed|repeated|random>" << endl;
+    return 0;
+  }
 
-    config = Configuration(default_config);
-    config.AppendFromReferences();
+  ::testing::InitGoogleTest(&argc, argv);
+  int provided;
+  MPI_Init_thread(&argc, &argv, MPI_THREAD_MULTIPLE, &provided);
 
-    bootstrap::Init(config, lunasa::bootstrap);
-    bootstrap::Start();
+  config = Configuration(default_config);
+  config.AppendFromReferences();
 
-    lunasa::RegisterPinUnpin(RegisterMemory, UnregisterMemory);
+  bootstrap::Init(config, lunasa::bootstrap);
+  bootstrap::Start();
 
-    assert(webhook::Server::IsRunning() && "Webhook not started before NetNnti started");
-    faodel::nodeid_t nodeid = webhook::Server::GetNodeID();
+  lunasa::RegisterPinUnpin(RegisterMemory, UnregisterMemory);
 
-    transport = nnti::transports::factory::get_instance(config);
-    transport->start();
+  assert(webhook::Server::IsRunning() && "Webhook not started before NetNnti started");
+  faodel::nodeid_t nodeid = webhook::Server::GetNodeID();
 
-    int mpi_rank,mpi_size;
-    MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank);
-    MPI_Comm_size(MPI_COMM_WORLD, &mpi_size);
-    EXPECT_EQ(1, mpi_size);
-    assert(1==mpi_size);
+  transport = nnti::transports::factory::get_instance(config);
+  transport->start();
 
-    if( strcmp(argv[1], "fixed") == 0 ) {
-      ::testing::GTEST_FLAG(filter) = "LunasaRegistrationTest.FixedAllocation*";
-    } else if( strcmp(argv[1], "repeated") == 0 ) {
-      ::testing::GTEST_FLAG(filter) = "LunasaRegistrationTest.RepeatedAllocation*";
-    } else if( strcmp(argv[1], "random") == 0 ) {
-      ::testing::GTEST_FLAG(filter) = "LunasaRegistrationTest.RandomAllocation*";
-    } else {
-      cout << "ERROR: Unrecognized test (" << argv[1] << ")" << endl;
-      return 0;
-    }
+  int mpi_rank, mpi_size;
+  MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank);
+  MPI_Comm_size(MPI_COMM_WORLD, &mpi_size);
+  EXPECT_EQ(1, mpi_size);
+  assert(1 == mpi_size);
 
-    int rc = RUN_ALL_TESTS();
-    cout <<"Tester completed all tests.\n";
+  if(strcmp(argv[1], "fixed") == 0) {
+    ::testing::GTEST_FLAG(filter) = "LunasaRegistrationTest.FixedAllocation*";
+  } else if(strcmp(argv[1], "repeated") == 0) {
+    ::testing::GTEST_FLAG(filter) = "LunasaRegistrationTest.RepeatedAllocation*";
+  } else if(strcmp(argv[1], "random") == 0) {
+    ::testing::GTEST_FLAG(filter) = "LunasaRegistrationTest.RandomAllocation*";
+  } else {
+    cout << "ERROR: Unrecognized test (" << argv[1] << ")" << endl;
+    return 0;
+  }
 
-    nnti::core::logger::fini();
+  int rc = RUN_ALL_TESTS();
+  cout << "Tester completed all tests.\n";
 
-    MPI_Barrier(MPI_COMM_WORLD);
+  //nnti::core::logger::fini();
 
-    if( transport->initialized() ) {
-      transport->stop();
-    }
-    bootstrap::Finish();
+  MPI_Barrier(MPI_COMM_WORLD);
 
-    MPI_Finalize();
-    return (rc);
+  if(transport->initialized()) {
+    transport->stop();
+  }
+  bootstrap::Finish();
+
+  MPI_Finalize();
+  return (rc);
 }

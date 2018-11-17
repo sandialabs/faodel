@@ -9,10 +9,10 @@
 #include <vector>
 #include <utility>
 
-#include "common/FaodelTypes.hh"
-#include "common/InfoInterface.hh"
-#include "common/Bucket.hh"
-#include "common/NodeID.hh"
+#include "faodel-common/FaodelTypes.hh"
+#include "faodel-common/InfoInterface.hh"
+#include "faodel-common/Bucket.hh"
+#include "faodel-common/NodeID.hh"
 
 namespace faodel {
 
@@ -51,10 +51,10 @@ public:
               bucket_t bucket,
               std::string path, std::string name, std::string options)
     : resource_type(resource_type), reference_node(reference_node),
-      bucket(bucket), path((path=="")?"/":path), name(name),
+      bucket(bucket), path((path.empty())?"/":path), name(name),
       options(options) {}
 
-  ~ResourceURL() {}
+  ~ResourceURL() override = default;
 
   std::string resource_type;   //eg ref, dht
   nodeid_t    reference_node;  //The node that is the PoC for this resource
@@ -63,9 +63,10 @@ public:
   std::string name;            //eg mydht
   std::string options;         //eg member_count=25&replication=1
 
-  bool Valid() const { return (path!="") && (name!="");} //!< True if there is at least both a path and a name
+  bool Valid() const { return (!path.empty()) && (!name.empty());} //!< True if there is at least both a path and a name
   bool IsRootLevel() const { return (path=="/"); } //!< True if this lives in the root directory (eg "/mything")
   bool IsFullURL() const;
+  bool IsEmpty() const;
 
   rc_t SetURL( const std::string& url );
   std::string GetURL(bool include_type=false, bool include_node=false, bool include_bucket=false, bool include_options=false) const;
@@ -86,7 +87,7 @@ public:
   std::string RemoveOption(std::string option_name);
   std::string GetOption(std::string option_name) const;
   std::string GetSortedOptions() const;
-  std::vector< std::pair<std::string,std::string> > GetOptions();
+  std::vector< std::pair<std::string,std::string> > GetOptions() const;
 
 
   //Only compare on bucket, path, and name
@@ -106,7 +107,7 @@ public:
   }
 
   //Info Interface
-  void sstr(std::stringstream &ss, int depth=0, int indent=0) const {
+  void sstr(std::stringstream &ss, int depth=0, int indent=0) const override {
     ss<<std::string(indent,' ')
       <<"ResourceURL: "  << GetURL() <<std::endl;
 
@@ -133,21 +134,6 @@ private:
 };
 
 
-/**
- * @brief An exception for capturing parse problems with ResourceURLs
- */
-class ResourceURLParseError : public std::exception {
-private:
-  std::string msg;
-public:
-  ResourceURLParseError() : msg("") {}
-  ResourceURLParseError(std::string s) : msg(s) {}
-  virtual const char* what() const throw() {
-    std::stringstream ss;
-    ss << "Format problem while parsing ResourceURL string: " << msg << std::endl;
-    return ss.str().c_str();
-  }
-};
 
 } // namespace faodel
 

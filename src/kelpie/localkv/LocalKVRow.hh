@@ -10,8 +10,8 @@
 #include <memory>
 #include <functional>
 
-#include "common/FaodelTypes.hh"
-#include "common/InfoInterface.hh"
+#include "faodel-common/FaodelTypes.hh"
+#include "faodel-common/InfoInterface.hh"
 
 #include "kelpie/Key.hh"
 #include "kelpie/localkv/LocalKVCell.hh"
@@ -34,7 +34,7 @@ class LocalKVRow : public faodel::InfoInterface {
 
 public:
   LocalKVRow(const std::string &rowname, faodel::MutexWrapperTypeID mutex_type);
-  ~LocalKVRow();
+  ~LocalKVRow() override;
 
   int getNumCols();
   void getInfo(kv_row_info_t *row_info);
@@ -50,7 +50,7 @@ public:
 
 
   //InfoInterface function
-  void sstr(std::stringstream &ss, int depth=0, int indent=0) const;
+  void sstr(std::stringstream &ss, int depth=0, int indent=0) const override;
 
 
   //The following would normally be private, but are exposed so doOp can see them

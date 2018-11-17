@@ -85,9 +85,15 @@ public:
 
         return;
     }
-    virtual ~mpi_peer()
-    {
+
+    ~mpi_peer() override {
         return;
+    }
+
+    void
+    rank(int rank)
+    {
+        packable_.peer.NNTI_remote_process_p_t_u.mpi.rank = rank;
     }
 
     int

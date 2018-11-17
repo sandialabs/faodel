@@ -10,8 +10,8 @@
 #include <stddef.h>
 
 #include "gtest/gtest.h"
-#include "common/Common.hh"
-#include "common/SerializationHelpers.hh"
+#include "faodel-common/Common.hh"
+#include "faodel-common/SerializationHelpers.hh"
 
 
 
@@ -20,7 +20,7 @@ using namespace faodel;
 
 class SerializationTest : public testing::Test {
 protected:
-  virtual void SetUp() {
+  void SetUp() override {
 
   }
   internal_use_only_t iuo;
@@ -94,7 +94,7 @@ TEST_F(SerializationTest, NameAndNode) {
 
   MyNodeStruct nans;
   nans.root = nodeid_t(0x36, iuo);
-  for(int i=0; i<names.size(); i++)
+  for(size_t i=0; i<names.size(); i++)
     nans.nodes.push_back( NameAndNode(names[i], nodeid_t(100+i,iuo)));
 
   string packed = BoostPack<MyNodeStruct>(nans);
@@ -103,7 +103,7 @@ TEST_F(SerializationTest, NameAndNode) {
 
   EXPECT_EQ(nans.root, nans2.root);
   EXPECT_EQ(nans.nodes.size(), nans2.nodes.size());
-  for(int i=0; i<nans.nodes.size(); i++) {
+  for(size_t i=0; i<nans.nodes.size(); i++) {
     if(i<nans2.nodes.size()) {
       EXPECT_EQ( nans.nodes[i], nans2.nodes[i]);
       EXPECT_EQ( nans.nodes[i].name, nans2.nodes[i].name);
@@ -157,7 +157,7 @@ struct B {
     }
   }
 
-  BOOST_SERIALIZATION_SPLIT_MEMBER();
+  BOOST_SERIALIZATION_SPLIT_MEMBER()
 
 };
 typedef struct {
@@ -199,7 +199,7 @@ TEST_F(SerializationTest, BlobPointer) {
   EXPECT_EQ(b1.y.size(), b2.y.size());
   EXPECT_EQ(b1.blob_len, b2.blob_len);
 
-  for(int i=0; i<b1.y.size(); i++) {
+  for(size_t i=0; i<b1.y.size(); i++) {
     if(i<b2.y.size()) {
       EXPECT_EQ( b1.y[i], b2.y[i]);
     }

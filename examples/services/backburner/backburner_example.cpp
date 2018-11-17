@@ -6,9 +6,10 @@
 #include <iostream>
 #include <atomic>
 
-#include "common/Configuration.hh"
-#include "common/Bootstrap.hh"
-#include "common/BackBurner.hh"
+#include "faodel-common/Configuration.hh"
+#include "faodel-common/Bootstrap.hh"
+
+#include "faodel-services/BackBurner.hh"
 
 using namespace std;
 using namespace faodel;

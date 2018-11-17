@@ -2,7 +2,7 @@
 // LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
 // the U.S. Government retains certain rights in this software. 
 
-#include "common/BackBurner.hh"
+#include "faodel-services/BackBurner.hh"
 
 #include "opbox/core/Singleton.hh"
 
@@ -10,7 +10,6 @@
 #include "opbox/core/OpBoxCoreStandard.hh"
 #include "opbox/core/OpBoxCoreThreaded.hh"
 
-#include "opbox/services/dirman/core/Singleton.hh"
 
 #include "webhook/WebHook.hh"
 #include "webhook/Server.hh"
@@ -20,7 +19,7 @@
 using namespace std;
 
 //Initialize the singleton
-opbox::internal::SingletonImpl opbox::internal::Singleton::impl_ob;
+opbox::internal::SingletonImpl opbox::internal::Singleton::impl;
 
 
 namespace opbox {
@@ -138,7 +137,7 @@ void SingletonImpl::Finish() {
  * @retval "opbox"
  *
  * @note Users pass this to bootstrap's Start/Init. Only the last
- *       bootstap dependenciy needs to be supplied.
+ *       bootstap dependency needs to be supplied.
  */
 std::string bootstrap(){
 
@@ -147,8 +146,7 @@ std::string bootstrap(){
   lunasa::bootstrap();
 
   //register ourselves
-  faodel::bootstrap::RegisterComponent(&opbox::internal::Singleton::impl_ob, true); //opbox
-  faodel::bootstrap::RegisterComponent(&opbox::internal::Singleton::impl_dm, true); //dirman
+  faodel::bootstrap::RegisterComponent(&opbox::internal::Singleton::impl, true); //opbox
 
   return "opbox";
 }

@@ -97,7 +97,7 @@ public:
       fallback_(fallback) {
   }
 
-  void* Alloc(size_t size, size_t *actual_size, size_t alignment);
+  void* Alloc(size_t size, size_t *actual_size, size_t alignment) override;
   bool Initialize();
 
   bool failed_;          // Whether failed to allocate memory.

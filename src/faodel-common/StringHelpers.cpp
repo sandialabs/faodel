@@ -10,8 +10,13 @@
 #include <sstream>
 #include <algorithm>
 
-#include "common/Debug.hh"
-#include "common/StringHelpers.hh"
+#include <stdexcept>
+
+#include <wordexp.h>
+#include <set>
+
+#include "faodel-common/Debug.hh"
+#include "faodel-common/StringHelpers.hh"
 
 using namespace std;
 
@@ -269,7 +274,7 @@ vector<string> SplitPath(string const &s) {
   stringstream ss(s);
   string item;
   while(getline(ss,item,'/')) {
-    if(item!="") //For root case (otherwise /root would be "" "root") and ending slash
+    if(!item.empty()) //For root case (otherwise /root would be "" "root") and ending slash
       tokens.push_back(item);
   }
   return tokens;
@@ -298,6 +303,51 @@ string Join(const vector<string> &tokens, char sep) {
       ss<<sep;
   }
   return ss.str();
+}
+
+/**
+ * @brief Use wordexp() to perform symbol expansion on a string
+ *
+ * @param[in] s The path to expand
+ * @param[in] flags Options to wordexp()
+ * @retval string The expanded path
+ * @retval string An empty string ("") if wordexp() returned an error
+ */
+string ExpandPath(std::string const &s, int flags)
+{
+    int rc=0;
+    wordexp_t p;
+    string result;
+
+    rc = wordexp(s.c_str(), &p, flags);
+    if ((rc==0) && (p.we_wordc==1)) {
+        result = string(p.we_wordv[0]);
+        wordfree(&p);
+        return result;
+    }
+    return string("");
+}
+/**
+ * @brief Use wordexp() to perform symbol expansion on a string allowing all substitutions
+ *
+ * @param[in] s The path to expand
+ * @retval string The expanded path
+ * @retval string An empty string ("") if wordexp() returned an error
+ */
+string ExpandPath(std::string const &s)
+{
+    return ExpandPath(s, 0);
+}
+/**
+ * @brief Use wordexp() to perform symbol expansion on a string disallowing command substitution
+ *
+ * @param[in] s The path to expand
+ * @retval string The expanded path
+ * @retval string An empty string ("") if wordexp() returned an error
+ */
+string ExpandPathSafely(std::string const &s)
+{
+    return ExpandPath(s, WRDE_NOCMD);
 }
 
 void ConvertToHexDump(const char *x, ssize_t len, int chars_per_line,
@@ -395,7 +445,12 @@ void ConvertToHexDump(const string s, int chars_per_line,
   ConvertToHexDump(s.c_str(),s.size(), chars_per_line, hex_part, txt_part);
 }
 
-
+/**
+ * @brief Compute a simple 32b hash via Dan Bernstein's djb2 algorithm
+ * @param s String to hash
+ * @return uint32_t hash value
+ * @note This hash comes from http://www.cse.yorku.ca/~oz/hash.html
+ */
 uint32_t hash_dbj2(const string &s) {
 
   //Taken from: djb2 dan bernstein: http://www.cse.yorku.ca/~oz/hash.html
@@ -408,6 +463,13 @@ uint32_t hash_dbj2(const string &s) {
   return static_cast<uint32_t>(hash);
 }
 
+/**
+ * @brief Generate a hash from a bucket and string. Bucket's hash is prepended to string
+ * @param bucket The bucket for this item
+ * @param s The string to hash
+ * @return A 32b hash of the bucket+string
+ * @note This hash comes from http://www.cse.yorku.ca/~oz/hash.html
+ */
 uint32_t hash_dbj2(const bucket_t &bucket, const string &s) {
 
   //Modified version of dbj2
@@ -431,6 +493,123 @@ uint32_t hash_dbj2(const bucket_t &bucket, const string &s) {
 
 uint32_t hash32(const std::string &s) {
   return hash_dbj2(s);
+}
+
+/**
+ * @brief Unpack a hash id from a packed string. String may be the value ("0x12345678") or a string to hash ("foo")
+ * @param s The string holding the hash value
+ * @return uint32_t the integer hash value
+ * @throws runtime_error if parse error with string (ie, starts with 0x, but doesn't have valid hex string)
+ */
+uint32_t UnpackHash32(const std::string &s) {
+
+  //Just hash it if it doesn't begin with 0x
+  if(s.compare(0, 2, "0x")!=0) {
+    return hash32(s);
+
+  } else {
+
+    //Make sure this is less than 32b ("0x"+8hex digits)
+    if(s.size()>10) {
+      throw std::runtime_error("UnpackHash32 given a string starting with 0x that is larger than a 32b hash");
+    }
+
+    //Make sure all parts are valid hex
+    for(size_t i=2; i<s.size(); i++) {
+      if(!isxdigit(s.at(i))) {
+        throw std::runtime_error("UnpackHash32 hex string starting with 0x contained a non-hex symbol");
+      }
+    }
+
+    //Extract out the hex value
+    unsigned long val;
+    stringstream ss;
+    ss << std::hex << s.substr(2); //0x not supported
+    ss >> val;
+    //Note c++ has std::stoul("0xaaaaa", nullptr, 16)
+    return static_cast<uint32_t>(val);
+
+  }
+}
+/**
+ * @brief Parse a token and convert it to an id within a range if valid
+ * @param token The string to parse (intergers, 'end','middle','middleplus')
+ * @param num_nodes Bounds the maximum value of token to (num-nodes-1)
+ * @retval -1 Invalide input
+ * @retval (num_nodes-1) for "end"
+ * @retval (num_nodes-1)/2 for "middle"
+ * @retval ((num_nodes-1)/2)+1) for "middleplus"
+ * @retval [0:num_nodes-1] for valid input
+ */
+int parseIDInRange(const std::string &token, int num_nodes) {
+  if(token.empty()) return -1;
+  if(token=="first") return 0;
+  if(token=="last") return num_nodes-1;
+  if(token=="end") return num_nodes-1;
+  if(token=="middle") return (num_nodes-1)/2;
+  if(token=="middleplus") return (((num_nodes-1)/2)+1);
+
+  //Make sure this is a real number (not " 1 12" or "123bad")
+  bool previous_was_space=true;
+  bool previously_hit_word=false;
+  for(size_t i=0; i<token.size(); i++) {
+    char x = token.at(i);
+    if(x!=' ') {
+      if(!isdigit(x)) return -1; //Not a number
+      if((previous_was_space) && (previously_hit_word)) return -1; // " 123 1"
+      previously_hit_word=true;
+    }
+    previous_was_space = (x==' ');
+  }
+
+  return atoi(token.c_str());
+}
+
+/**
+ * @brief Given a text string of ranges, return a set of all integer values
+ * @param line The input string (eg "1", "1-3", "1,3,5", "2-4,3,5-9", or "0-middle,end"
+ * @param num_nodes Bounds the maximum value in the line to (num_nodes-1)
+ * @return Set containing all the values
+ * @thows runtime_error When invalid input
+ */
+std::set<int> ExtractIDs(const std::string line, int num_nodes) {
+
+  string s=ToLowercase(line);
+
+  set<int> items;
+
+  auto tokens = Split(s,',',true);
+  for(auto &t : tokens) {
+    if(t=="all") {
+      for (int i = 0; i < num_nodes; i++) {
+        items.insert(i);
+      }
+      return items;
+    }
+    auto range_val = Split(t,'-',true);
+    if((range_val.size()>2) || (range_val.empty()))
+      throw std::runtime_error("ExtractID Parse problem in token '"+t+"' for '"+line+"'");
+
+    if(range_val.size()==2) {
+      //This is some range value, like 2-4 or 2-end
+      int a = parseIDInRange(range_val[0], num_nodes);
+      int b = parseIDInRange(range_val[1], num_nodes);
+      if((a>b) || (b<0) || (a>=num_nodes) || (b>=num_nodes) ||(a==b))
+        throw std::runtime_error("ExtractID Range parse problem in token '"+t+"' for '"+line+"'");
+
+      for(int i=a; i<=b; i++)
+        items.insert(i);
+
+    } else {
+
+      int x = parseIDInRange(range_val[0], num_nodes);
+      if((x<0)||(x>=num_nodes))
+        throw std::runtime_error("ExtractID Parse problem in token '"+t+"' for '"+line+"'");
+      items.insert(x);
+    }
+  }
+
+  return items;
 }
 
 } // namespace faodel

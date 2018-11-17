@@ -19,31 +19,25 @@ for users is to:
 
 - Download the FAODEL source code
 - Build and install the libraries
-- Build one or more examples, with each one finding/using the
-  installed libs 
+- Build the examples, using the Faodel installation
   
-
-Components with Examples
-------------------------
-The current list of FAODEL projects with examples is: common,
-webhook, lunasa, nnti, opbox, and kelpie.
-
-Linking Example
----------------
-
-This directory contains one stand-alone example which is only for
-testing whether libraries link properly. After building and installing
-the FAODEL libraries, you can test the linking by doing the
-following:
+The general build process is as follows:
 
 ```
+    # Create build directories for both faodel and examples
     cd faodel
-    ROOT_DIR=$(pwd)
-    INSTALL_DIR=$ROOT_DIR/install
-    mkdir build_examples
+    mkdir {build,build_examples}
+    export Faodel_DIR=$(pwd)/build/install
+    
+    # Build and install faodel
+    cd build
+    cmake -DCMAKE_INSTALL_PREFIX=$Faodel_DIR ..
+    make install
+    cd ..
+    
+    # Build all the examples (using $Faodel_DIR for the library)
     cd build_examples
-    cmake \
-      -DCMAKE_PREFIX_PATH=${INSTALL_DIR}/lib/cmake \
-      ${ROOT_DIR}/examples
-    make 
+    cmake -DCMAKE_INSTALL_PREFIX=$(pwd)/install ../examples
+    make install
+
 ```

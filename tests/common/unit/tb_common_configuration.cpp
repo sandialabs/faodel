@@ -9,7 +9,7 @@
 #include "gtest/gtest.h"
 
 
-#include "common/Common.hh"
+#include "faodel-common/Common.hh"
 
 
 using namespace std;
@@ -20,7 +20,7 @@ extern char **environ;
 
 class FaodelConfiguration : public testing::Test {
 protected:
-  virtual void SetUp() {
+  void SetUp() override {
     //Wipe env?
     char **env; int i;
     for(env = environ; *env !=0; env++) {
@@ -37,6 +37,30 @@ protected:
   }
 
 };
+
+//Test to make sure config can be passed around
+string ConstConfig(const Configuration &config){
+  return config.GetRole();
+}
+TEST_F(FaodelConfiguration, constConfig){
+  Configuration c0;
+  Configuration c1("node_role dummy");
+  Configuration c2("node_role dummy", "MY_ENV_VAR");
+
+  EXPECT_EQ("default", ConstConfig(c0));
+  EXPECT_EQ("dummy",   ConstConfig(c1));
+  EXPECT_EQ("dummy",   ConstConfig(c2));
+
+  string s;
+  s=""; c0.GetString(&s, "config.additional_files.env_name.if_defined"); EXPECT_EQ("FAODEL_CONFIG", s);
+  s=""; c1.GetString(&s, "config.additional_files.env_name.if_defined"); EXPECT_EQ("FAODEL_CONFIG", s);
+  s=""; c2.GetString(&s, "config.additional_files.env_name.if_defined"); EXPECT_EQ("MY_ENV_VAR", s);
+
+
+
+
+}
+
 
 TEST_F(FaodelConfiguration, appendString) {
 
@@ -108,6 +132,85 @@ TEST_F(FaodelConfiguration, from_env_and_file) {
 
   Configuration c;
   rc=c.AppendFromFile(string(namebuf)); //tmp_fname));
+  EXPECT_EQ(0, rc);
+
+  string s2;
+  rc = c.GetString(&s2,"anotherobject","xxxxx");
+  EXPECT_EQ("boingo", s2);
+  EXPECT_EQ(0, rc);
+
+  string s3;
+  rc = c.GetString(&s3, "UnknownObject", "xxxx");
+  EXPECT_EQ(s3, "xxxx");
+  EXPECT_NE(0, rc);
+
+  //Delete tmp file
+  unlink(namebuf);
+}
+
+TEST_F(FaodelConfiguration, filename_expansion1) {
+
+  stringstream ss;
+  ss << "loglevel info\n"
+     << "anotherobject boingo\n";
+
+  //Write out to a tmp file
+  char namebuf[24];
+  memset(namebuf,0,sizeof(namebuf));
+  strncpy(namebuf,"/tmp/ktst-XXXXXX",16);
+  int fd = mkstemp(namebuf);
+  write(fd, ss.str().c_str(), ss.str().length());
+  close(fd);
+
+  // put TEST_TMP in the environment
+  setenv("TEST_TMP", "/tmp", 1);
+
+  rc_t rc;
+
+  // append from an external file after substituting $TEST_TMP
+  Configuration c;
+  rc=c.AppendFromFile(string("$TEST_TMP") + string(&namebuf[4]));
+  EXPECT_EQ(0, rc);
+
+  string s2;
+  rc = c.GetString(&s2,"anotherobject","xxxxx");
+  EXPECT_EQ("boingo", s2);
+  EXPECT_EQ(0, rc);
+
+  string s3;
+  rc = c.GetString(&s3, "UnknownObject", "xxxx");
+  EXPECT_EQ(s3, "xxxx");
+  EXPECT_NE(0, rc);
+
+  //Delete tmp file
+  unlink(namebuf);
+}
+
+TEST_F(FaodelConfiguration, filename_expansion2) {
+
+  stringstream ss1;
+  ss1 << "loglevel info\n"
+     << "anotherobject boingo\n";
+
+  //Write out to a tmp file
+  char namebuf[24];
+  memset(namebuf,0,sizeof(namebuf));
+  strncpy(namebuf,"/tmp/ktst-XXXXXX",16);
+  int fd = mkstemp(namebuf);
+  write(fd, ss1.str().c_str(), ss1.str().length());
+  close(fd);
+
+  // create a Configuration that will read an external file after substituting $TEST_TMP
+  stringstream ss2;
+  ss2 << "config.additional_files" << " " << string("$TEST_TMP") + string(&namebuf[4]) << endl;
+
+  // put TEST_TMP in the environment
+  setenv("TEST_TMP", "/tmp", 1);
+
+  rc_t rc;
+
+  Configuration c(ss2.str());
+  rc=c.AppendFromReferences();
   EXPECT_EQ(0, rc);
 
   string s2;
@@ -293,6 +396,34 @@ TEST_F(FaodelConfiguration, stringAppend) {
   //cout << c.str() <<endl;
 }
 
+TEST_F(FaodelConfiguration, stringVector) {
+  Configuration c;
+  int num;
+  rc_t rc;
+
+  vector<string> my_stuff;
+  c.Append("my_stuff[]", "item1");
+  c.Append("my_stuff[]", "item2");
+  c.Append("my_stuff[]", "item3");
+  num = c.GetStringVector(&my_stuff, "my_stuff");
+
+  EXPECT_EQ(3, num);
+  EXPECT_EQ(3, my_stuff.size());
+  EXPECT_EQ("item1", my_stuff[0]);
+  EXPECT_EQ("item2", my_stuff[1]);
+  EXPECT_EQ("item3", my_stuff[2]);
+
+  string s;
+  rc = c.GetString(&s, "my_stuff.2","");  EXPECT_EQ(0, rc); EXPECT_EQ("item3", s);
+  rc = c.GetString(&s, "my_stuff.3","");  EXPECT_EQ(ENOENT, rc); EXPECT_EQ("", s);
+
+  //Second time around should append to the back
+  num = c.GetStringVector(&my_stuff, "my_stuff");
+  EXPECT_EQ(3, num);
+  EXPECT_EQ("item3", my_stuff[5]);
+}
+
+
 TEST_F(FaodelConfiguration, parseStringblock) {
 
 
@@ -416,5 +547,85 @@ node_role dht_server
     EXPECT_EQ("/tmp/foo/myfile.h5",     settings6["path"]);
     EXPECT_EQ("6",                      settings6["thing"]);
   }
+
+}
+
+TEST_F(FaodelConfiguration, autoUpdateConfig) {
+
+  string config1 = R"EOF(
+version.number   1
+config1.specific.info  v1
+default.iom.path /this/is/path1
+)EOF";
+
+  string config2 = R"EOF(
+version.number   2
+config2.specific.info  v2
+default.iom.path /this/is/path2
+)EOF";
+
+
+  //Write out the second config to a file
+  char fname[] = "/tmp/mytestXXXXXX";
+  int fd = mkstemp(fname);
+  //cout <<"File Name is "<<fname<<endl;
+  write(fd, config2.c_str(), config2.size());
+  close(fd);
+
+  Configuration t1(config1);
+
+  //Config1 should only have stuff from config1 in it
+  string version, path, conf_spec1, conf_spec2;
+  t1.GetString(&version,    "version.number");
+  t1.GetString(&path,       "default.iom.path");
+  t1.GetString(&conf_spec1, "config1.specific.info");
+  t1.GetString(&conf_spec2, "config2.specific.info");
+  EXPECT_EQ("/this/is/path1", path);
+  EXPECT_EQ("1", version );
+  EXPECT_EQ("v1", conf_spec1);
+  EXPECT_EQ("",   conf_spec2);
+
+  //Now load in a second file. It should overwrite default.iom,path and add update
+  t1.AppendFromFile(fname);
+  t1.GetString(&version,    "version.number");
+  t1.GetString(&path,       "default.iom.path");
+  t1.GetString(&conf_spec1, "config1.specific.info");
+  t1.GetString(&conf_spec2, "config2.specific.info");
+  EXPECT_EQ("/this/is/path2", path);
+  EXPECT_EQ("2", version );
+  EXPECT_EQ("v1", conf_spec1);
+  EXPECT_EQ("v2", conf_spec2);
+
+
+
+  //ENV VAR test: Try when no env var set. Make sure it just gets conf1
+  unsetenv("FAODEL_CONFIG");
+  Configuration t2(config1);
+  t2.AppendFromReferences();
+
+  t2.GetString(&version,    "version.number");
+  t2.GetString(&path,       "default.iom.path");
+  t2.GetString(&conf_spec1, "config1.specific.info");
+  t2.GetString(&conf_spec2, "config2.specific.info");
+  EXPECT_EQ("/this/is/path1", path);
+  EXPECT_EQ("1", version );
+  EXPECT_EQ("v1", conf_spec1);
+  EXPECT_EQ("",   conf_spec2);
+
+  //ENV VAR test: Set the env var. This should be the merged configs
+  setenv("FAODEL_CONFIG", fname, 1);
+  Configuration t3(config1);
+  t3.AppendFromReferences();
+  t3.GetString(&version,    "version.number");
+  t3.GetString(&path,       "default.iom.path");
+  t3.GetString(&conf_spec1, "config1.specific.info");
+  t3.GetString(&conf_spec2, "config2.specific.info");
+  EXPECT_EQ("/this/is/path2", path);
+  EXPECT_EQ("2", version );
+  EXPECT_EQ("v1", conf_spec1);
+  EXPECT_EQ("v2", conf_spec2);
+
+  //Get rid of test file
+  unlink(fname);
 
 }

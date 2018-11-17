@@ -5,7 +5,7 @@
 #include "gtest/gtest.h"
 //#include <mpi.h>
 
-#include "common/Common.hh"
+#include "faodel-common/Common.hh"
 #include "lunasa/Lunasa.hh"
 #include "lunasa/DataObject.hh"
 
@@ -13,14 +13,11 @@ using namespace std;
 using namespace faodel;
 using namespace lunasa;
 
+//Note: Additional configuration settings will be loaded the file specified by FAODEL_CONFIG
 string default_config = R"EOF(
 
-# default to using mpi, but allow override in config file pointed to by CONFIG
-nnti.transport.name                           mpi
-config.additional_files.env_name.if_defined   FAODEL_CONFIG
-
 # IMPORTANT: this test won't work with tcmalloc implementation because it
-# starts/finishes bootstrap multiple times.
+#            starts/finishes bootstrap multiple times.
 
 lunasa.lazy_memory_manager malloc
 lunasa.eager_memory_manager malloc
@@ -34,17 +31,33 @@ node_role server
 
 class LunasaDataObjectTest : public testing::Test {
 protected:
-  virtual void SetUp() {
+  void SetUp() override {
     Configuration config(default_config);
     config.AppendFromReferences();
 
     bootstrap::Init(config, lunasa::bootstrap);
     bootstrap::Start();
   }
-  virtual void TearDown() {
+
+  void TearDown() override {
     bootstrap::Finish();
   }
 };
+
+//Make sure allocations wind up being right
+TEST_F(LunasaDataObjectTest, StructSanityCheck) {
+
+  //Plain allocation: should be tagged
+  DataObject ldo1(1024);
+  EXPECT_EQ(0,    ldo1.GetMetaSize());
+  EXPECT_EQ(1024, ldo1.GetDataSize());
+  EXPECT_EQ(1024, ldo1.GetUserSize());
+  EXPECT_EQ(1024, ldo1.GetUserCapacity());
+  EXPECT_EQ(8,    ldo1.GetHeaderSize()); //Header should be fixed to uin16+uint16+uint32
+  EXPECT_EQ(1032, ldo1.GetWireSize());   //Header+user
+  //EXPECT_EQ(1072, ldo1.GetRawAllocationSize());  //Sanity check: copied to catch changes in alloc size
+
+}
 
 TEST_F(LunasaDataObjectTest, simpleSetups) {
   DataObject defaulted;
@@ -67,6 +80,36 @@ TEST_F(LunasaDataObjectTest, simpleSetups) {
   EXPECT_NE((void*)0, oneUnpinned.GetDataPtr());
   EXPECT_EQ(1, oneUnpinned.GetDataSize());
   EXPECT_FALSE(oneUnpinned.isPinned());
+
+  //Make sure capacity allocations work as expected
+  EXPECT_NO_THROW( DataObject ldo_ok(100,50,50,DataObject::AllocatorType::eager, 0) );
+  EXPECT_ANY_THROW(DataObject ldo_bad(100,50,51,DataObject::AllocatorType::eager, 0) );
+  EXPECT_ANY_THROW(DataObject ldo_bad(4294967295,10,4294967294,DataObject::AllocatorType::eager, 0) );
+}
+
+TEST_F(LunasaDataObjectTest, capcityChanges) {
+
+  //Advanced users might want to move their data structures around after they've
+  //stored everything.
+
+  DataObject ldo1(1024,64,128, lunasa::DataObject::AllocatorType::eager, 0x2112);
+  EXPECT_EQ(1024, ldo1.GetUserCapacity());
+  EXPECT_EQ(64,   ldo1.GetMetaSize());
+  EXPECT_EQ(128,  ldo1.GetDataSize());
+  EXPECT_EQ(192,  ldo1.GetUserSize());
+
+  int rc;
+  rc= ldo1.ModifyUserSizes(256, 512);  EXPECT_EQ(0, rc);
+  rc= ldo1.ModifyUserSizes(512, 512);  EXPECT_EQ(0, rc);
+  rc= ldo1.ModifyUserSizes(64,  102);  EXPECT_EQ(0, rc);
+  rc= ldo1.ModifyUserSizes(512, 513);  EXPECT_EQ(-1, rc);
+  rc= ldo1.ModifyUserSizes(513, 512);  EXPECT_EQ(-1, rc);
+
+  //Make sure the sizes are still set to last valid setting
+  EXPECT_EQ(64, ldo1.GetMetaSize());
+  EXPECT_EQ(102, ldo1.GetDataSize());
+
+
 }
 
 TEST_F(LunasaDataObjectTest, shallowCopy) {
@@ -135,127 +178,61 @@ TEST_F(LunasaDataObjectTest, moveLDO) {
   EXPECT_EQ(nullptr, ldo5.GetDataPtr());
 }
 
-#if 0
-// DISABLE for now.  The use case for these string-initialized LDOs is still a bit hazy. [sll]
-TEST_F(LunasaDataObjectTest, metaTest) {
+TEST_F(LunasaDataObjectTest, DeepCompare) {
 
-  DataObject ldo_src = lunasa.AllocStruct("metaData", sizeof(double),1992);
-  double testValue = 1.41421;
-  memcpy(ldo_src.dataPtr(), &testValue, sizeof(double));
-  uint32_t raw_length = ldo_src.rawSize();
+  //Empties
+  DataObject empty1, empty2;
+  EXPECT_TRUE( empty1==empty2);
+  EXPECT_EQ(0, empty1.DeepCompare((empty1)));
+  EXPECT_EQ(0, empty1.DeepCompare((empty2)));
+  EXPECT_EQ(0, empty2.DeepCompare((empty1)));
 
+  //Create two objects that are the same except capacity
+  DataObject item1(8192, 1024,4096, DataObject::AllocatorType::eager, 0x1941);
+  DataObject item2(8000, 1024,4096, DataObject::AllocatorType::eager, 0x1941);
+  memset(item1.GetMetaPtr(), 0, item1.GetMetaSize());
+  memset(item2.GetMetaPtr(), 0, item2.GetMetaSize());
+  memset(item1.GetDataPtr(), 0, item1.GetDataSize());
+  memset(item2.GetDataPtr(), 0, item2.GetDataSize());
+  EXPECT_NE(item1, item2);
+  EXPECT_EQ(0, item1.DeepCompare(item2));
+  EXPECT_EQ(0, item2.DeepCompare(item1));
 
-  // Copy to a contiguous, raw buffer to simulate transfer to network
-  void *raw_buf = malloc(raw_length);
-  memcpy(raw_buf, ldo_src.rawPtr(), raw_length);
+  //Change last byte in data
+  auto dptr = item2.GetDataPtr<char *>();
+  dptr[item2.GetDataSize()-1] = 0x01;
+  EXPECT_EQ(-6, item1.DeepCompare(item2));
+  EXPECT_EQ(-6, item2.DeepCompare(item1));
 
-  // Create an ldo to hold the incoming data and copy it in
-  DataObject ldo_dst = lunasa.Alloc(raw_length);
-  memcpy(ldo_dst.rawPtr(), raw_buf, raw_length);
+  //Change last byte in meta
+  auto mptr = item2.GetMetaPtr<char *>();
+  mptr[item2.GetMetaSize()-1] = 0x02;
+  EXPECT_EQ(-5, item1.DeepCompare(item2));
+  EXPECT_EQ(-5, item2.DeepCompare(item1));
 
-  EXPECT_EQ(ldo_src.rawSize(), ldo_dst.rawSize());
-  EXPECT_EQ(8,                 ldo_dst.metaSize());
-  EXPECT_EQ(sizeof(double),    ldo_dst.dataSize());
-  EXPECT_EQ(1992,              ldo_dst.metaTag());
-  EXPECT_EQ("metaData",        ldo_dst.meta());
-  EXPECT_EQ(testValue,         *((double *)ldo_dst.dataPtr()));
+  //Change data size
+  item2.ModifyUserSizes(1024, 4095);
+  EXPECT_EQ(-4, item1.DeepCompare(item2));
+  EXPECT_EQ(-4, item2.DeepCompare(item1));
 
-  free(raw_buf);
+  //Change meta size
+  item2.ModifyUserSizes(1023, 4096);
+  EXPECT_EQ(-3, item1.DeepCompare(item2));
+  EXPECT_EQ(-3, item2.DeepCompare(item1));
+
+  //Screw up the
+  item1.SetTypeID(0x1940);
+  EXPECT_EQ(-2, item1.DeepCompare(item2));
+  EXPECT_EQ(-2, item2.DeepCompare(item1));
+
+  //Reset all things
+  item1.SetTypeID(0x1941);
+  item2.ModifyUserSizes(1024,4096);
+  mptr[item2.GetMetaSize()-1] = 0x0;
+  dptr[item2.GetDataSize()-1] = 0x0;
+  EXPECT_EQ(0, item1.DeepCompare(item2));
+
+  EXPECT_EQ(-1, item1.DeepCompare(empty1));
+  EXPECT_EQ(-1, empty1.DeepCompare(item1));
+
 }
-#endif
-
-#if 0
-// DISABLE for now.  The use case for these string-initialized LDOs is still a bit hazy. [sll]
-TEST_F(LunasaDataObjectTest, nullMetaTest) {
-  DataObject nullMeta = lunasa.AllocStruct(std::string(5, '\0'), 0, 2112);
-  EXPECT_EQ(0, nullMeta.meta()[0]);
-  EXPECT_EQ(0, nullMeta.meta()[1]);
-  EXPECT_EQ(0, nullMeta.meta()[2]);
-  EXPECT_EQ(0, nullMeta.meta()[3]);
-  EXPECT_EQ(0, nullMeta.meta()[4]);
-
-  uint32_t raw_length = nullMeta.rawSize();
-
-  // Copy to a contiguous, raw buffer to simulate transfer to network
-  void *raw_buf = malloc(raw_length);
-  memcpy(raw_buf, nullMeta.rawPtr(), raw_length);
-
-
-  // Create an ldo to hold the incoming data and copy it in
-  DataObject ldo_dst = lunasa.Alloc(raw_length);
-  memcpy(ldo_dst.rawPtr(), raw_buf, raw_length);
-
-  EXPECT_EQ(0, ldo_dst.meta()[0]);
-  EXPECT_EQ(0, ldo_dst.meta()[1]);
-  EXPECT_EQ(0, ldo_dst.meta()[2]);
-  EXPECT_EQ(0, ldo_dst.meta()[3]);
-  EXPECT_EQ(0, ldo_dst.meta()[4]);
-
-  EXPECT_EQ(5,    ldo_dst.metaSize());
-  EXPECT_EQ(0,    ldo_dst.dataSize());
-  EXPECT_EQ(2112, ldo_dst.metaTag());
-
-
-  free(raw_buf);
-  
-}
-#endif
-
-#if 0
-// DISABLE for now.  The use case for these string-initialized LDOs is still a bit hazy. [sll]
-TEST_F(LunasaDataObjectTest, resize) {
-
-  DataObject ldo1 = lunasa.Alloc(2*1024);
-  EXPECT_EQ(0, ldo1.metaSize());
-  EXPECT_EQ(2*1024, ldo1.dataSize());
-
-  //Make sure data is valid, but meta is nullptr
-  uint8_t *ptr1, *ptr2;
-  ptr1 = static_cast<uint8_t *>(ldo1.metaPtr());
-  ptr2 = static_cast<uint8_t *>(ldo1.dataPtr());
-  EXPECT_EQ(nullptr, ptr1);
-  memset(ptr2, 0, 2*1024); // wipe it
-  for(uint32_t i=0; i<255; i++)
-    ptr2[i]=i;
-  ptr2[1024]=0x36; //Special marker at 1KB offset
-
-  //Make data smaller, but still no meta
-  ldo1.Resize(1*1024);
-  EXPECT_EQ(0, ldo1.metaSize());
-  EXPECT_EQ(1*1024, ldo1.dataSize());
-  ptr1 = static_cast<uint8_t *>(ldo1.metaPtr());
-  ptr2 = static_cast<uint8_t *>(ldo1.dataPtr());
-  EXPECT_EQ(nullptr, ptr1);
-  for(uint32_t i=0; i<255; i++)
-    EXPECT_EQ(i, ptr2[i]);
-
-  uint8_t *ptrd_prv = ptr2;
-  //Resize it with meta being non-zero
-  ldo1.Resize(1*1024, 1*1024);
-  EXPECT_EQ(1*1024, ldo1.metaSize());
-  EXPECT_EQ(1*1024, ldo1.dataSize());
-  ptr1 = static_cast<uint8_t *>(ldo1.metaPtr());
-  ptr2 = static_cast<uint8_t *>(ldo1.dataPtr());
-  EXPECT_EQ(ptrd_prv, ptr1); //used to be where data was pointing
-  for(uint8_t i=0; i<255; i++)
-    EXPECT_EQ(i, ptr1[i]);  //Meta should be whatever data was holding before
-  EXPECT_EQ(0x36, ptr2[0]); //Read the special marker
-
-  //Give some bad resizes
-  try{
-    ldo1.Resize(2*1024); //Meta is nonzero, so all space is gone
-    EXPECT_TRUE(false);
-  } catch(ResizeCapacity e) {}
-
-  try{
-    ldo1.Resize(1*1024, 1*1024+1); //too big
-    EXPECT_TRUE(false);
-  } catch(ResizeCapacity e) {}
-
-  try{
-    ldo1.Resize(1*1024+1, 1*1024); //too big
-    EXPECT_TRUE(false);
-  } catch(ResizeCapacity e) {}
-  
-}
-#endif

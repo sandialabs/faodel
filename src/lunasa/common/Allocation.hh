@@ -8,7 +8,7 @@
 #include <atomic>
 #include <assert.h>
 
-#include "common/Common.hh"
+#include "faodel-common/Common.hh"
 
 #include "lunasa/Lunasa.hh"
 #include "lunasa/allocators/AllocatorBase.hh"
@@ -28,18 +28,17 @@
  */
 
 namespace lunasa {
+namespace internal {
 
 struct AllocationSegment {
-  /* Pointer to original memory */
-  void *buffer_ptr;
-  /* Handle to pinned memory */
-  void *net_buffer_handle;
-  /* Offset into pinned memory */
-  uint32_t net_buffer_offset;
-  /* Number of bytes */
-  uint32_t size;
-  /* Function that releases the memory referenced by <buffer_ptr> */
-  void (*cleanup_func)(void *);
+
+  void *buffer_ptr;             //!< Pointer to original memory
+  void *net_buffer_handle;      //!< Handle to pinned memory
+
+  uint32_t net_buffer_offset;   //!< Offset into pinned memory
+  uint32_t size;                //!< Number of bytes
+
+  void (*cleanup_func)(void *); //!< Function that releases the memory referenced by buffer_ptr
 
   AllocationSegment(void *buffer_ptr_, void *net_buffer_handle_, uint32_t net_buffer_offset_,
                     uint32_t size_, void (*cleanup_func_)(void *)):
@@ -54,11 +53,11 @@ struct AllocationSegment {
 
 //All of the local things that don't get put in a raw message
 typedef struct {
-  void *net_buffer_handle;       //Nonzero when this item is pinned
-  std::atomic_int ref_count;  
-  AllocatorBase *allocator;
-  uint32_t net_buffer_offset; //May be nonzero when doing a suballocation
-  uint32_t allocated_bytes;   // Number of bytes that were allocated for this allocation
+  void *net_buffer_handle;     //!< Nonzero when this item is pinned
+  std::atomic_int ref_count;   //!< Number of user LDOs that use this
+  AllocatorBase *allocator;    //!< Reference to the allocator that provided the memory
+  uint32_t net_buffer_offset;  //!< Starting offset into buffer? May be nonzero when doing a suballocation
+  uint32_t allocated_bytes;    //!< Number of bytes that were allocated (includes local, header, and user sizes)
 
   // User-allocated memory segments that have been made part of the LDO.
   // NOTE: a std::vector is used here to support potential cases in the future
@@ -66,37 +65,43 @@ typedef struct {
   std::vector<AllocationSegment> *user_data_segments; 
 } allocation_local_t;
 
+//A short header in the front of the on-wire data. Has a type and breaks down message lengths
 typedef struct {
-  uint16_t meta_bytes;
-  uint32_t data_bytes;      // Total number of user data bytes
-#ifdef FUTURE
-  meta_tag_t meta_tag;  
-#endif
+  dataobject_type_t type;      //!< A hash ID used to specify a data type of an LDO
+  uint16_t meta_bytes;         //!< Total bytes of meta data segment is (0B to (16KB-1))
+  uint32_t data_bytes;         //!< Total bytes of user data segment (0B to (4GB-1-meta_bytes)
 } allocation_header_t;
 
-//One allocation to hold everything about an allocation. 
-// local: refcounts and pointers only available here
-// raw:   things that would get sent to a remote: header, meta data, and data
+//One allocation to hold everything about an ldo
+// local:  refcounts and pointers only available here
+// wire:   data that gets shipped over the wire (header+user)
+//   header: A short struct to hold the type and meta/data lengths
+//   user:  The user's actual data. Up to 64KB-1 of meta followed by data
 //   
-typedef struct allocation_s {
-  allocation_local_t  local;   //Pointers and bookkeeping only available on local node
-  allocation_header_t header;  //Start of raw data, includes lengths
-  uint8_t             meta_and_user_data[0]; //Start of meta/user data
+struct Allocation {
+  allocation_local_t  local;   //!< Pointers and bookkeeping only available on local node
+  allocation_header_t header;  //!< Start of raw data, includes lengths
+  uint8_t             user[0]; //!< Start of user's meta/data
 
-  void setHeader(int initial_ref_count, uint16_t meta_size, uint32_t data_size)
-  {
+  void setHeader(int initial_ref_count,
+                 uint16_t meta_size, uint32_t data_size,
+                 dataobject_type_t type) {
     local.ref_count = ATOMIC_VAR_INIT(initial_ref_count);
+    header.type       = type;
     header.data_bytes = data_size;
     header.meta_bytes = meta_size;
-#ifdef FUTURE
-    header.meta_tag = meta_tag;
-#endif
   }
 
-#ifdef FUTURE
-  meta_tag_t getMetaTag() const { return header.meta_tag; }
-  void       setMetaTag(meta_tag_t metaTag) { header.meta_tag = metaTag; }
-#endif
+  dataobject_type_t getType() const { return header.type; }
+  void              setType(dataobject_type_t type) { header.type = type; }
+
+  /**
+   * @brief Report how much user space is available in the allocation
+   * @return Total allocations size minus local and header sections
+   */
+  uint32_t GetUserCapacity() {
+    return local.allocated_bytes - offsetof(Allocation, user[0]);
+  }
 
   // !!!! TODO not sure whether these get used !!!!
   bool IsPinned()    { return local.net_buffer_handle != nullptr; }
@@ -126,9 +131,9 @@ typedef struct allocation_s {
     return num_left;
   }
 
-} allocation_t;
+};
 
-
+} // namespace internal
 } // namespace lunasa
 
 #endif // ALLOCATION_HH

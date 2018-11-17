@@ -35,7 +35,7 @@ main(int argc, char *argv[])
     setenv("NNTI_LOG_FILEPER", "1", 1);
     setenv("NNTI_LOG_LEVEL", "DEBUG", 1);
 
-    test_bootstrap();
+    test_bootstrap_start();
 
     rc = NNTI_init(transport_id, req_url, &transport);
     assert(rc==NNTI_OK);
@@ -54,6 +54,7 @@ main(int argc, char *argv[])
     log_debug("NntiLoggetTest1", "my_url=%s", my_url);
 
     NNTI_fini(transport);
+    test_bootstrap_finish();
 
     sprintf(logfile, "%s.%d.log", log_filename, getpid());
     if (stat(logfile, &sb) == -1) {

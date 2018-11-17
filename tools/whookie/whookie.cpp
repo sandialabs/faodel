@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// This is a simple client tool for doing web queries to a FAODEL-based
+// service. It's only intended to serve as a simple query tool when
+// curl or wget are not available.
 
 #include <iostream>
 
@@ -53,7 +53,7 @@ int parseURL(const string &url, string &host, string &port, string &path){
 int main(int argc, char **argv){
 
   if(argc!=2){
-    cout << "usage: grabData <url>\n";
+    cout << "usage: whookie <url>\n";
     return 1;
   }
   string host,port,path;

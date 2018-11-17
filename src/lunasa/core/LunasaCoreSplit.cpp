@@ -8,6 +8,7 @@
 #include "lunasa/allocators/Allocators.hh"
 #include "lunasa/common/Allocation.hh"
 #include "lunasa/core/LunasaCoreSplit.hh"
+#include "lunasa/core/Singleton.hh"
 
 #include "webhook/WebHook.hh"
 #include "webhook/Server.hh"
@@ -17,8 +18,7 @@ using namespace std;
 namespace lunasa {
 namespace internal {
 
-LunasaCoreSplit::LunasaCoreSplit() : LunasaCoreBase("Split") 
-{
+LunasaCoreSplit::LunasaCoreSplit() : LunasaCoreBase("Split") {
   //Plug in a placeholder that panics if trying to use unconfigured. Pass in
   //empty config to disable the logging
   faodel::Configuration empty_config;
@@ -26,8 +26,7 @@ LunasaCoreSplit::LunasaCoreSplit() : LunasaCoreBase("Split")
   eager_allocator = reuseAllocator(lazy_allocator);
 }
 
-LunasaCoreSplit::~LunasaCoreSplit() 
-{
+LunasaCoreSplit::~LunasaCoreSplit() {
   lazy_allocator->DecrRef();
   eager_allocator->DecrRef();
 }
@@ -63,8 +62,6 @@ void LunasaCoreSplit::init(string lmm_name, string emm_name, bool use_webhook,
   webhook::Server::updateHook("/lunasa/lazy_details", [this] (const map<string,string> &args, stringstream &results) {
       return HandleWebhookLazyDetails(args, results);
     });
-
-  
 }
 
 void LunasaCoreSplit::finish() {
@@ -73,37 +70,17 @@ void LunasaCoreSplit::finish() {
   webhook::Server::deregisterHook("/lunasa/lazy_details");
 }
 
-void LunasaCoreSplit::RegisterPinUnpin(net_pin_fn pin, net_unpin_fn unpin) 
-{
-    eager_allocator->RegisterPinUnpin(pin, unpin);
-    lazy_allocator->RegisterPinUnpin(pin, unpin);
+void LunasaCoreSplit::RegisterPinUnpin(net_pin_fn pin, net_unpin_fn unpin) {
+  eager_allocator->RegisterPinUnpin(pin, unpin);
+  lazy_allocator->RegisterPinUnpin(pin, unpin);
 }
 
-allocation_t *LunasaCoreSplit::AllocateEager(uint32_t metaCapacity, uint32_t dataCapacity)
-{
-  AllocatorBase *allocator;
-  allocation_t *allocation;
-
-  //cout <<"Lunasa->Alloc "<<metaCapacity<<"+"<<dataCapacity<<"(default)\n";
-
-  uint32_t capacity = metaCapacity+dataCapacity;
-  allocation = eager_allocator->Allocate(capacity);
-
-  return allocation;
+Allocation *LunasaCoreSplit::AllocateEager(uint32_t user_capacity) {
+  return eager_allocator->Allocate(user_capacity);
 }
 
-allocation_t *LunasaCoreSplit::AllocateLazy(uint32_t metaCapacity, uint32_t dataCapacity)
-{
-  AllocatorBase *allocator;
-  allocation_t *allocation;
-
-  //cout <<"Lunasa->Alloc "<<metaCapacity<<"+"<<dataCapacity<<"(default)\n";
-
-  uint32_t capacity = metaCapacity+dataCapacity;
-
-  allocation = lazy_allocator->Allocate(capacity);
-
-  return allocation;
+Allocation *LunasaCoreSplit::AllocateLazy(uint32_t user_capacity) {
+  return lazy_allocator->Allocate(user_capacity);
 }
 
 size_t LunasaCoreSplit::TotalAllocated() const{
@@ -134,12 +111,15 @@ Lunasa LunasaCoreSplit::GetLunasaInstance() {
 
 void LunasaCoreSplit::HandleWebhookStatus(const map<string,string> &args, stringstream &results){
 
-  webhook::ReplyStream rs(args, "Lunasa Status", &results);
+  faodel::ReplyStream rs(args, "Lunasa Status", &results);
 
   rs.mkSection("Lunasa: Split Allocator");
   rs.mkText( R"(Lunasa is currently configured to use <b>Split</b> allocators. This means Lunasa
 has one allocator for tracking lazy-pinned memory (memory that is only pinned when it is about to leave
 the network) and eager-pinned memory (memory that is pinned when requested.)");
+
+  internal::Singleton::impl.dataobject_type_registry.DumpRegistryStatus(rs);
+
 
   if(lazy_allocator==eager_allocator) {
     rs.mkText("<b>Note</b>: Lunasa is currently configured to combine lazy and eager allocators");
@@ -153,9 +133,10 @@ the network) and eager-pinned memory (memory that is pinned when requested.)");
   }
   rs.Finish(); 
 }
+
 void LunasaCoreSplit::HandleWebhookEagerDetails(const map<string,string> &args, stringstream &results) {
 
-  webhook::ReplyStream rs(args, "Lunasa Eager Allocator Details", &results);
+  faodel::ReplyStream rs(args, "Lunasa Eager Allocator Details", &results);
   eager_allocator->webhookStatus(rs, "Eager");
   eager_allocator->webhookMemoryAllocations(rs, "Eager");
   rs.Finish();
@@ -163,7 +144,7 @@ void LunasaCoreSplit::HandleWebhookEagerDetails(const map<string,string> &args, 
 
 void LunasaCoreSplit::HandleWebhookLazyDetails(const map<string,string> &args, stringstream &results) {
 
-  webhook::ReplyStream rs(args, "Lunasa Lazy Allocator Details", &results);
+  faodel::ReplyStream rs(args, "Lunasa Lazy Allocator Details", &results);
   lazy_allocator->webhookStatus(rs, "Lazy");
   lazy_allocator->webhookMemoryAllocations(rs, "Lazy");
   rs.Finish();

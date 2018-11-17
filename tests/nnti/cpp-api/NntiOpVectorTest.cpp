@@ -9,7 +9,7 @@
 
 #include "gtest/gtest.h"
 
-#include "common/Common.hh"
+#include "faodel-common/Common.hh"
 
 #include "nnti/nntiConfig.h"
 
@@ -33,7 +33,6 @@ using namespace faodel;
 string default_config_string = R"EOF(
 # default to using mpi, but allow override in config file pointed to by CONFIG
 nnti.transport.name                           mpi
-config.additional_files.env_name.if_defined   FAODEL_CONFIG
 )EOF";
 
 
@@ -60,7 +59,7 @@ protected:
 
     nnti::transports::transport *t=nullptr;
 
-    virtual void SetUp () {
+  void SetUp () override {
         config = Configuration(default_config_string);
         config.AppendFromReferences();
 
@@ -70,7 +69,8 @@ protected:
                    "OpVectorTest",
                    t);
     }
-    virtual void TearDown () {
+
+  void TearDown () override {
         NNTI_result_t nnti_rc = NNTI_OK;
         bool init;
 
@@ -135,6 +135,7 @@ int main(int argc, char *argv[])
     cout <<"Tester completed all tests.\n";
 
     MPI_Barrier(MPI_COMM_WORLD);
+    bootstrap::Finish();
 
     MPI_Finalize();
 

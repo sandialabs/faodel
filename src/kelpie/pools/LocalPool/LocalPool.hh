@@ -12,7 +12,7 @@
 #include <memory>
 #include <sstream>
 
-#include "common/Common.hh"
+#include "faodel-common/Common.hh"
 
 #include "kelpie/Key.hh"
 #include "kelpie/localkv/LocalKV.hh"
@@ -39,7 +39,7 @@ class LocalPool : public PoolBase {
 public:
 
   LocalPool(const faodel::ResourceURL &pool_url);
-  ~LocalPool();
+  ~LocalPool() override;
 
   //PoolBase functions
   rc_t Publish(const Key &key, fn_publish_callback_t callback=nullptr) override;

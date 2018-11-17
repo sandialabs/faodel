@@ -9,11 +9,13 @@
 
 #include <gtest/gtest.h>
 
-#include "common/Common.hh"
+#include "faodel-common/Common.hh"
 
 #include "webhook/Server.hh"
 #include "webhook/client/Client.hh"
-#include "webhook/common/QuickHTML.hh"
+#include "faodel-common/QuickHTML.hh"
+
+#include "faodel-common/Bootstrap.hh"
 
 using namespace std;
 
@@ -32,13 +34,14 @@ webhook.port 1996
 class ClientServer : public testing::Test {
 
 protected:
-  virtual void SetUp(){    
+  void SetUp() override {
 
     server_node = webhook::Server::GetNodeID();
     //cout <<server_node.GetHttpLink()<<endl;
     num_tests++; //Keep track so main can close out this many tests
   }
-  virtual void TearDown(){
+
+  void TearDown() override {
     //TODO: ideally we'd put a stop here, but when the count goes to zero, the
     //      global webhook will stop all threads and close in a way that eats
     //      the port. For now, handle 
@@ -101,10 +104,12 @@ TEST_F(ClientServer, Simple){
   
   rc=webhook::Server::deregisterHook("/test_simple1"); EXPECT_EQ(0,rc);
   rc=webhook::Server::deregisterHook("/test_simple2"); EXPECT_EQ(0,rc);
-  
+
+  //Try again and make sure
   result="";
   rc = webhook::retrieveData(server_node, "/test_simple2", &result);
-  EXPECT_EQ(0,rc);
+  EXPECT_EQ(-2,rc);
+  EXPECT_EQ("", result);
 }
 
 TEST_F(ClientServer, Registrations){
@@ -131,7 +136,7 @@ TEST_F(ClientServer, ReplyStream){
   //Add a hook to let user set a variable
   string value1;
   webhook::Server::registerHook("/test_replystream", [&value1] (const map<string,string> &args, stringstream &results) {
-      webhook::ReplyStream rs(args, "ReplyStream", &results);
+      faodel::ReplyStream rs(args, "ReplyStream", &results);
       
       auto new_val = args.find("newval");
       if(new_val != args.end()){
@@ -179,7 +184,7 @@ TEST_F(ClientServer, ManyRequests){
   //Add a hook to let user set a variable
   string value1;
   webhook::Server::registerHook("/test_vals", [&value1] (const map<string,string> &args, stringstream &results) {
-      webhook::ReplyStream rs(args, "ReplyStream", &results);
+      faodel::ReplyStream rs(args, "ReplyStream", &results);
       
       auto new_val = args.find("newval");
       if(new_val != args.end()){
@@ -236,7 +241,7 @@ int main(int argc, char **argv){
   
   int rc = RUN_ALL_TESTS();
  
-  //faodel::bootstrap::Finish();
+  faodel::bootstrap::Finish();
   
   return rc;
 }

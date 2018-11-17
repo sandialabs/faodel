@@ -4,7 +4,7 @@
 
 #include <iostream>
 
-#include "common/Common.hh"
+#include "faodel-common/Common.hh"
 #include "opbox/OpBox.hh"
 
 #include "Globals.hh"
@@ -16,8 +16,6 @@ Globals G;
 //The configuration used in this example (see ping example for info)
 std::string default_config_string = R"EOF(
 # Note: node_role is defined when we determine if this is a client or a server
-nnti.transport.name   mpi
-config.additional_files.env_name.if_defined   FAODEL_CONFIG
 
 dirman.type           centralized
 dirman.root_role      master

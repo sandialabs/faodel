@@ -44,7 +44,7 @@ int DimSum::WriterAppend(int value){
   return (writer_num_vals == writer_max_vals);
 }
 
-int DimSum::WriterFinishTimestep(){
+void DimSum::WriterFinishTimestep(){
   //Resize: currently disabled. will be refactored in next release
   //ldo_current.Resize(writer_num_vals * sizeof(uint32_t));
   pool.Publish(current_key, ldo_current);

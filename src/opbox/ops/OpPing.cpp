@@ -9,7 +9,7 @@
 #include <map>
 #include <algorithm>
 
-#include "common/Debug.hh"
+#include "faodel-common/Debug.hh"
 
 #include "opbox/common/MessageHelpers.hh"
 #include "opbox/ops/OpPing.hh"

@@ -20,7 +20,7 @@ extern "C" {
 #include <list>
 #include <thread>
 
-#include "common/Configuration.hh"
+#include "faodel-common/Configuration.hh"
 
 #include "nnti/nntiConfig.h"
 
@@ -177,6 +177,7 @@ private:
     std::atomic<bool> terminate_progress_thread_;
     std::thread       progress_thread_;
 
+    nthread_lock_t new_connection_lock_;
     nnti::core::nnti_connection_map conn_map_;
     nnti::datatype::nnti_buffer_map buffer_map_;
 

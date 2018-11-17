@@ -26,7 +26,7 @@
 #include <string>
 
 #include <infiniband/verbs.h>
-#ifdef NNTI_HAVE_VERBS_EXP_H
+#if (NNTI_HAVE_VERBS_EXP_H)
 #include <infiniband/verbs_exp.h>
 #endif
 
@@ -122,6 +122,7 @@ public:
         int rc;
 
         nnti::core::nnti_url url = nnti::core::nnti_url(peer_params_.hostname, peer_params_.port);
+
         peer_pid_ = url.pid();
         peer_     = new nnti::datatype::nnti_peer(transport, url);
         peer_->conn(this);
@@ -142,8 +143,8 @@ public:
         log_debug("", "rdma_qpn     = %d",  peer_params_.rdma_qpn);
         log_debug("", "long_get_qpn = %d",  peer_params_.long_get_qpn);
     }
-    virtual ~ibverbs_connection()
-    {
+
+  ~ibverbs_connection() override {
         teardown_command_qp();
         teardown_rdma_qp();
         teardown_long_get_qp();
@@ -160,6 +161,7 @@ public:
         peer_params_ = connection_params(params);
 
         nnti::core::nnti_url url = nnti::core::nnti_url(peer_params_.hostname, peer_params_.port);
+
         peer_pid_ = url.pid();
 
         log_debug("", "hostname     = %s",  peer_params_.hostname.c_str());
@@ -188,6 +190,7 @@ public:
         peer_params_ = connection_params(param_map);
 
         nnti::core::nnti_url url = nnti::core::nnti_url(peer_params_.hostname, peer_params_.port);
+
         peer_pid_ = url.pid();
 
         log_debug("", "hostname     = %s",  peer_params_.hostname.c_str());
@@ -203,8 +206,7 @@ public:
      * generate a string that can be added into a URL query string
      */
     std::string
-    query_string(void)
-    {
+    query_string(void) override {
         std::stringstream ss;
         ss << "&cmd_qpn=" << cmd_qpn();
         ss << "&rdma_qpn=" << rdma_qpn();
@@ -215,8 +217,7 @@ public:
      * generate a key=value (one per line) string that can be included in a WebHook reply
      */
     std::string
-    reply_string(void)
-    {
+    reply_string(void) override {
         std::stringstream ss;
         ss << "cmd_qpn=" << cmd_qpn() << std::endl;
         ss << "rdma_qpn=" << rdma_qpn() << std::endl;
@@ -315,52 +316,10 @@ private:
     void
     setup_command_qp(void)
     {
-        int rc;
-#if NNTI_HAVE_IBV_EXP_CREATE_QP
-        struct ibv_exp_qp_init_attr att;
-#else
-        struct ibv_qp_init_attr att;
-#endif
-
-        memset(&att, 0, sizeof(att));
-        att.qp_context       = this;
-        att.send_cq          = transport_->cmd_cq_;
-        att.recv_cq          = transport_->cmd_cq_;
-        att.srq              = transport_->cmd_srq_;
-        att.cap.max_recv_wr  = transport_->qp_count_;
-        att.cap.max_send_wr  = transport_->qp_count_;
-        att.cap.max_recv_sge = 1;
-        att.cap.max_send_sge = 1;
-        att.qp_type          = IBV_QPT_RC;
-
-#if NNTI_HAVE_IBV_EXP_CREATE_QP
-        /* use expanded verbs qp create to enable use of mlx5 atomics */
-        att.comp_mask = IBV_EXP_QP_INIT_ATTR_PD;
-        att.pd = transport_->pd_;
-
-#if NNTI_HAVE_IBV_EXP_QP_INIT_ATTR_ATOMICS_ARG
-        att.comp_mask |= IBV_EXP_QP_INIT_ATTR_ATOMICS_ARG;
-        att.max_atomic_arg = sizeof (uint64_t);
-#endif
-
-#if NNTI_HAVE_IBV_EXP_QP_CREATE_ATOMIC_BE_REPLY
-        att.exp_create_flags = IBV_EXP_QP_CREATE_ATOMIC_BE_REPLY;
-        att.comp_mask |= IBV_EXP_QP_INIT_ATTR_CREATE_FLAGS;
-#endif
-
-        cmd_qp_ = ibv_exp_create_qp(transport_->ctx_, &att);
+        cmd_qp_ = create_qp(transport_->cmd_cq_, transport_->cmd_srq_, transport_->qp_count_);
         if (!cmd_qp_) {
             log_error("ibverbs_connection", "failed to create QP: %s", strerror(errno));
         }
-
-#else
-
-        cmd_qp_ = ibv_create_qp(transport_->pd_, &att);
-        if (!cmd_qp_) {
-            log_error("ibverbs_connection", "failed to create QP: %s", strerror(errno));
-        }
-
-#endif
     }
     void
     teardown_command_qp(void)
@@ -373,52 +332,10 @@ private:
     void
     setup_rdma_qp(void)
     {
-        int rc;
-#if NNTI_HAVE_IBV_EXP_CREATE_QP
-        struct ibv_exp_qp_init_attr att;
-#else
-        struct ibv_qp_init_attr att;
-#endif
-
-        memset(&att, 0, sizeof(att));
-        att.qp_context       = this;
-        att.send_cq          = transport_->rdma_cq_;
-        att.recv_cq          = transport_->rdma_cq_;
-        att.srq              = transport_->rdma_srq_;
-        att.cap.max_recv_wr  = transport_->qp_count_;
-        att.cap.max_send_wr  = transport_->qp_count_;
-        att.cap.max_recv_sge = 1;
-        att.cap.max_send_sge = 1;
-        att.qp_type          = IBV_QPT_RC;
-
-#if NNTI_HAVE_IBV_EXP_CREATE_QP
-        /* use expanded verbs qp create to enable use of mlx5 atomics */
-        att.comp_mask = IBV_EXP_QP_INIT_ATTR_PD;
-        att.pd = transport_->pd_;
-
-#if NNTI_HAVE_IBV_EXP_QP_INIT_ATTR_ATOMICS_ARG
-        att.comp_mask |= IBV_EXP_QP_INIT_ATTR_ATOMICS_ARG;
-        att.max_atomic_arg = sizeof (uint64_t);
-#endif
-
-#if NNTI_HAVE_IBV_EXP_QP_CREATE_ATOMIC_BE_REPLY
-        att.exp_create_flags = IBV_EXP_QP_CREATE_ATOMIC_BE_REPLY;
-        att.comp_mask |= IBV_EXP_QP_INIT_ATTR_CREATE_FLAGS;
-#endif
-
-        rdma_qp_ = ibv_exp_create_qp(transport_->ctx_, &att);
+        rdma_qp_ = create_qp(transport_->rdma_cq_, transport_->rdma_srq_, transport_->qp_count_);
         if (!rdma_qp_) {
             log_error("ibverbs_connection", "failed to create QP: %s", strerror(errno));
         }
-
-#else
-
-        rdma_qp_ = ibv_create_qp(transport_->pd_, &att);
-        if (!rdma_qp_) {
-            log_error("ibverbs_connection", "failed to create QP: %s", strerror(errno));
-        }
-
-#endif
     }
 
     void
@@ -432,21 +349,7 @@ private:
     void
     setup_long_get_qp(void)
     {
-        int rc;
-        struct ibv_qp_init_attr att;
-
-        memset(&att, 0, sizeof(att));
-        att.qp_context       = this;
-        att.send_cq          = transport_->long_get_cq_;
-        att.recv_cq          = transport_->long_get_cq_;
-        att.srq              = transport_->long_get_srq_;
-        att.cap.max_recv_wr  = transport_->qp_count_;
-        att.cap.max_send_wr  = transport_->qp_count_;
-        att.cap.max_recv_sge = 1;
-        att.cap.max_send_sge = 1;
-        att.qp_type          = IBV_QPT_RC;
-
-        long_get_qp_ = ibv_create_qp(transport_->pd_, &att);
+        long_get_qp_ = create_qp(transport_->long_get_cq_, transport_->long_get_srq_, transport_->qp_count_);
         if (!long_get_qp_) {
             log_error("ibverbs_connection", "failed to create QP: %s", strerror(errno));
         }
@@ -458,6 +361,63 @@ private:
         int rc = ibv_destroy_qp(long_get_qp_);
         if (rc < 0)
             log_error("ibverbs_connection", "failed to destroy QP");
+    }
+
+    ibv_qp *
+    create_qp(
+        ibv_cq  *cq,
+        ibv_srq *srq,
+        int      wr_count)
+    {
+        if ((transport_->have_exp_qp_) && (transport_->byte_swap_atomic_result_)) {
+#if NNTI_HAVE_IBV_EXP_CREATE_QP
+            struct ibv_exp_qp_init_attr att;
+
+            memset(&att, 0, sizeof(att));
+            att.qp_context       = this;
+            att.send_cq          = cq;
+            att.recv_cq          = cq;
+            att.srq              = srq;
+            att.cap.max_recv_wr  = wr_count;
+            att.cap.max_send_wr  = wr_count;
+            att.cap.max_recv_sge = 1;
+            att.cap.max_send_sge = 1;
+            att.qp_type          = IBV_QPT_RC;
+
+            /* use expanded verbs qp create to enable use of mlx5 atomics */
+            att.comp_mask = IBV_EXP_QP_INIT_ATTR_PD;
+            att.pd = transport_->pd_;
+
+#if NNTI_HAVE_IBV_EXP_QP_INIT_ATTR_ATOMICS_ARG
+            att.comp_mask |= IBV_EXP_QP_INIT_ATTR_ATOMICS_ARG;
+            att.max_atomic_arg = sizeof (uint64_t);
+#endif
+
+#if NNTI_HAVE_IBV_EXP_QP_CREATE_ATOMIC_BE_REPLY
+            att.exp_create_flags = IBV_EXP_QP_CREATE_ATOMIC_BE_REPLY;
+            att.comp_mask |= IBV_EXP_QP_INIT_ATTR_CREATE_FLAGS;
+#endif
+
+            return ibv_exp_create_qp(transport_->ctx_, &att);
+#endif
+        } else {
+            struct ibv_qp_init_attr att;
+
+            memset(&att, 0, sizeof(att));
+            att.qp_context       = this;
+            att.send_cq          = cq;
+            att.recv_cq          = cq;
+            att.srq              = srq;
+            att.cap.max_recv_wr  = wr_count;
+            att.cap.max_send_wr  = wr_count;
+            att.cap.max_recv_sge = 1;
+            att.cap.max_send_sge = 1;
+            att.qp_type          = IBV_QPT_RC;
+
+            return ibv_create_qp(transport_->pd_, &att);
+        }
+
+        return nullptr;
     }
 
     void

@@ -8,7 +8,7 @@
 #include <stdint.h>
 
 
-#include "common/NodeID.hh"
+#include "faodel-common/NodeID.hh"
 #include "lunasa/DataObject.hh"
 
 
@@ -53,6 +53,8 @@ struct message_t {
   uint32_t          op_id;        //!< The id for this type of op (a hash of its name)
   uint16_t          user_flags;   //!< small place for user to put simple flags
   uint16_t          body_len;     //!< Length of this message's body (should be less than MTU - sizeof(message_t))
+
+  //Body follows next. We use the non-compliant zero-length array here to make pointers easier
   char              body[0];      //!< Starting point for any other op-specific data in this message
 
   std::string GetBodyAsString() const;

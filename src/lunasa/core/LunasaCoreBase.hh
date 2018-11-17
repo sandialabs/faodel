@@ -5,7 +5,7 @@
 #ifndef LUNASA_LUNASACOREBASE_HH
 #define LUNASA_LUNASACOREBASE_HH
 
-#include "common/Common.hh"
+#include "faodel-common/Common.hh"
 //#include "lunasa/DataObject.hh"
 #include "lunasa/common/Allocation.hh"
 #include "lunasa/Lunasa.hh"
@@ -15,13 +15,18 @@
 namespace lunasa {
 namespace internal {
 
-class LunasaCoreBase 
-  : public faodel::InfoInterface,
-    public faodel::LoggingInterface {
+//Forward references
+struct Allocation;
+
+
+class LunasaCoreBase
+        : public faodel::InfoInterface,
+          public faodel::LoggingInterface {
 
 public:
   LunasaCoreBase(std::string subcomponent_name);
-  virtual ~LunasaCoreBase();
+
+  ~LunasaCoreBase() override;
   void init(const faodel::Configuration &config);
   virtual void start()=0;
   virtual void finish()=0;
@@ -31,8 +36,8 @@ public:
   
   virtual void RegisterPinUnpin(net_pin_fn pin, net_unpin_fn unpin) = 0;
 
-  virtual allocation_t *AllocateEager(uint32_t metaCapacity, uint32_t dataCapacity) = 0;
-  virtual allocation_t *AllocateLazy(uint32_t metaCapacity, uint32_t dataCapacity) = 0;
+  virtual Allocation *AllocateEager(uint32_t user_capacity) = 0;
+  virtual Allocation *AllocateLazy(uint32_t user_capacity) = 0;
 
   virtual size_t TotalAllocated() const = 0;
   virtual size_t TotalManaged() const = 0;
@@ -47,7 +52,7 @@ public:
   virtual std::string GetType() const = 0;
 
   //InfoInterface
-  virtual void sstr(std::stringstream &ss, int depth=0, int indent=0) const = 0;
+  void sstr(std::stringstream &ss, int depth=0, int indent=0) const override = 0;
   
 private:
   bool configured;

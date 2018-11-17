@@ -2,6 +2,7 @@
 // LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
 // the U.S. Government retains certain rights in this software. 
 
+
 #include <iostream>
 
 #include "kelpie/ioms/IomBase.hh"
@@ -17,6 +18,14 @@ void IomBase::finish() {
   //Default: no cleanup ops necessary
 }
 
+/**
+ * @brief Get info about a collection of keys on this iom (simply iterates over all)
+ * @param bucket The bucket to search in
+ * @param keys Vector of keys to find
+ * @param col_infos Resulting info about the columns (in key order)
+ * @retval KELPIE_OK All requests were successful
+ * @retval error One or more requests were not successful. Last unsuccessful error is returned
+ */
 rc_t IomBase::GetInfo(faodel::bucket_t bucket, const std::vector<kelpie::Key> &keys, vector<kv_col_info_t> *col_infos) {
   rc_t rc = KELPIE_OK;
   for(auto &k : keys) {
@@ -28,14 +37,26 @@ rc_t IomBase::GetInfo(faodel::bucket_t bucket, const std::vector<kelpie::Key> &k
   return rc;
 }
 
-//Helper: default helper for writing out many
+/**
+ * @brief Write out a collection of key/value pairs (iterates on WriteObject)
+ * @param bucket The bucket to prepend keys with
+ * @param items Vector of keys/blobs
+ */
 void IomBase::WriteObjects(faodel::bucket_t bucket, const vector<pair<Key, lunasa::DataObject>> &items) {
   for(auto &k_v : items){
     WriteObject(bucket, k_v.first, k_v.second);
   }
 }
 
-//Helper: default helper for reading in many
+/**
+ * @brief Read in many objects at a time
+ * @param bucket The bucket to search in
+ * @param keys A vector of keys to request
+ * @param found_objects A vector containing all the found key/blob pairs
+ * @param missing_keys An optional list of keys that were not found
+ * @retval KELPIE_OK All items were retrieved
+ * @retval KELPIE_RECHECK One or more items were missing
+ */
 rc_t IomBase::ReadObjects(faodel::bucket_t bucket, const vector<Key> &keys,
                           vector<pair<Key, lunasa::DataObject>> *found_objects,
                           vector<Key> *missing_keys) {
@@ -57,6 +78,11 @@ rc_t IomBase::ReadObjects(faodel::bucket_t bucket, const vector<Key> &keys,
   return return_rc;
 }
 
+/**
+ * @brief Get a particular seting that was passed in during creation
+ * @param setting_name The name of the iom setting to search for
+ * @return The value, or empty string
+ */
 string IomBase::Setting(string setting_name) const {
   faodel::ToLowercaseInPlace(setting_name);
   auto x=settings.find(setting_name);

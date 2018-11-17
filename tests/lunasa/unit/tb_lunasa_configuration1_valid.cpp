@@ -5,7 +5,7 @@
 #include "gtest/gtest.h"
 //#include <mpi.h>
 
-#include "common/Common.hh"
+#include "faodel-common/Common.hh"
 #include "lunasa/Lunasa.hh"
 #include "lunasa/DataObject.hh"
 using namespace std;
@@ -28,8 +28,9 @@ lunasa.allocator.debug true
 
 class LunasaCfgTest : public testing::Test {
 protected:
-  virtual void SetUp () {}
-  virtual void TearDown () {}
+  void SetUp () override {}
+
+  void TearDown () override {}
 };
 
 
@@ -37,11 +38,20 @@ protected:
 // note: because tcmalloc is used, you can't pack multiple runs in one test
 TEST_F(LunasaCfgTest, validCfgTest) {
   try {
-    bootstrap::Init(valid_config, lunasa::bootstrap);
+    bootstrap::Init(Configuration(valid_config), lunasa::bootstrap);
     bootstrap::Start();
     bootstrap::Finish();
+
+    #ifndef Faodel_ENABLE_TCMALLOC
+      FAIL() << "Should have thrown exception during LUNASA initialization, due to no tcmalloc support.";
+    #endif
+
   } catch(...) {
-    FAIL() << "Exception during LUNASA initialization";
+    #ifdef Faodel_ENABLE_TCMALLOC
+      FAIL() << "Exception during LUNASA initialization (with tcmalloc support)";
+    #else
+      cout <<"Lunasa properly threw an exception when request for tcmalloc and lacked build support\n";
+    #endif
   }
 }
 
