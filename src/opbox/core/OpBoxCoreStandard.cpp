@@ -144,7 +144,10 @@ int OpBoxCoreStandard::doUpdate(mailbox_t my_mailbox, Op *op, OpArgs *args){
   switch(rc){
   case WaitingType::done_and_destroy:
     if(my_mailbox!=0){
+      dbg("Ending active op for mailbox "+to_string(my_mailbox));
       endActiveOp(my_mailbox); //Handles delete of op
+    } else {
+      dbg("Immediate completion of op with assigned mailbox "+to_string(op->GetAssignedMailbox()));
     }
     break;
 

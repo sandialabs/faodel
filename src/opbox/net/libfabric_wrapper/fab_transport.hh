@@ -114,6 +114,7 @@ public:
   void stop_progress_thread(void);
   void start_ib_connection_thread(void);
   void stop_connection_thread(void);
+  int disconnect(struct fab_peer *peer);
   int check_completion();
   int fab_post_recv (struct fid_ep *ep, void *buf, struct fid_mr *mr, int size, int n);
   int init_endpoint(fid_ep *ep);
@@ -135,6 +136,7 @@ public:
   fab_peer* create_rdm_connection_client (faodel::nodeid_t   peer_nodeid);
   void create_rdm_connection_server(const std::map<std::string,std::string> &args, std::stringstream &results);
   int fab_init_rdm(const char *provider_name);
+  void destroy_rdm_connection_server(const std::map<std::string,std::string> &args, std::stringstream &results);
 
 // net layer calls
   void Send(

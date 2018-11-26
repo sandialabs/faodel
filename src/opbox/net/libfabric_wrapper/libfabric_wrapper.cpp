@@ -380,7 +380,7 @@ int
 Disconnect(
     peer_ptr_t peer)
 {
-    return 0;
+    return fabtrns->disconnect(peer->p);
 }
 
 int
@@ -392,7 +392,7 @@ Disconnect(
     if (p == nullptr) {
         return -1;
     }
-    return Disconnect((peer_ptr_t)p);
+    return fabtrns->disconnect(p);
 }
 
 /*

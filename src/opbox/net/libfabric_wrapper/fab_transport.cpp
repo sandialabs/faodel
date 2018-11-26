@@ -74,6 +74,8 @@
 #include "opbox/common/Types.hh"
 
 
+#define PRINTMSG(fd_,...)
+//fprintf(fd_,__VA_ARGS__)
 
 using namespace std;
 using namespace opbox;
@@ -211,7 +213,7 @@ fab_transport::eq_readerr(
 
     rd = fi_eq_readerr (eq, &eq_err, 0);
     if (rd != sizeof (eq_err)) {
-        fprintf (stderr, "ERROR: fi_eq_readerr\n");
+//        fprintf (stderr, "ERROR: fi_eq_readerr\n");
     } else {
         err_str = fi_eq_strerror (eq, eq_err.prov_errno, eq_err.err_data, NULL, 0);
         fprintf (stderr, "%s: %d %s\n", eq_str, eq_err.err,
@@ -338,7 +340,7 @@ fab_transport::find_peer (
 
     std::lock_guard < std::mutex > lock (conn_mutex);
     if (peer_map.find (nodeid) != peer_map.end ()) {
-        peer = peer_map[nodeid];        // add to connection map
+        peer = peer_map[nodeid];
     } else {
         peer = NULL;
     }
@@ -463,9 +465,9 @@ fab_transport::check_completion ()
             return -1;
         }
         if (wc.flags & FI_RECV) {
-//            fprintf(stdout, "got a RECV completion - wc.flags=%X\n", wc.flags);
+            PRINTMSG(stdout, "got a RECV completion - wc.flags=%X\n", wc.flags);
             if(wc.op_context != NULL) {
-//                cout << "successful recv - wc.flags=" << std::hex << wc.flags << std::dec << " length " << wc.len << std::endl;
+                PRINTMSG(stdout, "successful recv - wc.flags=%x  length=%u\n", wc.flags, wc.len);
                 rreq=(fab_recvreq*)wc.op_context;
                 peer_t *sender = new peer_t(rreq->peer);
                 message_t *msg = (message_t*)((char*) rreq->repost_buf);
@@ -476,66 +478,66 @@ fab_transport::check_completion ()
                     delete sender;
                     sender = new peer_t(msg_src_peer);
                 }
-//                cout << "incoming message from " << rreq->peer->remote_nodeid.GetHex() << endl;
-//                cout << msg->str() << endl;
+                PRINTMSG(stdout, "incoming message from %s\n", rreq->peer->remote_nodeid.GetHex().c_str());
+                PRINTMSG(stdout, "%s\n", msg->str().c_str());
                 recv_cb_(sender, msg);
                 rc = fi_recv(rreq->peer->ep_addr, (char*) rreq->repost_buf, FAB_MTU_SIZE , fi_mr_desc(rreq->mr),
-                             0, rreq);
+                             rreq->peer->remote_addr, rreq);
             }
         } else if (wc.flags & FI_SEND) {
-//            fprintf(stdout, "got a SEND completion - wc.flags=%X\n", wc.flags);
+            PRINTMSG(stdout, "got a SEND completion - wc.flags=%X\n", wc.flags);
             context = (struct fab_op_context*)wc.op_context;
             OpArgs args(UpdateType::send_success);
             if (context->user_cb) {
-//                fprintf(stdout, "invoking user callback\n");
+                PRINTMSG(stdout, "invoking user callback\n");
                 WaitingType cb_rc = context->user_cb(&args);
             }
-//            fprintf(stdout, "check_completion - ldo value=%X\n", *(uint64_t*)((char *)context->ldo.GetDataPtr() + context->loffset));
+            PRINTMSG(stdout, "check_completion - ldo value=%X\n", *(uint64_t*)((char *)context->ldo.GetDataPtr() + context->loffset));
         } else if (wc.flags == (FI_RMA | FI_READ)) {
-//            fprintf(stdout, "got a RMA+READ completion - wc.flags=%X\n", wc.flags);
+            PRINTMSG(stdout, "got a RMA+READ completion - wc.flags=%X\n", wc.flags);
             context = (struct fab_op_context*)wc.op_context;
             OpArgs args(UpdateType::get_success);
             if (context->user_cb) {
-//                fprintf(stdout, "invoking user callback\n");
+                PRINTMSG(stdout, "invoking user callback\n");
                 WaitingType cb_rc = context->user_cb(&args);
             }
-//            fprintf(stdout, "check_completion - ldo value=%X\n", *(uint64_t*)((char *)context->ldo.GetDataPtr() + context->loffset));
+            PRINTMSG(stdout, "check_completion - ldo value=%X\n", *(uint64_t*)((char *)context->ldo.GetDataPtr() + context->loffset));
         } else if (wc.flags == (FI_RMA | FI_WRITE)) {
-//            fprintf(stdout, "got a RMA+WRITE completion - wc.flags=%X\n", wc.flags);
+            PRINTMSG(stdout, "got a RMA+WRITE completion - wc.flags=%X\n", wc.flags);
             context = (struct fab_op_context*)wc.op_context;
             OpArgs args(UpdateType::put_success);
             if (context->user_cb) {
-//                fprintf(stdout, "invoking user callback\n");
+                PRINTMSG(stdout, "invoking user callback\n");
                 WaitingType cb_rc = context->user_cb(&args);
             }
-//            fprintf(stdout, "check_completion - ldo value=%X\n", *(uint64_t*)((char *)context->ldo.GetDataPtr() + context->loffset));
+            PRINTMSG(stdout, "check_completion - ldo value=%X\n", *(uint64_t*)((char *)context->ldo.GetDataPtr() + context->loffset));
         } else if (wc.flags == (FI_ATOMIC | FI_READ)) {
-//            fprintf(stdout, "got a ATOMIC+READ completion - wc.flags=%X\n", wc.flags);
+            PRINTMSG(stdout, "got a ATOMIC+READ completion - wc.flags=%X\n", wc.flags);
             context = (struct fab_op_context*)wc.op_context;
             OpArgs args(UpdateType::atomic_success);
             if (context->user_cb) {
-//                fprintf(stdout, "invoking user callback\n");
+                PRINTMSG(stdout, "invoking user callback\n");
                 WaitingType cb_rc = context->user_cb(&args);
             }
-//            fprintf(stdout, "check_completion - ldo value=%X\n", *(uint64_t*)((char *)context->ldo.GetDataPtr() + context->loffset));
+            PRINTMSG(stdout, "check_completion - ldo value=%X\n", *(uint64_t*)((char *)context->ldo.GetDataPtr() + context->loffset));
         } else if (wc.flags == (FI_ATOMIC | FI_WRITE)) {
-//            fprintf(stdout, "got a ATOMIC+WRITE completion - wc.flags=%X\n", wc.flags);
+            PRINTMSG(stdout, "got a ATOMIC+WRITE completion - wc.flags=%X\n", wc.flags);
             context = (struct fab_op_context*)wc.op_context;
             OpArgs args(UpdateType::atomic_success);
             if (context->user_cb) {
-//                fprintf(stdout, "invoking user callback\n");
+                PRINTMSG(stdout, "invoking user callback\n");
                 WaitingType cb_rc = context->user_cb(&args);
             }
-//            fprintf(stdout, "check_completion - ldo value=%X\n", *(uint64_t*)((char *)context->ldo.GetDataPtr() + context->loffset));
+            PRINTMSG(stdout, "check_completion - ldo value=%X\n", *(uint64_t*)((char *)context->ldo.GetDataPtr() + context->loffset));
         } else if (wc.flags == FI_ATOMIC) {
-//            fprintf(stdout, "got a ATOMIC completion - wc.flags=%X\n", wc.flags);
+            PRINTMSG(stdout, "got a ATOMIC completion - wc.flags=%X\n", wc.flags);
             context = (struct fab_op_context*)wc.op_context;
             OpArgs args(UpdateType::atomic_success);
             if (context->user_cb) {
-//                fprintf(stdout, "invoking user callback\n");
+                PRINTMSG(stdout, "invoking user callback\n");
                 WaitingType cb_rc = context->user_cb(&args);
             }
-//            fprintf(stdout, "check_completion - ldo value=%X\n", *(uint64_t*)((char *)context->ldo.GetDataPtr() + context->loffset));
+            PRINTMSG(stdout, "check_completion - ldo value=%X\n", *(uint64_t*)((char *)context->ldo.GetDataPtr() + context->loffset));
         } else {
             fprintf(stdout, "got completion with unknown flags - wc.flags=%X\n", wc.flags);
         }
@@ -626,7 +628,7 @@ fab_transport::create_rdm_connection_server(
             (char*)rreq->repost_buf,
             FAB_MTU_SIZE,
             fi_mr_desc(rreq->mr),
-            0,
+            peer->remote_addr,
             rreq);
     }
     std::lock_guard < std::mutex > lock (conn_mutex);
@@ -641,7 +643,6 @@ fab_transport::create_rdm_connection_server(
     //Note: could this just be the hex nodeid?
 //    cout << "gni_server_connection sent result" << results.str() << "\n";
 }
-
 
 int
 fab_transport::fab_init_rdm(const char *provider_name)
@@ -726,6 +727,9 @@ fab_transport::fab_init_rdm(const char *provider_name)
     webhook::Server::registerHook("/fab/rdmlookup", [this] (const map<string,string> &args, stringstream &results) {
         create_rdm_connection_server(args, results);
     });
+    webhook::Server::registerHook("/fab/disconnect", [this] (const map<string,string> &args, stringstream &results) {
+        destroy_rdm_connection_server(args, results);
+    });
     //cout << "Fab init RDM done " << std::endl;
     initialized = true;
 
@@ -787,7 +791,7 @@ fab_transport::create_rdm_connection_client(
         rreq->mr= rcvbuf->mr;
 //        print_fab_recvreq(rreq);
         ret = fi_recv(ep, (char*)rcvbuf->buf + offset, FAB_MTU_SIZE , fi_mr_desc(rcvbuf->mr),
-                      0, rreq);
+                      peer->remote_addr, rreq);
     }
     if (peer != NULL) {
         peer_map[peer_nodeid] = peer;
@@ -1110,7 +1114,7 @@ fab_transport::ib_server_conn ()
 
         if (rd < 0) {
             eq_readerr(eq, errstr);
-            fprintf(stderr, "ib_server_conn() - rd=%d, event=%d, errstr=%s, errno=%d (%s)\n", rd, event, errstr, errno, strerror(errno));
+//            fprintf(stderr, "ib_server_conn() - rd=%d, event=%d, errstr=%s, errno=%d (%s)\n", rd, event, errstr, errno, strerror(errno));
             continue;
         }
 
@@ -1265,6 +1269,54 @@ fab_transport::stop_connection_thread(void)
 
 /* End of Infiniband related methods */
 
+
+int
+fab_transport::disconnect(struct fab_peer *peer)
+{
+    int ret;
+    string result;
+    stringstream ss_path;
+
+    ss_path << "/fab/disconnect&rem_webhook_hostname="<<mynodeid.GetIP()<<"&rem_webhook_port="<<mynodeid.GetPort();
+    ret = webhook::retrieveData(peer->remote_nodeid.GetIP() , peer->remote_nodeid.GetPort() , ss_path.str(), &result);
+
+    auto victim = peer_map.find(peer->remote_nodeid);
+    if (victim != peer_map.end()) {
+        peer_map.erase(peer->remote_nodeid);
+        ret = fi_av_remove(av, &peer->remote_addr, 1, 0);
+    } else {
+        abort();
+    }
+    return 0;
+}
+
+void
+fab_transport::destroy_rdm_connection_server(
+    const std::map<std::string,std::string> &args,
+    std::stringstream &results)
+{
+    int ret;
+    string hostname, port;
+
+    auto new_val = args.find("rem_webhook_hostname");
+    if(new_val != args.end()){
+        hostname = new_val->second;
+    }
+    new_val = args.find("rem_webhook_port");
+    if(new_val != args.end()){
+        port = new_val->second;
+    }
+    faodel::nodeid_t remote_nodeid(hostname, port);
+
+    auto victim = peer_map.find(remote_nodeid);
+    if (victim != peer_map.end()) {
+        fab_peer *peer = peer_map[remote_nodeid];
+        peer_map.erase(remote_nodeid);
+        ret = fi_av_remove(av, &peer->remote_addr, 1, 0);
+    } else {
+        abort();
+    }
+}
 
 void
 fab_transport::Send(
