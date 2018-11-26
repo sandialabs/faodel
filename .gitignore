@@ -1,0 +1,8 @@
+.idea
+/build*
+/install
+/cmake-build-*
+/docs/html
+/docs/latex
+/src/nnti/nnti_packable.c
+/src/nnti/nnti_packable.h
