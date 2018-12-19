@@ -367,12 +367,12 @@ foreach( COMP sbl common webhook services lunasa opbox kelpie )
   
   target_include_directories( ${COMP}
     INTERFACE
-    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/src>
-    $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/src>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/src>
     $<INSTALL_INTERFACE:include/faodel>
     PRIVATE
-    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/src>
-    $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/src>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/src>
     )
   set_target_properties( ${COMP} PROPERTIES LINKER_LANGUAGE CXX )
 
@@ -380,8 +380,8 @@ endforeach()
 
 if( BUILD_NNTI )
   target_include_directories( nnti INTERFACE
-    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/src>
-    $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/src>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/src>
     $<INSTALL_INTERFACE:include/faodel>
     )
   set_target_properties( nnti PROPERTIES LINKER_LANGUAGE CXX )
