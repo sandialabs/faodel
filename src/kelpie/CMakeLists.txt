@@ -36,7 +36,7 @@ set( HEADERS
      pools/DHTPool/DHTPool.hh
      pools/PoolRegistry.hh
      pools/UnconfiguredPool/UnconfiguredPool.hh
-        services/PoolServerDriver.hh
+
 )
 
 set( SOURCES
@@ -67,12 +67,17 @@ set( SOURCES
      pools/PoolBase.cpp
      pools/PoolRegistry.cpp
      pools/UnconfiguredPool/UnconfiguredPool.cpp
-        services/PoolServerDriver.cpp
 )
 
 if( Faodel_ENABLE_MPI_SUPPORT )
-  LIST( APPEND HEADERS pools/RFTPool/RFTPool.hh)
-  LIST( APPEND SOURCES pools/RFTPool/RFTPool.cpp)
+  LIST( APPEND HEADERS
+        pools/RFTPool/RFTPool.hh
+        services/PoolServerDriver.hh
+  )
+  LIST( APPEND SOURCES
+        pools/RFTPool/RFTPool.cpp
+        services/PoolServerDriver.cpp
+  )
 endif( Faodel_ENABLE_MPI_SUPPORT )
 
 
