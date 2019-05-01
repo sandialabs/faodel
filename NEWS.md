@@ -6,6 +6,13 @@ faodel tools. Releases are named alphabetically and have a
 4-digit ID associated with them that designates the year and month of
 the release.
 
+DIO (1.1811.2)
+--------------
+- Summary: Fix build problems discovered during Spack integration
+- Release Improvements:
+  - Common Logging failed to build when SBL was selected for output (thanks to @fbudin69500)
+  - Kelpie failed to build when MPI was disabled (thanks to @fbudin69500)
+
 DIO (1.1811.1)
 --------------
 - Summary: Build improvements to make FAODEL compatible with EMPIRE
