@@ -205,7 +205,7 @@ Example:
     #include <thread>
     #include <map>
 
-    #include "sbl/sbl_logger.hpp"
+    #include "sbl/sbl_logger.hh"
     
     int main(int argc, char *argv[])
     {

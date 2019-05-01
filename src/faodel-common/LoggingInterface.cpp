@@ -11,7 +11,7 @@
 
 
 #if Faodel_LOGGINGINTERFACE_DISABLED==0 && Faodel_LOGGINGINTERFACE_USE_SBL==1
-#include <sbl/sbl_logger.hpp>
+#include <sbl/sbl_logger.hh>
 #endif
 
 
@@ -27,7 +27,7 @@
 
 #if Faodel_LOGGINGINTERFACE_USE_SBL==1
 
-#include <sbl/sbl_logger.hpp>
+#include <sbl/sbl_logger.hh>
 
 sbl::logger *faodel::LoggingInterface::sbl_logger=nullptr;
 
