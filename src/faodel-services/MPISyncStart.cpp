@@ -11,7 +11,7 @@
 #include "faodel-services/MPISyncStart.hh"
 #include "faodel-common/Configuration.hh"
 
-#include "webhook/Server.hh"
+#include "whookie/Server.hh"
 
 #ifdef Faodel_ENABLE_MPI_SUPPORT
 #include <mpi.h>
@@ -72,7 +72,7 @@ void MPISyncStart::InitAndModifyConfiguration(Configuration *config) {
     }
 
 
-    nodeid_t my_id = webhook::Server::GetNodeID();
+    nodeid_t my_id = whookie::Server::GetNodeID();
 
     //See if we just need a barrier
     if((dirman_root_mpi==-1) && (dirman_resources_mpi.empty())) {
@@ -84,7 +84,7 @@ void MPISyncStart::InitAndModifyConfiguration(Configuration *config) {
 
     //An MPI rank specified for the dirman root. Find the ID of the node
     if(dirman_root_mpi != -1) {
-      dbg("Dirman Root specified as rank "+std::to_string(dirman_root_mpi)+". Perform bcast to learn webhook root.");
+      dbg("Dirman Root specified as rank "+std::to_string(dirman_root_mpi)+". Perform bcast to learn whookie root.");
       kassert(dirman_root_mpi < mpi_size, "dirman.root_node_mpi value is larger than mpi ranks");
       nodeid_t root_node = my_id;
       MPI_Bcast(&root_node, sizeof(nodeid_t), MPI_CHAR, dirman_root_mpi, MPI_COMM_WORLD);
@@ -144,7 +144,7 @@ void MPISyncStart::GetBootstrapDependencies(string &name,
                                               vector<string> &requires,
                                               vector<string> &optional) const {
   name = "mpisyncstart";
-  requires = {"webhook"};
+  requires = {"whookie"};
   optional = {};
 }
 
@@ -167,7 +167,7 @@ void MPISyncStart::Start() {
 std::string bootstrap() {
   static MPISyncStart mpisyncstart;
 
-  webhook::bootstrap();
+  whookie::bootstrap();
   faodel::bootstrap::RegisterComponent(&mpisyncstart, true);
   return "mpisyncstart";
 }

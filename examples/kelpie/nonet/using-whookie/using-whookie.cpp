@@ -2,21 +2,21 @@
 // LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
 // the U.S. Government retains certain rights in this software. 
 
-// Example: kelpie using-webhook
-// Purpose: WebHook provides an easy way to check on the status of different
+// Example: kelpie using-whookie
+// Purpose: Whookie provides an easy way to check on the status of different
 //          components in the FAODEL stack. This example shows how you can use
-//          a built-in kelpie webhook to peek at the status of the localkv.
+//          a built-in kelpie whookie to peek at the status of the localkv.
 //
 // Keypoints:
-//  - Built-In: WebHook is built into the stack, users just need to locate it
-//  - Handles: The Kelpie webhook handles let you peek into Kelpie's state
+//  - Built-In: Whookie is built into the stack, users just need to locate it
+//  - Handles: The Kelpie whookie handles let you peek into Kelpie's state
 //    - /kelpie/lkv: Shows you info about local data objects
 //    - /kelpie/pool_registry: Shows you how many Pool handles are in use
 
 #include <iostream>
 
 #include "kelpie/Kelpie.hh"
-#include "webhook/Server.hh"
+#include "whookie/Server.hh"
 
 //The configuration used in this example
 std::string default_config_string = R"EOF(
@@ -26,7 +26,7 @@ kelpie.type nonet
 
 # Uncomment these options to get debug info for each component
 #bootstrap.debug true
-#webhook.debug   true
+#whookie.debug   true
 #opbox.debug     true
 #dirman.debug    true
 #kelpie.debug    true
@@ -38,23 +38,23 @@ using namespace std;
 int main(){
 
   char tmp;
-  cout <<"Kelpie using-webhook example\n";
+  cout <<"Kelpie using-whookie example\n";
 
   //Startup all the registered services
   faodel::Configuration config(default_config_string);
   faodel::bootstrap::Start(config, kelpie::bootstrap);
 
   //Retrieve info about our built-in webserver
-  string webhook_url = webhook::Server::GetNodeID().GetHttpLink();
+  string whookie_url = whookie::Server::GetNodeID().GetHttpLink();
 
   cout <<"Kelpie is now up and running.\n"
-       <<"   Go to a browser and look at: "<<webhook_url<<"\n"
+       <<"   Go to a browser and look at: "<<whookie_url<<"\n"
        <<"Press [enter]\n";
 
   cin.get();
 
-  cout <<"Kelpie's local kv should be empty at this time. WebHook has a stats page for it\n"
-       <<"   under /kelpie/lkv: "<<webhook_url<<"/kelpie/lkv&detail\n"
+  cout <<"Kelpie's local kv should be empty at this time. Whookie has a stats page for it\n"
+       <<"   under /kelpie/lkv: "<<whookie_url<<"/kelpie/lkv&detail\n"
        <<"Press [enter]\n";
 
   cin.get();
@@ -82,7 +82,7 @@ int main(){
 
   //Encourage users to also look at pool_registry
   cout <<"\nIf you look at /kelpie/pool_registry, you can see what Pool handles\n"
-       <<"   are known: "<<webhook_url<<"/kelpie/pool_registry\n"
+       <<"   are known: "<<whookie_url<<"/kelpie/pool_registry\n"
        <<"Press [enter]\n";
   cin.get();
 

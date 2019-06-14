@@ -6,7 +6,7 @@
 
 set( SERIAL_TEST_LIBS
         common
-        webhook
+        whookie
         services
         GTest::GTest
         GTest::Main
@@ -15,7 +15,7 @@ set( SERIAL_TEST_LIBS
 
 set(MPI_TEST_LIBS
   MPI::MPI_CXX
-  webhook
+  whookie
   services
   ${SERIAL_TEST_LIBS}
   )

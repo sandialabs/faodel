@@ -187,21 +187,13 @@ void LocalKVCell::dispatchCallbacksAndNotifications(LocalKVRow *row, const Key &
  */
 void LocalKVCell::sstr(stringstream &ss, int depth, int indent) const {
   int t = (int) time(NULL);
-  KTODO("Fix LDO capacity function");  //Fix LDO Capacity func
   ss << string(indent, ' ')
-    // << " Bytes: "       << ldo.capacity()
-    //<< " InMem/Disk: "  << ((in_memory)?"T":"F") << ((in_disk)  ?"T":"F")
+     << " Bytes: "       << getUserSize()
      << " Age: "         << time_posted - t
-     << " SinceAccess: " << time_accessed - t;
+     << " SinceAccess: " << time_accessed - t
+     << endl;
 
-  //if(depth>0){
-  //  char *tmp = ldo.GetDataPtr<char *>();
-  //  ss << " Data: 0x";
-  //  KTODO("Fix LDO capacity function");  //Fix ldo Capacity
-  //  //for(size_t i=0; (i<16) && (i<ldo.capacity()); i++)
-  //  //  ss << std::hex << (int) tmp[i];
-  //}
-  //ss << endl;
+
 }
 
 }  //namespace kelpie

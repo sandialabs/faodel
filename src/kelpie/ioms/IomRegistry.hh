@@ -61,7 +61,7 @@ private:
   
   std::map<std::string, fn_IomConstructor_t> iom_ctors;
 
-  void HandleWebhookStatus(const std::map<std::string, std::string> &args, std::stringstream &results);
+  void HandleWhookieStatus(const std::map<std::string, std::string> &args, std::stringstream &results);
 };
 
 }  // namespace internal

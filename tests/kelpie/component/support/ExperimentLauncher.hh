@@ -7,7 +7,7 @@
 
 #include <functional>
 
-const int CMD_NEW_KELPIE_START  =  -1; //Here's a config, launch with webhook+mpisync
+const int CMD_NEW_KELPIE_START  =  -1; //Here's a config, launch with whookie+mpisync
 const int CMD_TEARDOWN          =  -2;
 const int CMD_KILL              =  -3;
 

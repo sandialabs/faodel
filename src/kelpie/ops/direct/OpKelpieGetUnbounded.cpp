@@ -57,8 +57,8 @@ OpKelpieGetUnbounded::OpKelpieGetUnbounded(
                     const pool_behavior_t behavior_flags,
                     fn_opget_result_t cb_result)
   : state(State::orig_getunbounded_send),
-    bucket(bucket), key(key), peer(target_ptr),
-    cb_opget_result(cb_result), Op(true) {
+    Op(true), peer(target_ptr), bucket(bucket), key(key),
+    cb_opget_result(cb_result)  {
 
   bool exceeds;
 
@@ -78,7 +78,7 @@ OpKelpieGetUnbounded::OpKelpieGetUnbounded(
  * @return OpKelpieGetUnbounded
  */
 OpKelpieGetUnbounded::OpKelpieGetUnbounded(Op::op_create_as_target_t t)
-  : state(State::trgt_getunbounded_start), ldo_msg(), Op(t) {
+  : Op(t), state(State::trgt_getunbounded_start), ldo_msg() {
   //No work to do - done in target's state machine
   peer = 0;
   GetAssignedMailbox();  //For safety, get a mailbox. Not needed everywhere?

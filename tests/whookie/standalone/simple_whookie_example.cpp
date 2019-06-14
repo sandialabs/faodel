@@ -9,15 +9,15 @@
 #include <boost/asio.hpp>
 #include <thread>
 
-#include "webhook/WebHook.hh"
-#include "webhook/Server.hh"
+#include "whookie/Whookie.hh"
+#include "whookie/Server.hh"
 
 using namespace std;
 
 string default_config_string = R"EOF(
-webhook.debug   true
-webhook.port    1990
-#webhook.interfaces ipogif0,eth,lo
+whookie.debug   true
+whookie.port    1990
+#whookie.interfaces ipogif0,eth,lo
 )EOF";
 
 
@@ -28,19 +28,19 @@ webhook.port    1990
  * @param[in] ss info
  */
 void SayHello(){
-  cout<<"Hello from webhook\n";
+  cout<<"Hello from whookie\n";
 }
 
 int main(int argc, char* argv[]) {
 
 
-  webhook::Server::registerHook("/bob", [] (const map<string,string> &args, stringstream &results){
+  whookie::Server::registerHook("/bob", [] (const map<string,string> &args, stringstream &results){
       html::mkHeader(results, "Bob's Page");
       html::mkTable(results, args, "Bobs args");
       html::mkFooter(results);
     });
 
-  webhook::Server::registerHook("/SayHello", [] (const map<string,string> &args, stringstream &results){
+  whookie::Server::registerHook("/SayHello", [] (const map<string,string> &args, stringstream &results){
       html::mkHeader(results, "Triggering Hello");
       html::mkSection(results, "Triggering Hello");
       html::mkText(results, "Each time you go to this page, the executable should say hello.\n");
@@ -51,9 +51,9 @@ int main(int argc, char* argv[]) {
   
 
 
-  faodel::bootstrap::Start(faodel::Configuration(default_config_string), webhook::bootstrap);
+  faodel::bootstrap::Start(faodel::Configuration(default_config_string), whookie::bootstrap);
 
-  faodel::nodeid_t nid = webhook::Server::GetNodeID();                            
+  faodel::nodeid_t nid = whookie::Server::GetNodeID();
 
   cout<<"Simple example that starts a webserver, registers a handler, and then waits for\n"
       <<"some time before shutting down. When running on a local desktop, you can look\n"

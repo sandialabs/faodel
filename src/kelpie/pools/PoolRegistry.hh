@@ -50,7 +50,7 @@ class PoolRegistry {
   std::string makeKnownPoolKey(const faodel::ResourceURL &url) const {
     return url.bucket.GetHex()+url.path+"/"+url.name+"&"+url.GetSortedOptions();
   }
-  void HandleWebhookStatus(const std::map<std::string, std::string> &args, std::stringstream &results);
+  void HandleWhookieStatus(const std::map<std::string, std::string> &args, std::stringstream &results);
 };
 
 }  // namespace internal

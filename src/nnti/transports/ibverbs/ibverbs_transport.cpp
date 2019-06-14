@@ -20,6 +20,7 @@
 
 #include <fcntl.h>
 #include <sys/poll.h>
+#include <sys/stat.h>
 
 #include <atomic>
 #include <thread>
@@ -56,8 +57,8 @@
 
 #include "nnti/transports/ibverbs/ibverbs_transport.hpp"
 
-#include "webhook/WebHook.hh"
-#include "webhook/Server.hh"
+#include "whookie/Whookie.hh"
+#include "whookie/Server.hh"
 
 
 namespace nnti  {
@@ -77,6 +78,7 @@ ibverbs_transport::ibverbs_transport(
     : base_transport(NNTI_TRANSPORT_IBVERBS,
                      config),
       started_(false),
+      ctx_(nullptr),
       event_freelist_size_(128),
       cmd_op_freelist_size_(128),
       rdma_op_freelist_size_(128),
@@ -88,6 +90,12 @@ ibverbs_transport::ibverbs_transport(
     nthread_lock_init(&new_connection_lock_);
 
     me_ = nnti::datatype::ibverbs_peer(this, url_);
+
+    rc = config.GetString(&interface_dev_list_, "net.transport.interfaces", "");
+    rc = config.GetString(&kernel_dev_list_, "net.transport.kernel_device_list", "");
+    rc = config.GetString(&fs_dev_list_, "net.transport.fs_device_list", "");
+
+    rc = config.GetBool(&odp_enabled_, "net.transport.use_odp", "false");
 
     rc = config.GetUInt(&uint_value, "nnti.freelist.size", "128");
     if (rc == 0) {
@@ -129,17 +137,16 @@ ibverbs_transport::start(void)
 
     log_debug("ibverbs_transport", "initializing InfiniBand");
 
-    struct ibv_device *dev=get_ib_device();
-
-    assert(dev!=nullptr && "The IB transport couldn't find an ibverbs compatible device on this machine.");
-    /* open the device */
-    ctx_ = ibv_open_device(dev);
-    if (!ctx_) {
-        log_error("ibverbs_transport", "ibv_open_device failed");
+    struct ibv_device **dev_list;
+    int dev_count=0;
+    dev_list = ibv_get_device_list(&dev_count);
+    if (select_ib_device(dev_list, dev_count, &nic_port_) == false) {
+        log_error("ibverbs_transport", "select_ib_device failed");
         return NNTI_EIO;
     }
+    ibv_free_device_list(dev_list);
 
-    nic_port_ = 1;
+    log_debug("ibverbs_transport", "querying IB port %d", nic_port_);
 
     /* get the lid and verify port state */
     ibv_rc = ibv_query_port(ctx_, nic_port_, &dev_port_attr);
@@ -151,7 +158,10 @@ ibverbs_transport::start(void)
     nic_lid_ = dev_port_attr.lid;
 
     if (dev_port_attr.state != IBV_PORT_ACTIVE) {
-        log_error("ibverbs_transport", "port is not active.  cannot continue.");
+        log_error("ibverbs_transport",
+                  "Could not find an active port. "
+                  "FAODEL's net.transport.interfaces was set to %s. Cannot continue.",
+                  interface_dev_list_.c_str());
         return NNTI_EIO;
     }
 
@@ -186,14 +196,24 @@ ibverbs_transport::start(void)
     log_debug("ibverbs_transport", "max %d queue pair work requests", dev_attr.max_qp_wr);
     qp_count_ = 1024;
 
+    have_odp_          = have_odp();
+    have_implicit_odp_ = have_implicit_odp();
+    if (odp_enabled_ && have_odp_ && have_implicit_odp_) {
+        use_odp_ = true;
+    } else {
+        use_odp_ = false;
+    }
+    log_debug("ibverbs_transport", "odp_enabled_=%d ; have_odp=%d ; have_implicit_odp=%d ; use_odp_=%d",
+        (int)odp_enabled_, (int)have_odp_, (int)have_implicit_odp_, (int)use_odp_);
+
     attrs_.mtu                 = cmd_msg_size_;
     attrs_.max_cmd_header_size = nnti::core::ibverbs_cmd_msg::header_length();
     attrs_.max_eager_size      = attrs_.mtu - attrs_.max_cmd_header_size;
     attrs_.cmd_queue_size      = cmd_msg_count_;
-    log_debug("mpi_transport", "attrs_.mtu                =%d", attrs_.mtu);
-    log_debug("mpi_transport", "attrs_.max_cmd_header_size=%d", attrs_.max_cmd_header_size);
-    log_debug("mpi_transport", "attrs_.max_eager_size     =%d", attrs_.max_eager_size);
-    log_debug("mpi_transport", "attrs_.cmd_queue_size     =%d", attrs_.cmd_queue_size);
+    log_debug("ibverbs_transport", "attrs_.mtu                =%d", attrs_.mtu);
+    log_debug("ibverbs_transport", "attrs_.max_cmd_header_size=%d", attrs_.max_cmd_header_size);
+    log_debug("ibverbs_transport", "attrs_.max_eager_size     =%d", attrs_.max_eager_size);
+    log_debug("ibverbs_transport", "attrs_.cmd_queue_size     =%d", attrs_.cmd_queue_size);
 
     /* Allocate a Protection Domain (global) */
     pd_ = ibv_alloc_pd(ctx_);
@@ -202,7 +222,15 @@ ibverbs_transport::start(void)
         return NNTI_EIO;
     }
 
-    faodel::nodeid_t nodeid = webhook::Server::GetNodeID();
+    if (use_odp_) {
+        ibv_rc = register_odp();
+        if (ibv_rc) {
+            log_error("ibverbs_transport", "Implicit ODP registration failed.  Disabling ODP for this run.");
+            use_odp_ = false;
+        }
+    }
+
+    faodel::nodeid_t nodeid = whookie::Server::GetNodeID();
     std::string addr = nodeid.GetIP();
     std::string port = nodeid.GetPort();
     url_ = nnti::core::nnti_url(addr, port);
@@ -240,12 +268,12 @@ ibverbs_transport::start(void)
     }
 
     NNTI_STATS_DATA(
-    stats_ = new webhook_stats;
+    stats_ = new whookie_stats;
     )
 
-    assert(webhook::Server::IsRunning() && "webhook is not running.  Confirm Bootstrap configuration and try again.");
+    assert(whookie::Server::IsRunning() && "whookie is not running.  Confirm Bootstrap configuration and try again.");
 
-    register_webhook_cb();
+    register_whookie_cb();
 
     log_debug("ibverbs_transport", "url_=%s", url_.url().c_str());
 
@@ -280,7 +308,7 @@ ibverbs_transport::stop(void)
     }
     nthread_unlock(&new_connection_lock_);
 
-    unregister_webhook_cb();
+    unregister_whookie_cb();
 
     stop_progress_thread();
 
@@ -411,13 +439,13 @@ ibverbs_transport::connect(
     nthread_unlock(&new_connection_lock_);
 
     std::string  reply;
-    std::string  wh_path = build_webhook_connect_path(conn);
+    std::string  wh_path = build_whookie_connect_path(conn);
     int wh_rc = 0;
     int retries = 5;
-    wh_rc = webhook::retrieveData(peer_url.hostname(), peer_url.port(), wh_path, &reply);
+    wh_rc = whookie::retrieveData(peer_url.hostname(), peer_url.port(), wh_path, &reply);
     while (wh_rc != 0 && --retries) {
         sleep(1);
-        wh_rc = webhook::retrieveData(peer_url.hostname(), peer_url.port(), wh_path, &reply);
+        wh_rc = whookie::retrieveData(peer_url.hostname(), peer_url.port(), wh_path, &reply);
     }
     if (wh_rc != 0) {
         log_debug("ibverbs_transport", "connect() timed out");
@@ -464,14 +492,14 @@ ibverbs_transport::disconnect(
     nthread_unlock(&new_connection_lock_);
 
     if (*peer != me_) {
-        std::string wh_path = build_webhook_disconnect_path(conn);
-        int wh_rc = webhook::retrieveData(peer_url.hostname(), peer_url.port(), wh_path, &reply);
+        std::string wh_path = build_whookie_disconnect_path(conn);
+        int wh_rc = whookie::retrieveData(peer_url.hostname(), peer_url.port(), wh_path, &reply);
         if (wh_rc != 0) {
             return(NNTI_ETIMEDOUT);
         }
     }
 
-    log_debug("ibverbs_transport", "disconnect from %s (pid=%x) succeeded", peer->url(), peer->pid());
+    log_debug("ibverbs_transport", "disconnect from %s (pid=%x) succeeded", peer->url().url().c_str(), peer->pid());
 
     delete conn;
     delete peer;
@@ -810,18 +838,20 @@ ibverbs_transport::dt_unpack(
     nnti::datatype::ibverbs_buffer *b  = nullptr;
     nnti::datatype::nnti_peer      *p  = nullptr;
 
-    switch (*(NNTI_datatype_t*)packed_buf) {
+    NNTI_datatype_t t = nnti::serialize::get_datatype(packed_buf, packed_len);
+    switch (t) {
         case NNTI_dt_buffer:
-            log_debug("base_transport", "dt is a buffer");
+            log_debug("ibverbs_transport", "dt is a buffer");
             b = new nnti::datatype::ibverbs_buffer(this, packed_buf, packed_len);
             *(NNTI_buffer_t*)nnti_dt = nnti::datatype::nnti_buffer::to_hdl(b);
             break;
         case NNTI_dt_peer:
-            log_debug("base_transport", "dt is a peer");
+            log_debug("ibverbs_transport", "dt is a peer");
             p = new nnti::datatype::nnti_peer(this, packed_buf, packed_len);
             *(NNTI_peer_t*)nnti_dt = nnti::datatype::nnti_peer::to_hdl(p);
             break;
         default:
+            log_error("ibverbs_transport", "unknown datatype");
             // unsupported datatype
             rc = NNTI_EINVAL;
             break;
@@ -1008,11 +1038,20 @@ ibverbs_transport::send(
     log_debug("ibverbs_transport", "send - wr.local_offset=%lu", wr->local_offset());
 
     rc = create_send_op(work_id, &cmd_op);
+    if (rc != NNTI_OK) {
+        log_error("ibverbs_transport", "create_send_op() failed");
+        goto done;
+    }
     rc = execute_cmd_op(work_id, cmd_op);
+    if (rc != NNTI_OK) {
+        log_error("ibverbs_transport", "execute_cmd_op() failed");
+        goto done;
+    }
 
     *wid = (NNTI_work_id_t)work_id;
 
-    return NNTI_OK;
+done:
+    return rc;
 }
 
 /**
@@ -1032,12 +1071,33 @@ ibverbs_transport::put(
     nnti::datatype::nnti_work_id *work_id = new nnti::datatype::nnti_work_id(*wr);
     nnti::core::ibverbs_rdma_op  *put_op  = nullptr;
 
+#ifdef NNTI_ENABLE_ARGS_CHECKING
+    const nnti::datatype::ibverbs_work_request &ibwr = (const nnti::datatype::ibverbs_work_request &)work_id->wr();
+    if (ibwr.local_offset() + ibwr.length() > ibwr.local_length()) {
+        log_error("ibverbs_transport", "PUT length extends beyond the end of local buffer");
+        return NNTI_EMSGSIZE;
+    }
+    if (ibwr.remote_offset() + ibwr.length() > ibwr.remote_length()) {
+        log_error("ibverbs_transport", "PUT length extends beyond the end of remote buffer");
+        return NNTI_EMSGSIZE;
+    }
+#endif
+
     rc = create_put_op(work_id, &put_op);
+    if (rc != NNTI_OK) {
+        log_error("ibverbs_transport", "create_put_op() failed");
+        goto done;
+    }
     rc = execute_rdma_op(work_id, put_op);
+    if (rc != NNTI_OK) {
+        log_error("ibverbs_transport", "execute_rdma_op() failed");
+        goto done;
+    }
 
     *wid = (NNTI_work_id_t)work_id;
 
-    return NNTI_OK;
+done:
+    return rc;
 }
 
 /**
@@ -1057,12 +1117,33 @@ ibverbs_transport::get(
     nnti::datatype::nnti_work_id *work_id = new nnti::datatype::nnti_work_id(*wr);
     nnti::core::ibverbs_rdma_op  *get_op  = nullptr;
 
+#ifdef NNTI_ENABLE_ARGS_CHECKING
+    const nnti::datatype::ibverbs_work_request &ibwr = (const nnti::datatype::ibverbs_work_request &)work_id->wr();
+    if (ibwr.local_offset() + ibwr.length() > ibwr.local_length()) {
+        log_error("ibverbs_transport", "GET length extends beyond the end of local buffer");
+        return NNTI_EMSGSIZE;
+    }
+    if (ibwr.remote_offset() + ibwr.length() > ibwr.remote_length()) {
+        log_error("ibverbs_transport", "GET length extends beyond the end of remote buffer");
+        return NNTI_EMSGSIZE;
+    }
+#endif
+
     rc = create_get_op(work_id, &get_op);
+    if (rc != NNTI_OK) {
+        log_error("ibverbs_transport", "create_get_op() failed");
+        goto done;
+    }
     rc = execute_rdma_op(work_id, get_op);
+    if (rc != NNTI_OK) {
+        log_error("ibverbs_transport", "execute_rdma_op() failed");
+        goto done;
+    }
 
     *wid = (NNTI_work_id_t)work_id;
 
-    return NNTI_OK;
+done:
+    return rc;
 }
 
 /**
@@ -1083,11 +1164,20 @@ ibverbs_transport::atomic_fop(
     nnti::core::ibverbs_atomic_op *atomic_op = nullptr;
 
     rc = create_fadd_op(work_id, &atomic_op);
+    if (rc != NNTI_OK) {
+        log_error("ibverbs_transport", "create_fadd_op() failed");
+        goto done;
+    }
     rc = execute_atomic_op(work_id, atomic_op);
+    if (rc != NNTI_OK) {
+        log_error("ibverbs_transport", "execute_atomic_op() failed");
+        goto done;
+    }
 
     *wid = (NNTI_work_id_t)work_id;
 
-    return NNTI_OK;
+done:
+    return rc;
 }
 
 /**
@@ -1108,11 +1198,20 @@ ibverbs_transport::atomic_cswap(
     nnti::core::ibverbs_atomic_op *atomic_op = nullptr;
 
     rc = create_cswap_op(work_id, &atomic_op);
+    if (rc != NNTI_OK) {
+        log_error("ibverbs_transport", "create_fadd_op() failed");
+        goto done;
+    }
     rc = execute_atomic_op(work_id, atomic_op);
+    if (rc != NNTI_OK) {
+        log_error("ibverbs_transport", "execute_atomic_op() failed");
+        goto done;
+    }
 
     *wid = (NNTI_work_id_t)work_id;
 
-    return NNTI_OK;
+done:
+    return rc;
 }
 
 /**
@@ -1230,6 +1329,98 @@ ibverbs_transport::get_instance(
 
 
 bool
+ibverbs_transport::have_odp(void)
+{
+#if (NNTI_HAVE_IBV_EXP_QUERY_DEVICE && NNTI_HAVE_IBV_EXP_DEVICE_ATTR_ODP)
+    int ibv_rc=0;
+    struct ibv_exp_device_attr exp_dev_attr;
+    if (ctx_ == nullptr) {
+        // the IB device is not open
+        return false;
+    }
+    exp_dev_attr.comp_mask = IBV_EXP_DEVICE_ATTR_ODP | IBV_EXP_DEVICE_ATTR_EXP_CAP_FLAGS;
+    ibv_rc = ibv_exp_query_device(ctx_, &exp_dev_attr);
+    if (exp_dev_attr.exp_device_cap_flags & IBV_EXP_DEVICE_ODP) {
+        return true;
+    }
+#endif
+    return false;
+}
+
+bool
+ibverbs_transport::have_implicit_odp(void)
+{
+#if (NNTI_HAVE_IBV_EXP_QUERY_DEVICE && NNTI_HAVE_IBV_EXP_DEVICE_ATTR_ODP && NNTI_HAVE_IBV_EXP_ODP_SUPPORT_IMPLICIT)
+    int ibv_rc=0;
+    struct ibv_exp_device_attr exp_dev_attr;
+    if (ctx_ == nullptr) {
+        // the IB device is not open
+        return false;
+    }
+    exp_dev_attr.comp_mask = IBV_EXP_DEVICE_ATTR_ODP | IBV_EXP_DEVICE_ATTR_EXP_CAP_FLAGS;
+    ibv_rc = ibv_exp_query_device(ctx_, &exp_dev_attr);
+
+    if ((exp_dev_attr.exp_device_cap_flags & IBV_EXP_DEVICE_ODP) &&
+        (exp_dev_attr.odp_caps.per_transport_caps.rc_odp_caps & IBV_EXP_ODP_SUPPORT_SEND)) {
+        log_debug("ibverbs_transport", "This device supports ODP SEND");
+    }
+    if ((exp_dev_attr.exp_device_cap_flags & IBV_EXP_DEVICE_ODP) &&
+        (exp_dev_attr.odp_caps.per_transport_caps.rc_odp_caps & IBV_EXP_ODP_SUPPORT_RECV)) {
+        log_debug("ibverbs_transport", "This device supports ODP RECV");
+    }
+    if ((exp_dev_attr.exp_device_cap_flags & IBV_EXP_DEVICE_ODP) &&
+        (exp_dev_attr.odp_caps.per_transport_caps.rc_odp_caps & IBV_EXP_ODP_SUPPORT_SRQ_RECV)) {
+        log_debug("ibverbs_transport", "This device supports ODP SRQ RECV");
+    }
+    if ((exp_dev_attr.exp_device_cap_flags & IBV_EXP_DEVICE_ODP) &&
+        (exp_dev_attr.odp_caps.per_transport_caps.rc_odp_caps & IBV_EXP_ODP_SUPPORT_READ)) {
+        log_debug("ibverbs_transport", "This device supports ODP READ");
+    }
+    if ((exp_dev_attr.exp_device_cap_flags & IBV_EXP_DEVICE_ODP) &&
+        (exp_dev_attr.odp_caps.per_transport_caps.rc_odp_caps & IBV_EXP_ODP_SUPPORT_WRITE)) {
+        log_debug("ibverbs_transport", "This device supports ODP WRITE");
+    }
+    if ((exp_dev_attr.exp_device_cap_flags & IBV_EXP_DEVICE_ODP) &&
+        (exp_dev_attr.odp_caps.per_transport_caps.rc_odp_caps & IBV_EXP_ODP_SUPPORT_ATOMIC)) {
+        log_debug("ibverbs_transport", "This device supports ODP ATOMIC");
+    }
+
+    if ((exp_dev_attr.exp_device_cap_flags & IBV_EXP_DEVICE_ODP) &&
+        (exp_dev_attr.odp_caps.general_odp_caps & IBV_EXP_ODP_SUPPORT_IMPLICIT)) {
+        return true;
+    }
+
+#endif
+    return false;
+}
+
+int
+ibverbs_transport::register_odp(void)
+{
+#if (NNTI_HAVE_IBV_EXP_ACCESS_ON_DEMAND)
+    struct ibv_exp_reg_mr_in in;
+
+    in.pd = pd_;
+    in.addr = 0;
+    in.length = IBV_EXP_IMPLICIT_MR_SIZE;
+    in.exp_access = IBV_EXP_ACCESS_ON_DEMAND | IBV_EXP_ACCESS_LOCAL_WRITE | IBV_EXP_ACCESS_REMOTE_READ | IBV_EXP_ACCESS_REMOTE_WRITE | IBV_EXP_ACCESS_REMOTE_ATOMIC;
+    in.comp_mask = 0;
+
+    odp_mr_ = ibv_exp_reg_mr(&in);
+    if (odp_mr_ == NULL) {
+        log_error("ibverbs_transport", "ibv_exp_reg_mr() failed: %s", strerror(errno));
+    }
+
+    log_debug("ibverbs_transport", "mr=%p", odp_mr_);
+
+    return 0;
+#else
+    log_error("ibverbs_transport", "attempted to register memory with ODP, but it's not available on this system");
+    return -1;
+#endif
+}
+
+bool
 ibverbs_transport::have_exp_qp(void)
 {
 #if NNTI_HAVE_IBV_EXP_CREATE_QP
@@ -1244,6 +1435,7 @@ ibverbs_transport::atomic_result_is_be(void)
 #if (NNTI_HAVE_IBV_EXP_QUERY_DEVICE && NNTI_HAVE_IBV_EXP_ATOMIC_HCA_REPLY_BE)
     int ibv_rc=0;
     struct ibv_exp_device_attr exp_dev_attr;
+    memset(&exp_dev_attr, 0, sizeof(exp_dev_attr));
     exp_dev_attr.comp_mask = IBV_EXP_DEVICE_ATTR_RESERVED - 1;
     ibv_rc = ibv_exp_query_device(ctx_, &exp_dev_attr);
     if (ibv_rc) {
@@ -1588,23 +1780,174 @@ ibverbs_transport::stop_progress_thread(void)
 }
 
 
+void
+ibverbs_transport::open_ib_device(struct ibv_device *dev)
+{
+    log_debug("ibverbs_transport", "opening device (%s|%s)", dev->name, dev->dev_name);
+    /* open the device */
+    ctx_ = ibv_open_device(dev);
+}
+bool
+ibverbs_transport::is_port_active(struct ibv_device *dev, int port)
+{
+    bool                 rc=false;
+    int                  ibv_rc = 0;
+    struct ibv_port_attr dev_port_attr;
+
+    open_ib_device(dev);
+    ibv_rc = ibv_query_port(ctx_, port, &dev_port_attr);
+    if (ibv_rc == 0) {
+        if (dev_port_attr.state == IBV_PORT_ACTIVE) {
+            log_debug("ibverbs_transport", "port (%d) is active", port);
+            rc = true;
+        }
+    } else {
+        log_error("ibverbs_transport", "ibv_query_port failed");
+    }
+    ibv_close_device(ctx_);
+
+    return rc;
+}
 struct ibv_device *
-ibverbs_transport::get_ib_device(void)
+ibverbs_transport::find_active_ib_device(struct ibv_device **dev_list, int dev_count, int *port)
+{
+    int                     ibv_rc = 0;
+    struct ibv_device      *dev;
+    struct ibv_device_attr  dev_attr;
+    struct ibv_port_attr    dev_port_attr;
+
+    *port=-1;
+    for ( int i=0 ; i < dev_count ; i++) {
+        dev = dev_list[i];
+        open_ib_device(dev);
+
+        /* Query the device for port count */
+        ibv_rc = ibv_query_device(ctx_, &dev_attr);
+        if (ibv_rc == 0) {
+            for ( int j=0 ; j < dev_attr.phys_port_cnt ; j++) {
+                /* get the port state */
+                ibv_rc = ibv_query_port(ctx_, j+1, &dev_port_attr);
+                if (ibv_rc == 0) {
+                    if ((dev_port_attr.state == IBV_PORT_ACTIVE) &&
+                        (dev_port_attr.link_layer == IBV_LINK_LAYER_INFINIBAND)) {
+                        *port = j+1;
+                        log_debug("ibverbs_transport", "found device (%s|%s) with active port (%d)", dev->name, dev->dev_name, *port);
+                        goto done;
+                    }
+                } else {
+                    log_error("ibverbs_transport", "ibv_query_port failed");
+                }
+            }
+        } else {
+            log_error("ibverbs_transport", "ibv_query_device failed");
+        }
+        ibv_close_device(ctx_);
+        dev = nullptr;
+    }
+    return nullptr;
+
+done:
+    ibv_close_device(ctx_);
+    return dev;
+}
+bool
+ibverbs_transport::select_ib_device(struct ibv_device **dev_list, int dev_count, int *port)
 {
     struct ibv_device *dev=nullptr;
-    struct ibv_device **dev_list;
-    int dev_count=0;
 
-    dev_list = ibv_get_device_list(&dev_count);
-    if (dev_count == 0)
-        return nullptr;
-    if (dev_count > 1) {
-        log_debug("ibverbs_transport", "found %d devices, defaulting the dev_list[0] (%p)", dev_count, dev_list[0]);
+    log_debug("ibverbs_transport", "%d devices exist", dev_count);
+    if (dev_count == 0) {
+        log_debug("ibverbs_transport", "No devices found");
+    } else if (interface_dev_list_.length() == 0) {
+        log_debug("ibverbs_transport", "net.transport.interfaces is empty - searching for a device with an active port");
+        dev = find_active_ib_device(dev_list, dev_count, port);
+        if (dev == nullptr) {
+            log_error("ibverbs_transport",
+                      "The IB transport couldn't find an active ibverbs device on this machine.  "
+                      "FAODEL's net.transport.interfaces is not set.  "
+                      "Trying setting it to the interface (eg. ib0) of an active device.");
+        }
+    } else {
+        int rc;
+        struct stat sbuf;
+        std::string uverbs_dev;
+        uint32_t ib_port;
+
+        std::vector<std::string> interface_device_list = faodel::Split(interface_dev_list_, ',', true);
+        for ( std::string ifdev : interface_device_list ) {
+            log_debug("ibverbs_transport", "looking for interface device '%s'", ifdev.c_str());
+
+            // check that the interface device exists
+            std::string ifdev_path = std::string("/sys/class/net/" + ifdev);
+            log_debug("ibverbs_transport", "calling stat(%s)", ifdev_path.c_str());
+            rc = stat(ifdev_path.c_str(), &sbuf);
+            if ((rc != 0) || !S_ISDIR(sbuf.st_mode)) {
+                // device doesn't exist
+                continue;
+            }
+            // determine the uverbs device
+            int uverbs_num = -1;
+            std::string uverbs_path;
+            for (int i=0;i<dev_count;i++) {
+                uverbs_path = std::string("/sys/class/net/" + ifdev + "/device/infiniband_verbs/uverbs" + std::to_string(i));
+                log_debug("ibverbs_transport", "calling stat(%s)", uverbs_path.c_str());
+                rc = stat(uverbs_path.c_str(), &sbuf);
+                if ((rc != 0) || !S_ISDIR(sbuf.st_mode)) {
+                    continue;
+                } else {
+                    uverbs_num = i;
+                    break;
+                }
+            }
+            log_debug("ibverbs_transport", "interface %s is uverbs%d", ifdev.c_str(), uverbs_num);
+            if (uverbs_num >= 0) {
+                uverbs_dev = std::string("uverbs" + std::to_string(uverbs_num));
+
+                std::ifstream in(std::string("/sys/class/net/"+ifdev+"/dev_id"));
+                char hex_port[64];
+                in.read(hex_port, 64);
+                hex_port[in.gcount()]='\0';
+                in.close();
+
+                *port = -1;
+                *port = strtoul(hex_port, NULL, 16);
+                // dev_id is 0-based but port is 1-based, so increment
+                (*port)++;
+                log_debug("ibverbs_transport", "port = %d", *port);
+
+                for ( int i=0 ; i < dev_count ; i++) {
+                    if (0==strcmp(dev_list[i]->dev_name,uverbs_dev.c_str())) {
+                        log_debug("ibverbs_transport", "'%s' matches dev_list[%d] (%s|%s)", ifdev.c_str(), i, dev_list[i]->name, dev_list[i]->dev_name);
+                        dev = dev_list[i];
+                        if (is_port_active(dev, *port)) {
+                            goto done;
+                        } else {
+                            log_debug("ibverbs_transport", "'%s|%s' found, but port %d not active", dev_list[i]->name, dev_list[i]->dev_name, *port);
+                            dev=nullptr;
+                            break;
+                        }
+                    } else {
+                        log_debug("ibverbs_transport", "'%s' doesn't match dev_list[%d] (%s|%s)", ifdev.c_str(), i, dev_list[i]->name, dev_list[i]->dev_name);
+                    }
+                }
+            }
+        }
+        if (dev == nullptr) {
+            log_error("ibverbs_transport",
+                      "The IB transport couldn't find an active ibverbs device on this machine.  "
+                      "FAODEL's net.transport.interfaces was set to %s.  "
+                      "Please confirm that one of these devices is active and try again.",
+                      interface_dev_list_.c_str());
+        }
     }
-    dev = dev_list[0];
-    ibv_free_device_list(dev_list);
 
-    return dev;
+done:
+    if (dev == nullptr) {
+    } else {
+        open_ib_device(dev);
+    }
+
+    return (dev!=nullptr);
 }
 
 void
@@ -1665,27 +2008,25 @@ ibverbs_transport::disconnect_cb(const std::map<std::string,std::string> &args, 
 void
 ibverbs_transport::stats_cb(const std::map<std::string,std::string> &args, std::stringstream &results)
 {
-    html::mkHeader(results, "Transfer Statistics");
-    html::mkText(results,"Transfer Statistics",1);
+    faodel::ReplyStream rs(args, "Transfer Statistics", &results);
 
     NNTI_STATS_DATA(
-    std::vector<std::string> stats;
-    stats.push_back("pinned_bytes     = " + std::to_string(stats_->pinned_bytes.load()));
-    stats.push_back("pinned_buffers   = " + std::to_string(stats_->pinned_buffers.load()));
-    stats.push_back("unexpected_sends = " + std::to_string(stats_->unexpected_sends.load()));
-    stats.push_back("unexpected_recvs = " + std::to_string(stats_->unexpected_recvs.load()));
-    stats.push_back("short_sends      = " + std::to_string(stats_->short_sends.load()));
-    stats.push_back("short_recvs      = " + std::to_string(stats_->short_recvs.load()));
-    stats.push_back("long_sends       = " + std::to_string(stats_->long_sends.load()));
-    stats.push_back("long_recvs       = " + std::to_string(stats_->long_recvs.load()));
-    stats.push_back("gets             = " + std::to_string(stats_->gets.load()));
-    stats.push_back("puts             = " + std::to_string(stats_->puts.load()));
-    stats.push_back("fadds            = " + std::to_string(stats_->fadds.load()));
-    stats.push_back("cswaps           = " + std::to_string(stats_->cswaps.load()));
-    html::mkList(results, stats);
+    rs.tableBegin("Transport Statistics");
+    rs.tableRow({"pinned_bytes",      std::to_string(stats_->pinned_bytes.load())});
+    rs.tableRow({"pinned_buffers",    std::to_string(stats_->pinned_buffers.load())});
+    rs.tableRow({"unexpected_sends",  std::to_string(stats_->unexpected_sends.load())});
+    rs.tableRow({"unexpected_recvs",  std::to_string(stats_->unexpected_recvs.load())});
+    rs.tableRow({"short_sends",       std::to_string(stats_->short_sends.load())});
+    rs.tableRow({"short_recvs",       std::to_string(stats_->short_recvs.load())});
+    rs.tableRow({"long_sends",        std::to_string(stats_->long_sends.load())});
+    rs.tableRow({"long_recvs",        std::to_string(stats_->long_recvs.load())});
+    rs.tableRow({"gets",              std::to_string(stats_->gets.load())});
+    rs.tableRow({"puts",              std::to_string(stats_->puts.load())});
+    rs.tableRow({"fadds",             std::to_string(stats_->fadds.load())});
+    rs.tableRow({"cswaps",            std::to_string(stats_->cswaps.load())});
+    rs.tableEnd();
     )
-
-    html::mkFooter(results);
+    rs.Finish();
 }
 
 void
@@ -1706,7 +2047,7 @@ ibverbs_transport::peers_cb(const std::map<std::string,std::string> &args, std::
 }
 
 std::string
-ibverbs_transport::build_webhook_path(
+ibverbs_transport::build_whookie_path(
     nnti::core::nnti_connection *conn,
     const char                  *service)
 {
@@ -1722,42 +2063,42 @@ ibverbs_transport::build_webhook_path(
     return wh_url.str();
 }
 std::string
-ibverbs_transport::build_webhook_connect_path(
+ibverbs_transport::build_whookie_connect_path(
     nnti::core::nnti_connection *conn)
 {
-    return build_webhook_path(conn, "connect");
+    return build_whookie_path(conn, "connect");
 }
 std::string
-ibverbs_transport::build_webhook_disconnect_path(
+ibverbs_transport::build_whookie_disconnect_path(
     nnti::core::nnti_connection *conn)
 {
-    return build_webhook_path(conn, "disconnect");
+    return build_whookie_path(conn, "disconnect");
 }
 
 void
-ibverbs_transport::register_webhook_cb(void)
+ibverbs_transport::register_whookie_cb(void)
 {
-    webhook::Server::registerHook("/nnti/ib/connect", [this] (const std::map<std::string,std::string> &args, std::stringstream &results){
+    whookie::Server::registerHook("/nnti/ib/connect", [this] (const std::map<std::string,std::string> &args, std::stringstream &results){
         connect_cb(args, results);
     });
-    webhook::Server::registerHook("/nnti/ib/disconnect", [this] (const std::map<std::string,std::string> &args, std::stringstream &results){
+    whookie::Server::registerHook("/nnti/ib/disconnect", [this] (const std::map<std::string,std::string> &args, std::stringstream &results){
         disconnect_cb(args, results);
     });
-    webhook::Server::registerHook("/nnti/ib/stats", [this] (const std::map<std::string,std::string> &args, std::stringstream &results){
+    whookie::Server::registerHook("/nnti/ib/stats", [this] (const std::map<std::string,std::string> &args, std::stringstream &results){
         stats_cb(args, results);
     });
-    webhook::Server::registerHook("/nnti/ib/peers", [this] (const std::map<std::string,std::string> &args, std::stringstream &results){
+    whookie::Server::registerHook("/nnti/ib/peers", [this] (const std::map<std::string,std::string> &args, std::stringstream &results){
         peers_cb(args, results);
     });
 }
 
 void
-ibverbs_transport::unregister_webhook_cb(void)
+ibverbs_transport::unregister_whookie_cb(void)
 {
-    webhook::Server::deregisterHook("/nnti/ib/connect");
-    webhook::Server::deregisterHook("/nnti/ib/disconnect");
-    webhook::Server::deregisterHook("/nnti/ib/stats");
-    webhook::Server::deregisterHook("/nnti/ib/peers");
+    whookie::Server::deregisterHook("/nnti/ib/connect");
+    whookie::Server::deregisterHook("/nnti/ib/disconnect");
+    whookie::Server::deregisterHook("/nnti/ib/stats");
+    whookie::Server::deregisterHook("/nnti/ib/peers");
 }
 
 NNTI_result_t
@@ -2158,7 +2499,7 @@ ibverbs_transport::poll_cq(
             log_error("poll_cq", "Failed status %s (%d) for wr_id %lx",
                     ibv_wc_status_str(wc->status),
                     wc->status, wc->wr_id);
-            nnti_rc = NNTI_EIO;
+            nnti_rc = NNTI_EPERM;
         }
     }
 
@@ -2174,7 +2515,7 @@ ibverbs_transport::poll_cmd_cq(void)
     struct ibv_wc wc;
 
     nnti_rc = poll_cq(cmd_cq_, &wc);
-    if (nnti_rc == NNTI_OK) {
+    if ((nnti_rc != NNTI_EIO) && (nnti_rc != NNTI_ENOENT)) {
         // found a work completion
         if (wc.opcode & IBV_WC_RECV) {
             nnti::core::ibverbs_cmd_msg *cmd_msg = (nnti::core::ibverbs_cmd_msg *)wc.wr_id;
@@ -2187,7 +2528,7 @@ ibverbs_transport::poll_cmd_cq(void)
                 nnti::datatype::nnti_work_request &wr             = cmd_op->wid()->wr();
                 nnti::datatype::nnti_event_queue  *alt_q          = nnti::datatype::nnti_event_queue::to_obj(wr.alt_eq());
                 nnti::datatype::nnti_event_queue  *buf_q          = nullptr;
-                NNTI_event_t                      *e              = create_event(cmd_op);
+                NNTI_event_t                      *e              = create_event(cmd_op, nnti_rc);
                 bool                               event_complete = false;
                 bool                               release_event  = true;
 
@@ -2248,7 +2589,7 @@ ibverbs_transport::poll_cmd_cq(void)
                         NNTI_FAST_STAT(stats_->dropped_unexpected++;);
                     } else {
                         unexpected_msgs_.push_back(cmd_msg);
-                        NNTI_event_t *e = create_event(cmd_msg);
+                        NNTI_event_t *e = create_event(cmd_msg, nnti_rc);
                         if (unexpected_queue_->invoke_cb(e) != NNTI_OK) {
                             unexpected_queue_->push(e);
                             unexpected_queue_->notify();
@@ -2280,7 +2621,7 @@ ibverbs_transport::poll_cmd_cq(void)
 
                         }
 
-                        e  = create_event(cmd_msg, actual_offset);
+                        e  = create_event(cmd_msg, actual_offset, nnti_rc);
                         if (tgt_buf->invoke_cb(e) != NNTI_OK) {
                             if (q && q->invoke_cb(e) != NNTI_OK) {
                                 q->push(e);
@@ -2338,7 +2679,7 @@ ibverbs_transport::poll_cmd_cq(void)
                         nnti_rc = execute_ack_op(peer, ack_op);
                         log_debug("poll_cmd_cqs", "ACK sent");
 
-                        e  = create_event(cmd_msg);
+                        e  = create_event(cmd_msg, nnti_rc);
                         if (tgt_buf->invoke_cb(e) != NNTI_OK) {
                             if (q && q->invoke_cb(e) != NNTI_OK) {
                                 q->push(e);
@@ -2374,7 +2715,7 @@ ibverbs_transport::poll_cmd_cq(void)
                 nnti::datatype::nnti_work_request &wr             = cmd_op->wid()->wr();
                 nnti::datatype::nnti_event_queue  *alt_q          = nnti::datatype::nnti_event_queue::to_obj(wr.alt_eq());
                 nnti::datatype::nnti_event_queue  *buf_q          = nullptr;
-                NNTI_event_t                      *e              = create_event(cmd_op);
+                NNTI_event_t                      *e              = create_event(cmd_op, nnti_rc);
                 bool                               event_complete = false;
                 bool                               release_event  = true;
 
@@ -2433,7 +2774,7 @@ ibverbs_transport::poll_cmd_cq(void)
             NNTI_event_t                     *e             = nullptr;
             bool                              release_event = true;
 
-            e  = create_event(cmd_msg, cmd_msg->target_offset());
+            e  = create_event(cmd_msg, cmd_msg->target_offset(), nnti_rc);
             if (b->invoke_cb(e) != NNTI_OK) {
                 if (q && q->invoke_cb(e) != NNTI_OK) {
                     q->push(e);
@@ -2461,7 +2802,7 @@ ibverbs_transport::poll_rdma_cq(void)
     struct ibv_wc wc;
 
     nnti_rc = poll_cq(rdma_cq_, &wc);
-    if (nnti_rc == NNTI_OK) {
+    if ((nnti_rc != NNTI_EIO) && (nnti_rc != NNTI_ENOENT)) {
         // found a work completion
         if (wc.opcode == IBV_WC_RDMA_WRITE) {
             bool need_event = true;
@@ -2471,7 +2812,7 @@ ibverbs_transport::poll_rdma_cq(void)
             nnti::datatype::nnti_work_request   &wr             = rdma_op->wid()->wr();
             nnti::datatype::nnti_event_queue    *alt_q          = nnti::datatype::nnti_event_queue::to_obj(wr.alt_eq());
             nnti::datatype::nnti_event_queue    *buf_q          = nullptr;
-            NNTI_event_t                        *e              = create_event(rdma_op);
+            NNTI_event_t                        *e              = create_event(rdma_op, nnti_rc);
             bool                                 event_complete = false;
             bool                                 release_event  = true;
 
@@ -2517,7 +2858,7 @@ ibverbs_transport::poll_rdma_cq(void)
             nnti::datatype::nnti_work_request   &wr             = rdma_op->wid()->wr();
             nnti::datatype::nnti_event_queue    *alt_q          = nnti::datatype::nnti_event_queue::to_obj(wr.alt_eq());
             nnti::datatype::nnti_event_queue    *buf_q          = nullptr;
-            NNTI_event_t                        *e              = create_event(rdma_op);
+            NNTI_event_t                        *e              = create_event(rdma_op, nnti_rc);
             bool                                 event_complete = false;
             bool                                 release_event  = true;
 
@@ -2563,7 +2904,7 @@ ibverbs_transport::poll_rdma_cq(void)
             nnti::datatype::nnti_work_request   &wr             = atomic_op->wid()->wr();
             nnti::datatype::nnti_event_queue    *alt_q          = nnti::datatype::nnti_event_queue::to_obj(wr.alt_eq());
             nnti::datatype::nnti_event_queue    *buf_q          = nullptr;
-            NNTI_event_t                        *e              = create_event(atomic_op);
+            NNTI_event_t                        *e              = create_event(atomic_op, nnti_rc);
             bool                                 event_complete = false;
             bool                                 release_event  = true;
 
@@ -2617,7 +2958,7 @@ ibverbs_transport::poll_rdma_cq(void)
             nnti::datatype::nnti_work_request   &wr             = atomic_op->wid()->wr();
             nnti::datatype::nnti_event_queue    *alt_q          = nnti::datatype::nnti_event_queue::to_obj(wr.alt_eq());
             nnti::datatype::nnti_event_queue    *buf_q          = nullptr;
-            NNTI_event_t                        *e              = create_event(atomic_op);
+            NNTI_event_t                        *e              = create_event(atomic_op, nnti_rc);
             bool                                 event_complete = false;
             bool                                 release_event  = true;
 
@@ -2671,7 +3012,8 @@ ibverbs_transport::poll_rdma_cq(void)
 NNTI_event_t *
 ibverbs_transport::create_event(
     nnti::core::ibverbs_cmd_msg *cmd_msg,
-    uint64_t                     offset)
+    uint64_t                     offset,
+    NNTI_result_t                result)
 {
     NNTI_event_t *e = nullptr;
 
@@ -2682,7 +3024,7 @@ ibverbs_transport::create_event(
     }
 
     e->trans_hdl  = nnti::transports::transport::to_hdl(this);
-    e->result     = NNTI_OK;
+    e->result     = result;
     e->op         = NNTI_OP_SEND;
     e->peer       = nnti::datatype::nnti_peer::to_hdl(cmd_msg->initiator_peer());
     log_debug("ibverbs_transport", "e->peer = %p", e->peer);
@@ -2709,13 +3051,14 @@ ibverbs_transport::create_event(
 
 NNTI_event_t *
 ibverbs_transport::create_event(
-    nnti::core::ibverbs_cmd_msg *cmd_msg)
+    nnti::core::ibverbs_cmd_msg *cmd_msg,
+    NNTI_result_t                result)
 {
     NNTI_event_t *e = nullptr;
 
     log_debug("ibverbs_transport", "create_event(cmd_msg) - enter");
 
-    e = create_event(cmd_msg, cmd_msg->target_offset());
+    e = create_event(cmd_msg, cmd_msg->target_offset(), result);
 
     log_debug("ibverbs_transport", "create_event(cmd_msg) - exit");
 
@@ -2724,7 +3067,8 @@ ibverbs_transport::create_event(
 
 NNTI_event_t *
 ibverbs_transport::create_event(
-    nnti::core::ibverbs_cmd_op *cmd_op)
+    nnti::core::ibverbs_cmd_op *cmd_op,
+    NNTI_result_t               result)
 {
     nnti::datatype::nnti_work_id            *wid = cmd_op->wid();
     const nnti::datatype::nnti_work_request &wr  = wid->wr();
@@ -2737,7 +3081,7 @@ ibverbs_transport::create_event(
     }
 
     e->trans_hdl  = nnti::transports::transport::to_hdl(this);
-    e->result     = NNTI_OK;
+    e->result     = result;
     e->op         = wr.op();
     e->peer       = wr.peer();
     e->length     = wr.length();
@@ -2754,7 +3098,8 @@ ibverbs_transport::create_event(
 
 NNTI_event_t *
 ibverbs_transport::create_event(
-    nnti::core::ibverbs_rdma_op *rdma_op)
+    nnti::core::ibverbs_rdma_op *rdma_op,
+    NNTI_result_t                result)
 {
     nnti::datatype::nnti_work_id            *wid = rdma_op->wid();
     const nnti::datatype::nnti_work_request &wr  = wid->wr();
@@ -2768,7 +3113,7 @@ ibverbs_transport::create_event(
     }
 
     e->trans_hdl  = nnti::transports::transport::to_hdl(this);
-    e->result     = NNTI_OK;
+    e->result     = result;
     e->op         = wr.op();
     e->peer       = wr.peer();
     e->length     = wr.length();
@@ -2790,7 +3135,8 @@ ibverbs_transport::create_event(
 
 NNTI_event_t *
 ibverbs_transport::create_event(
-    nnti::core::ibverbs_atomic_op *atomic_op)
+    nnti::core::ibverbs_atomic_op *atomic_op,
+    NNTI_result_t                  result)
 {
     nnti::datatype::nnti_work_id            *wid = atomic_op->wid();
     const nnti::datatype::nnti_work_request &wr  = wid->wr();
@@ -2803,7 +3149,7 @@ ibverbs_transport::create_event(
     }
 
     e->trans_hdl  = nnti::transports::transport::to_hdl(this);
-    e->result     = NNTI_OK;
+    e->result     = result;
     e->op         = wr.op();
     e->peer       = wr.peer();
     e->length     = wr.length();

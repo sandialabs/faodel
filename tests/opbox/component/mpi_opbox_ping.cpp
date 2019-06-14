@@ -31,9 +31,9 @@ Globals G;
 string default_config_string = R"EOF(
 # Note: node_role is defined when we determine if this is a client or a server
 
-tester.webhook.port 1991
-rooter.webhook.port 1992
-server.webhook.port 2000
+tester.whookie.port 1991
+rooter.whookie.port 1992
+server.whookie.port 2000
 
 
 dirman.root_role rooter
@@ -44,7 +44,7 @@ target.dirman.write_to_file ./dirman.txt
 dirman.type centralized
 
 #bootstrap.debug true
-#webhook.debug true
+#whookie.debug true
 #opbox.debug true
 #dirman.debug true
 

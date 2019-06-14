@@ -45,8 +45,8 @@
 
 #include "nnti/transports/ugni/ugni_transport.hpp"
 
-#include "webhook/WebHook.hh"
-#include "webhook/Server.hh"
+#include "whookie/Whookie.hh"
+#include "whookie/Server.hh"
 
 
 namespace nnti  {
@@ -260,7 +260,7 @@ ugni_transport::start(void)
         goto cleanup;
     }
 
-    nodeid = webhook::Server::GetNodeID();
+    nodeid = whookie::Server::GetNodeID();
     addr = nodeid.GetIP();
     port = nodeid.GetPort();
     url_ = nnti::core::nnti_url(addr, port);
@@ -286,12 +286,12 @@ ugni_transport::start(void)
     }
 
     NNTI_STATS_DATA(
-    stats_ = new webhook_stats;
+    stats_ = new whookie_stats;
     )
 
-    assert(webhook::Server::IsRunning() && "webhook is not running.  Confirm Bootstrap configuration and try again.");
+    assert(whookie::Server::IsRunning() && "whookie is not running.  Confirm Bootstrap configuration and try again.");
 
-    register_webhook_cb();
+    register_whookie_cb();
 
     log_debug("ugni_transport", "url_=%s", url_.url().c_str());
 
@@ -327,7 +327,7 @@ ugni_transport::stop(void)
     }
     nthread_unlock(&new_connection_lock_);
 
-    unregister_webhook_cb();
+    unregister_whookie_cb();
 
     stop_progress_thread();
 
@@ -460,13 +460,13 @@ ugni_transport::connect(
     nthread_unlock(&new_connection_lock_);
 
     std::string reply;
-    std::string wh_path = build_webhook_connect_path(conn);
+    std::string wh_path = build_whookie_connect_path(conn);
     int wh_rc = 0;
     int retries = 5;
-    wh_rc = webhook::retrieveData(peer_url.hostname(), peer_url.port(), wh_path, &reply);
+    wh_rc = whookie::retrieveData(peer_url.hostname(), peer_url.port(), wh_path, &reply);
     while (wh_rc != 0 && --retries) {
         sleep(1);
-        wh_rc = webhook::retrieveData(peer_url.hostname(), peer_url.port(), wh_path, &reply);
+        wh_rc = whookie::retrieveData(peer_url.hostname(), peer_url.port(), wh_path, &reply);
     }
     if (wh_rc != 0) {
         log_debug("ugni_transport", "connect() timed out");
@@ -515,14 +515,14 @@ ugni_transport::disconnect(
     nthread_unlock(&new_connection_lock_);
 
     if (*peer != me_) {
-        std::string wh_path = build_webhook_disconnect_path(conn);
-        int wh_rc = webhook::retrieveData(peer_url.hostname(), peer_url.port(), wh_path, &reply);
+        std::string wh_path = build_whookie_disconnect_path(conn);
+        int wh_rc = whookie::retrieveData(peer_url.hostname(), peer_url.port(), wh_path, &reply);
         if (wh_rc != 0) {
             return(NNTI_ETIMEDOUT);
         }
     }
 
-    log_debug("ugni_transport", "disconnect from %s (pid=%x) succeeded", peer->url(), peer->pid());
+    log_debug("ugni_transport", "disconnect from %s (pid=%x) succeeded", peer->url().url().c_str(), peer->pid());
 
     delete conn;
     delete peer;
@@ -817,7 +817,8 @@ ugni_transport::dt_unpack(
     nnti::datatype::ugni_buffer *b  = nullptr;
     nnti::datatype::nnti_peer   *p  = nullptr;
 
-    switch (*(NNTI_datatype_t*)packed_buf) {
+    NNTI_datatype_t t = nnti::serialize::get_datatype(packed_buf, packed_len);
+    switch (t) {
         case NNTI_dt_buffer:
             log_debug("ugni_transport", "dt is a buffer");
             b = new nnti::datatype::ugni_buffer(this, packed_buf, packed_len);
@@ -1017,7 +1018,7 @@ ugni_transport::send(
     rc = create_send_op(work_id, &cmd_op);
     if (rc != NNTI_OK) {
         log_error("ugni_transport", "create_send_op() failed");
-        goto cleanup;
+        goto done;
     }
 
     log_debug("ugni_transport", "cmd_op(%p) id(%u)", cmd_op, cmd_op->id());
@@ -1025,12 +1026,12 @@ ugni_transport::send(
     rc = execute_cmd_op(work_id, cmd_op);
     if (rc != NNTI_OK) {
         log_error("ugni_transport", "execute_cmd_op() failed");
-        goto cleanup;
+        goto done;
     }
 
     *wid = (NNTI_work_id_t)work_id;
 
-cleanup:
+done:
     return rc;
 }
 
@@ -1051,12 +1052,33 @@ ugni_transport::put(
     nnti::datatype::nnti_work_id *work_id = new nnti::datatype::nnti_work_id(*wr);
     nnti::core::ugni_rdma_op     *put_op  = nullptr;
 
+#ifdef NNTI_ENABLE_ARGS_CHECKING
+    const nnti::datatype::ugni_work_request &gni_wr = (const nnti::datatype::ugni_work_request &)work_id->wr();
+    if (gni_wr.local_offset() + gni_wr.length() > gni_wr.local_length()) {
+        log_error("ugni_transport", "PUT length extends beyond the end of local buffer");
+        return NNTI_EMSGSIZE;
+    }
+    if (gni_wr.remote_offset() + gni_wr.length() > gni_wr.remote_length()) {
+        log_error("ugni_transport", "PUT length extends beyond the end of remote buffer");
+        return NNTI_EMSGSIZE;
+    }
+#endif
+
     rc = create_put_op(work_id, &put_op);
+    if (rc != NNTI_OK) {
+        log_error("ugni_transport", "create_put_op() failed");
+        goto done;
+    }
     rc = execute_rdma_op(work_id, put_op);
+    if (rc != NNTI_OK) {
+        log_error("ugni_transport", "execute_rdma_op() failed");
+        goto done;
+    }
 
     *wid = (NNTI_work_id_t)work_id;
 
-    return NNTI_OK;
+done:
+    return rc;
 }
 
 /**
@@ -1076,12 +1098,33 @@ ugni_transport::get(
     nnti::datatype::nnti_work_id *work_id = new nnti::datatype::nnti_work_id(*wr);
     nnti::core::ugni_rdma_op     *get_op  = nullptr;
 
+#ifdef NNTI_ENABLE_ARGS_CHECKING
+    const nnti::datatype::ugni_work_request &gni_wr = (const nnti::datatype::ugni_work_request &)work_id->wr();
+    if (gni_wr.local_offset() + gni_wr.length() > gni_wr.local_length()) {
+        log_error("ugni_transport", "GET length extends beyond the end of local buffer");
+        return NNTI_EMSGSIZE;
+    }
+    if (gni_wr.remote_offset() + gni_wr.length() > gni_wr.remote_length()) {
+        log_error("ugni_transport", "GET length extends beyond the end of remote buffer");
+        return NNTI_EMSGSIZE;
+    }
+#endif
+
     rc = create_get_op(work_id, &get_op);
+    if (rc != NNTI_OK) {
+        log_error("ugni_transport", "create_get_op() failed");
+        goto done;
+    }
     rc = execute_rdma_op(work_id, get_op);
+    if (rc != NNTI_OK) {
+        log_error("ugni_transport", "execute_rdma_op() failed");
+        goto done;
+    }
 
     *wid = (NNTI_work_id_t)work_id;
 
-    return NNTI_OK;
+done:
+    return rc;
 }
 
 /**
@@ -1102,11 +1145,20 @@ ugni_transport::atomic_fop(
     nnti::core::ugni_atomic_op   *atomic_op = nullptr;
 
     rc = create_fadd_op(work_id, &atomic_op);
+    if (rc != NNTI_OK) {
+        log_error("ugni_transport", "create_fadd_op() failed");
+        goto done;
+    }
     rc = execute_atomic_op(work_id, atomic_op);
+    if (rc != NNTI_OK) {
+        log_error("ugni_transport", "execute_atomic_op() failed");
+        goto done;
+    }
 
     *wid = (NNTI_work_id_t)work_id;
 
-    return NNTI_OK;
+done:
+    return rc;
 }
 
 /**
@@ -1127,11 +1179,20 @@ ugni_transport::atomic_cswap(
     nnti::core::ugni_atomic_op   *atomic_op = nullptr;
 
     rc = create_cswap_op(work_id, &atomic_op);
+    if (rc != NNTI_OK) {
+        log_error("ugni_transport", "create_cswap_op() failed");
+        goto done;
+    }
     rc = execute_atomic_op(work_id, atomic_op);
+    if (rc != NNTI_OK) {
+        log_error("ugni_transport", "execute_atomic_op() failed");
+        goto done;
+    }
 
     *wid = (NNTI_work_id_t)work_id;
 
-    return NNTI_OK;
+done:
+    return rc;
 }
 
 /**
@@ -1903,25 +1964,23 @@ ugni_transport::disconnect_cb(const std::map<std::string,std::string> &args, std
 void
 ugni_transport::stats_cb(const std::map<std::string,std::string> &args, std::stringstream &results)
 {
-    html::mkHeader(results, "Transfer Statistics");
-    html::mkText(results,"Transfer Statistics",1);
+    faodel::ReplyStream rs(args, "Transfer Statistics", &results);
 
     NNTI_STATS_DATA(
-    std::vector<std::string> stats;
-    stats.push_back("pinned_bytes     = " + std::to_string(stats_->pinned_bytes.load()));
-    stats.push_back("pinned_buffers   = " + std::to_string(stats_->pinned_buffers.load()));
-    stats.push_back("unexpected_sends = " + std::to_string(stats_->unexpected_sends.load()));
-    stats.push_back("unexpected_recvs = " + std::to_string(stats_->unexpected_recvs.load()));
-    stats.push_back("short_sends      = " + std::to_string(stats_->short_sends.load()));
-    stats.push_back("short_recvs      = " + std::to_string(stats_->short_recvs.load()));
-    stats.push_back("long_sends       = " + std::to_string(stats_->long_sends.load()));
-    stats.push_back("long_recvs       = " + std::to_string(stats_->long_recvs.load()));
-    stats.push_back("gets             = " + std::to_string(stats_->gets.load()));
-    stats.push_back("puts             = " + std::to_string(stats_->puts.load()));
-    html::mkList(results, stats);
+    rs.tableBegin("Transport Statistics");
+    rs.tableRow({"pinned_bytes",      std::to_string(stats_->pinned_bytes.load())});
+    rs.tableRow({"pinned_buffers",    std::to_string(stats_->pinned_buffers.load())});
+    rs.tableRow({"unexpected_sends",  std::to_string(stats_->unexpected_sends.load())});
+    rs.tableRow({"unexpected_recvs",  std::to_string(stats_->unexpected_recvs.load())});
+    rs.tableRow({"short_sends",       std::to_string(stats_->short_sends.load())});
+    rs.tableRow({"short_recvs",       std::to_string(stats_->short_recvs.load())});
+    rs.tableRow({"long_sends",        std::to_string(stats_->long_sends.load())});
+    rs.tableRow({"long_recvs",        std::to_string(stats_->long_recvs.load())});
+    rs.tableRow({"gets",              std::to_string(stats_->gets.load())});
+    rs.tableRow({"puts",              std::to_string(stats_->puts.load())});
+    rs.tableEnd();
     )
-
-    html::mkFooter(results);
+    rs.Finish();
 }
 
 void
@@ -1942,7 +2001,7 @@ ugni_transport::peers_cb(const std::map<std::string,std::string> &args, std::str
 }
 
 std::string
-ugni_transport::build_webhook_path(
+ugni_transport::build_whookie_path(
     const char                  *service)
 {
     std::stringstream wh_url;
@@ -1957,66 +2016,66 @@ ugni_transport::build_webhook_path(
     return wh_url.str();
 }
 std::string
-ugni_transport::build_webhook_path(
+ugni_transport::build_whookie_path(
     nnti::core::nnti_connection *conn,
     const char                  *service)
 {
     std::stringstream wh_url;
 
-    wh_url << build_webhook_path(service);
+    wh_url << build_whookie_path(service);
     wh_url << conn->query_string();
 
     return wh_url.str();
 }
 std::string
-ugni_transport::build_webhook_connect_path(void)
+ugni_transport::build_whookie_connect_path(void)
 {
-    return build_webhook_path("connect");
+    return build_whookie_path("connect");
 }
 std::string
-ugni_transport::build_webhook_connect_path(
+ugni_transport::build_whookie_connect_path(
     nnti::core::nnti_connection *conn)
 {
-    return build_webhook_path(conn, "connect");
+    return build_whookie_path(conn, "connect");
 }
 std::string
-ugni_transport::build_webhook_disconnect_path(void)
+ugni_transport::build_whookie_disconnect_path(void)
 {
-    return build_webhook_path("disconnect");
+    return build_whookie_path("disconnect");
 }
 std::string
-ugni_transport::build_webhook_disconnect_path(
+ugni_transport::build_whookie_disconnect_path(
     nnti::core::nnti_connection *conn)
 {
-    return build_webhook_path(conn, "disconnect");
+    return build_whookie_path(conn, "disconnect");
 }
 
 void
-ugni_transport::register_webhook_cb(void)
+ugni_transport::register_whookie_cb(void)
 {
-    webhook::Server::registerHook("/nnti/ugni/connect", [this] (const std::map<std::string,std::string> &args, std::stringstream &results){
+    whookie::Server::registerHook("/nnti/ugni/connect", [this] (const std::map<std::string,std::string> &args, std::stringstream &results){
         connect_cb(args, results);
     });
-    webhook::Server::registerHook("/nnti/ugni/disconnect", [this] (const std::map<std::string,std::string> &args, std::stringstream &results){
+    whookie::Server::registerHook("/nnti/ugni/disconnect", [this] (const std::map<std::string,std::string> &args, std::stringstream &results){
         disconnect_cb(args, results);
     });
-    webhook::Server::registerHook("/nnti/ugni/stats", [this] (const std::map<std::string,std::string> &args, std::stringstream &results){
+    whookie::Server::registerHook("/nnti/ugni/stats", [this] (const std::map<std::string,std::string> &args, std::stringstream &results){
         stats_cb(args, results);
     });
-    webhook::Server::registerHook("/nnti/ugni/peers", [this] (const std::map<std::string,std::string> &args, std::stringstream &results){
+    whookie::Server::registerHook("/nnti/ugni/peers", [this] (const std::map<std::string,std::string> &args, std::stringstream &results){
         peers_cb(args, results);
     });
 }
 
 void
-ugni_transport::unregister_webhook_cb(void)
+ugni_transport::unregister_whookie_cb(void)
 {
-    log_debug("ugni_transport", "unregister_webhook_cb() - enter");
-    webhook::Server::deregisterHook("/nnti/ugni/connect");
-    webhook::Server::deregisterHook("/nnti/ugni/disconnect");
-    webhook::Server::deregisterHook("/nnti/ugni/stats");
-    webhook::Server::deregisterHook("/nnti/ugni/peers");
-    log_debug("ugni_transport", "unregister_webhook_cb() - exit");
+    log_debug("ugni_transport", "unregister_whookie_cb() - enter");
+    whookie::Server::deregisterHook("/nnti/ugni/connect");
+    whookie::Server::deregisterHook("/nnti/ugni/disconnect");
+    whookie::Server::deregisterHook("/nnti/ugni/stats");
+    whookie::Server::deregisterHook("/nnti/ugni/peers");
+    log_debug("ugni_transport", "unregister_whookie_cb() - exit");
 }
 
 NNTI_result_t
@@ -2127,8 +2186,9 @@ ugni_transport::execute_rdma_op(
     log_debug("ugni_transport", "execute_rdma_op() - enter");
 
     rdma_op->update(nullptr);
+    rc = rdma_op->result();
 
-    log_debug("ugni_transport", "execute_rdma_op() - exit");
+    log_debug("ugni_transport", "execute_rdma_op(rc=%d) - exit", rc);
 
     return rc;
 }

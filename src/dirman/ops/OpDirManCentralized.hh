@@ -44,6 +44,7 @@ public:
     GetInfo       = 0x02,
     JoinDir       = 0x03,
     LeaveDir      = 0x04,
+    DropDir       = 0x05,
     ReturnDirInfo = 0x15
   };
 

@@ -9,14 +9,14 @@
 
 #include "faodel-common/Debug.hh"
 
-#include "webhook/WebHook.hh"
-#include "webhook/Server.hh"
+#include "whookie/Whookie.hh"
+#include "whookie/Server.hh"
 
 #include "opbox/OpBox.hh"
 #include "opbox/core/OpBoxCoreStandard.hh"
 #include "opbox/core/OpBoxCoreUnconfigured.hh"
 
-#include "opbox/core/Singleton.hh" //for registry webhook
+#include "opbox/core/Singleton.hh" //for registry whookie
 
 
 using namespace std;
@@ -76,8 +76,8 @@ void OpBoxCoreStandard::init(const faodel::Configuration &config) {
   dbg("Done with opbox::net::Init()");
   opbox::net::RegisterRecvCallback(opbox::internal::HandleIncomingMessage);
 
-  webhook::Server::updateHook("/opbox", [this] (const map<string,string> &args, stringstream &results) {
-      return HandleWebhookStatus(args, results);
+  whookie::Server::updateHook("/opbox", [this] (const map<string,string> &args, stringstream &results) {
+      return HandleWhookieStatus(args, results);
   });
 
   //Start thread
@@ -106,7 +106,7 @@ void OpBoxCoreStandard::finish() {
   dbg("private finish");
   kassert(initialized && running, "Attempted to finish OpBoxCoreStandard that is not started");
 
-  webhook::Server::deregisterHook("/opbox");
+  whookie::Server::deregisterHook("/opbox");
 
   opbox::net::Finish();
 
@@ -354,12 +354,12 @@ void OpBoxCoreStandard::endActiveOp(mailbox_t mailbox){
 
 
 /**
- * @brief HandleWebhookStatus Process a request from Webhook to get status information
+ * @brief HandleWhookieStatus Process a request from Whookie to get status information
  *
  * @param[in] args    The map of k/v parameters the user sent in this request
  * @param[in] results The stringstream to write results to
  */
-void OpBoxCoreStandard::HandleWebhookStatus(
+void OpBoxCoreStandard::HandleWhookieStatus(
                     const std::map<std::string,std::string> &args,
                     std::stringstream &results) {
 
@@ -368,7 +368,7 @@ void OpBoxCoreStandard::HandleWebhookStatus(
     vector<pair<string,string>> stats;
     stats.push_back(pair<string,string>("Core Type", GetType()));
     rs.mkTable(stats, "OpBox Status");
-    opbox::internal::Singleton::impl.webhookInfoRegistry(rs);
+    opbox::internal::Singleton::impl.whookieInfoRegistry(rs);
     rs.Finish();
 }
 

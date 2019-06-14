@@ -25,6 +25,9 @@ namespace net {
 } // end namespace opbox::net
 
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
+
 /**
  * @brief Provides a basic header for all OpBox messages. User may place addition info in body
  *
@@ -74,7 +77,7 @@ struct message_t {
   std::string str(int depth=0, int indent=0) const;
 
 };
-
+#pragma GCC diagnostic pop
 
 const uint32_t MESSAGE_MTU = 2048;                                   //!< Maximum Transfer Unit for underlying network
 const uint32_t MESSAGE_BODY_MTU = (MESSAGE_MTU - sizeof(message_t)); //!< Maximum size the body can be for an MTU

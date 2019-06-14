@@ -8,8 +8,8 @@
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
 
-#ifndef WEBHOOK_REQUEST_PARSER_HPP
-#define WEBHOOK_REQUEST_PARSER_HPP
+#ifndef WHOOKIE_REQUEST_PARSER_HPP
+#define WHOOKIE_REQUEST_PARSER_HPP
 
 #include <tuple>
 
@@ -93,4 +93,4 @@ private:
 } // namespace server
 } // namespace http
 
-#endif // WEBHOOK_REQUEST_PARSER_HPP
+#endif // WHOOKIE_REQUEST_PARSER_HPP

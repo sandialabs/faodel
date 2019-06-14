@@ -8,7 +8,7 @@
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
 
-#include "webhook/server/boost/request_handler.hpp"
+#include "whookie/server/boost/request_handler.hpp"
 #include <iostream>
 #include <fstream>
 #include <sstream>
@@ -17,9 +17,9 @@
 
 #include "faodel-common/Common.hh"
 
-#include "webhook/server/boost/mime_types.hpp"
-#include "webhook/server/boost/reply.hpp"
-#include "webhook/server/boost/request.hpp"
+#include "whookie/server/boost/mime_types.hpp"
+#include "whookie/server/boost/reply.hpp"
+#include "whookie/server/boost/request.hpp"
 
 #include "faodel-common/QuickHTML.hh"
 
@@ -35,11 +35,11 @@ request_handler::request_handler() {
 
   //Default "/" handler dumps out info about what handles are registered
   registerHook("/", [this] (const map<string, string> &args, stringstream &results) {
-      dumpRegisteredHandles(results);
+      dumpRegisteredHandles(args, results);
     });
 
   registerHook("/about", [this] (const map<string, string> &args, stringstream &results) {
-      dumpAbout(results);
+      dumpAbout(args, results);
     });
 
 }
@@ -134,7 +134,7 @@ bool request_handler::url_decode(const string& in, string& out) {
 }
 
 
-int request_handler::registerHook(const string &name, webhook::cb_web_handler_t func){
+int request_handler::registerHook(const string &name, whookie::cb_web_handler_t func){
 
   int rc=0;
   cbs_mutex.lock();
@@ -142,14 +142,14 @@ int request_handler::registerHook(const string &name, webhook::cb_web_handler_t 
   if(fptr == cbs.end()){
     cbs[name] = func;
   } else {
-    cout <<"WebHook: RegisterHandler detected double register of function '"<<name<<"'. Skipping.\n";
+    cout <<"Whookie: RegisterHandler detected double register of function '"<<name<<"'. Skipping.\n";
     rc=-1;
   }
   cbs_mutex.unlock();
   return rc;
   
 }
-int request_handler::updateHook(const string &name, webhook::cb_web_handler_t func){
+int request_handler::updateHook(const string &name, whookie::cb_web_handler_t func){
 
   int rc=0;
   cbs_mutex.lock();
@@ -168,28 +168,33 @@ int request_handler::deregisterHook(const string &name){
   return (num==0) ? -1 : 0;
 }
 
-void request_handler::dumpRegisteredHandles(stringstream &results){
-  html::mkHeader(results, "WebHook");
+void request_handler::dumpRegisteredHandles(const map<string,string> &args, stringstream &results) {
+
+  faodel::ReplyStream rs(args, app_name+" Whookie", &results);
+
   vector<string> links;
-  for(auto &name_hdlr : cbs)
-    links.push_back(html::mkLink(name_hdlr.first, name_hdlr.first));
-  
-  html::mkHeader(results, "WebHooks");
-  html::mkText(results,"WebHooks",1); 
-  html::mkText(results,"The following hooks are known to this application:");
-  html::mkList(results, links);
-  html::mkFooter(results);
+  for(auto &name_hdlr : cbs) {
+    links.push_back( rs.createLink(name_hdlr.first, name_hdlr.first));
+  }
+  rs.mkSection(app_name,1);
+  rs.mkText("The following hooks are known to this application:");
+  rs.mkList(links);
+  rs.Finish();
+
 }
 
-void request_handler::dumpAbout(stringstream &results){
-  html::mkHeader(results,"About WebHook");
-  html::mkText(results,"About WebHook",1);
-  html::mkText(results,R"(WebHook is a simple add-on that allows multiple 
-software components in an application to share a simple network interface
-for debugging and basic restful api operations.)");
-  html::mkText(results, html::mkLink("See available services", "/"));
-  html::mkFooter(results);
-  
+void request_handler::dumpAbout(const map<string,string> &args, stringstream &results){
+
+  faodel::ReplyStream rs(args, "About Whookie", &results);
+
+  rs.mkSection("About Whookie",1);
+  rs.mkText(R"(
+Whookie is a simple service that allows multiple software components in an
+application to share a network interface for debugging and basic RESTful
+API kinds of operations. It is included in the FAODEL collection of
+libraries.)");
+  rs.Finish();
+
 }
 // note: not safe to insert hooks here? random crashes observed
 

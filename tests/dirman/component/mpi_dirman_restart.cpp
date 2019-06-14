@@ -12,7 +12,7 @@
 #include "gtest/gtest.h"
 
 #include "faodel-common/Common.hh"
-#include "webhook/client/Client.hh"
+#include "whookie/client/Client.hh"
 #include "lunasa/Lunasa.hh"
 #include "faodel-services/MPISyncStart.hh"
 
@@ -99,8 +99,8 @@ TEST_F(OpDirManRestartTest, GetStatic1) {
 
   cout <<"dir1 is : "<<dir1.str()<<endl<<"dir2 is : "<<dir2.str()<<endl;
 
-  EXPECT_EQ(2, dir1.children.size());
-  EXPECT_EQ(2, dir2.children.size());
+  EXPECT_EQ(2, dir1.members.size());
+  EXPECT_EQ(2, dir2.members.size());
 
 }
 
@@ -108,7 +108,7 @@ TEST_F(OpDirManRestartTest, GetStatic2) {
 
   string result;
   nodeid_t root = dirman::GetAuthorityNode();
-  webhook::retrieveData(root, "/dirman/entry&name=[0xadd7ee83]/my/thing2&format=txt", &result);
+  whookie::retrieveData(root, "/dirman/entry&name=[0xadd7ee83]/my/thing2&format=txt", &result);
   cout <<"Result is "<<result<<endl;
 
 //  while(1){}
@@ -119,8 +119,8 @@ TEST_F(OpDirManRestartTest, GetStatic2) {
 
   cout <<"dir1 is : "<<dir1.str()<<endl<<"dir2 is : "<<dir2.str()<<endl;
 
-  EXPECT_EQ(2, dir1.children.size());
-  EXPECT_EQ(2, dir2.children.size());
+  EXPECT_EQ(2, dir1.members.size());
+  EXPECT_EQ(2, dir2.members.size());
 
 }
 

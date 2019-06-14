@@ -3,14 +3,14 @@
 // the U.S. Government retains certain rights in this software. 
 
 /*
- * sbl_logger.hpp
+ * sbl_logger.hh
  *
  *  Created on: Jul 13, 2015
  *      Author: thkorde
  */
 
-#ifndef SBL_LOGGER_HPP_
-#define SBL_LOGGER_HPP_
+#ifndef SBL_LOGGER_HH_
+#define SBL_LOGGER_HH_
 
 #include "faodelConfig.h"
 #include "sbl/sbl_boost_headers.hh"
@@ -156,4 +156,4 @@ private:
 
 } /* namespace sbl */
 
-#endif /* SBL_LOGGER_HPP_ */
+#endif /* SBL_LOGGER_HH_ */

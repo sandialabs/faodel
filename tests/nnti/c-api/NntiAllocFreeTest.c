@@ -10,7 +10,7 @@
 
 #include "test_utils.h"
 
-int success=TRUE;
+int success=1;
 
 
 int
@@ -29,36 +29,36 @@ main(int argc, char *argv[])
 
     rc = NNTI_init(transport_id, req_url, &transport);
     if (rc != NNTI_OK) {
-        success = FALSE;
+        success = 0;
         goto cleanup;
     }
 
     int is_init=-1;
     rc = NNTI_initialized(transport_id, &is_init);
     if (rc != NNTI_OK) {
-        success = FALSE;
+        success = 0;
         goto cleanup;
     }
     if (is_init != 1) {
-        success = FALSE;
+        success = 0;
         goto cleanup;
     }
 
     rc = NNTI_get_url(transport, my_url, NNTI_URL_LEN);
     if (rc != NNTI_OK) {
-        success = FALSE;
+        success = 0;
         goto cleanup;
     }
 
     rc = NNTI_alloc(transport, 3200, NNTI_BF_LOCAL_WRITE, (NNTI_event_queue_t)0, (NNTI_event_callback_t)0, NULL, &dst_base, &dst_buf);
     if (rc != NNTI_OK) {
-        success = FALSE;
+        success = 0;
         goto cleanup;
     }
 
     rc = NNTI_free(dst_buf);
     if (rc != NNTI_OK) {
-        success = FALSE;
+        success = 0;
         goto cleanup;
     }
 

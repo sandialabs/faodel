@@ -19,7 +19,7 @@
 #include "nnti/nnti_callback.hpp"
 #include "nnti/nnti_wr.hpp"
 #include "nnti/transport_factory.hpp"
-#include "webhook/Server.hh"
+#include "whookie/Server.hh"
 
 #include <time.h>
 #include <future>
@@ -541,8 +541,8 @@ int main(int argc, char **argv){
      * The value of <nodeid> allows us to tell NNTI which process we want to connect to.
      * We get our ID here so that we can send it to our partner process.
      */
-    assert(webhook::Server::IsRunning() && "Webhook not started before NetNnti started");
-    nodeid = webhook::Server::GetNodeID();
+    assert(whookie::Server::IsRunning() && "Whookie not started before NetNnti started");
+    nodeid = whookie::Server::GetNodeID();
     config.Set("nnti.bind.address", nodeid.GetIP());
     config.Set("nnti.listen.port",  nodeid.GetPort());
 

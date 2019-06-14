@@ -1,10 +1,10 @@
-set(PROJECT_NAME using-webhook)
+set(PROJECT_NAME using-whookie)
 
 set(HEADERS
 )
 
 set(SOURCES
-   using-webhook.cpp
+   using-whookie.cpp
 )
 
 

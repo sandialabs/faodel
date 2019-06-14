@@ -1,65 +1,16 @@
 
 #ifdef RPC_HDR
 %#include "nnti/nntiConfig.h"
-%#include "nnti/nnti_xdr.h"
+%#include "nnti/serializers/xdr/nnti_xdr.h"
 %#include <stdint.h>
 #endif
 
 #ifdef RPC_XDR
 %#include "nnti/nntiConfig.h"
-%#include "nnti/nnti_xdr.h"
+%#include "nnti/serializers/xdr/nnti_xdr.h"
 #endif
 
-
-enum NNTI_datatype_t {
-    NNTI_dt_peer         = 1111,
-    NNTI_dt_buffer       = 1112,
-    NNTI_dt_work_id      = 1113,
-    NNTI_dt_work_request = 1114,
-    NNTI_dt_transport    = 1115,
-    NNTI_dt_event_queue  = 1116,
-    NNTI_dt_callback     = 1117
-};
-
-
-/**
- * @brief Enumerator of the transport mechanisms supported by NNTI.
- *
- * The <tt>\ref NNTI_transport_id_t</tt> enumerator provides integer values
- * to represent the supported transport mechanisms.
- */
-enum NNTI_transport_id_t {
-    /** @brief No operations permitted. */
-    NNTI_TRANSPORT_NULL,
-
-    /** @brief Use Infiniband to transfer rpc requests. */
-    NNTI_TRANSPORT_IBVERBS,
-
-    /** @brief Use Cray ugni to transfer rpc requests. */
-    NNTI_TRANSPORT_UGNI,
-
-    /** @brief Use MPI to transfer rpc requests. */
-    NNTI_TRANSPORT_MPI
-};
-
-
-#ifdef RPC_HDR
-%#if defined(NNTI_BUILD_IBVERBS)
-%#define NNTI_DEFAULT_TRANSPORT NNTI_TRANSPORT_IBVERBS
-%#elif defined(NNTI_BUILD_UGNI)
-%#define NNTI_DEFAULT_TRANSPORT NNTI_TRANSPORT_UGNI
-%#elif defined(NNTI_BUILD_MPI)
-%#define NNTI_DEFAULT_TRANSPORT NNTI_TRANSPORT_MPI
-%#else
-%#define NNTI_DEFAULT_TRANSPORT NNTI_TRANSPORT_NULL
-%#endif
-#endif
-
-
-/**
- * @brief Length of a URL
- */
-const NNTI_URL_LEN = 128;
+%#include "nnti/nnti_types.h"
 
 
 /***********  TCP/IP address types  ***********/
@@ -161,6 +112,8 @@ struct NNTI_local_process_p_t {
 
 /***********  Remote Process Union  ***********/
 
+typedef uint64_t NNTI_transport_id_p_t;
+
 /**
  * @brief A structure to represent a remote processes.
  *
@@ -169,7 +122,7 @@ struct NNTI_local_process_p_t {
  * on a remote node.
  */
 #if defined(RPC_HDR) || defined(RPC_XDR)
-union NNTI_remote_process_p_t switch (NNTI_transport_id_t transport_id) {
+union NNTI_remote_process_p_t switch (NNTI_transport_id_p_t transport_id) {
     /** @brief The NULL representation of a process on the network. */
     case NNTI_TRANSPORT_NULL:    NNTI_null_process_p_t    null;
     /** @brief The IB representation of a process on the network. */
@@ -195,7 +148,8 @@ union NNTI_remote_process_p_t {
 
 /***********  Peer Type  ***********/
 
-typedef uint64_t NNTI_process_id_t;
+
+typedef uint64_t NNTI_process_id_p_t;
 
 /**
  * @brief Handle to an NNTI process.
@@ -204,10 +158,8 @@ typedef uint64_t NNTI_process_id_t;
  * Use this handle to move data to/from the process.
  */
 struct NNTI_peer_p_t {
-    NNTI_datatype_t datatype;
-    
     /** @brief binary encoding of a process's URL */
-    NNTI_process_id_t pid;
+    NNTI_process_id_p_t pid;
     
     /** @brief binary encoding of a process on the network */
     NNTI_remote_process_p_t peer;
@@ -306,7 +258,7 @@ struct NNTI_local_rdma_addr_p_t {
  * on a remote node.
  */
 #if defined(RPC_HDR) || defined(RPC_XDR)
-union NNTI_remote_addr_p_t switch (NNTI_transport_id_t transport_id) {
+union NNTI_remote_addr_p_t switch (NNTI_transport_id_p_t transport_id) {
     /** @brief The NULL representation of a memory region. */
     case NNTI_TRANSPORT_NULL:    NNTI_null_rdma_addr_p_t    null;
     /** @brief The IB representation of a memory region. */

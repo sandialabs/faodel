@@ -61,6 +61,8 @@ private:
     State state;
     opbox::net::peer_t *peer;
 
+    uint32_t warmup_count;  // the number of RDMAs to do before the timer starts
+
     uint32_t size;          // the size of each RDMA
     uint32_t count;         // the number of RDMAs this op must complete
     uint32_t max_inflight;  // the max number of outstanding RDMAs

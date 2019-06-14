@@ -41,6 +41,10 @@ string default_config_string = R"EOF(
 nnti.transport.name                           mpi
 )EOF";
 
+const uint32_t outer=10;
+const uint32_t inner=100;
+const uint32_t blocksize=8192;
+
 
 class NntiRdmaOpTest : public testing::Test {
 protected:
@@ -112,7 +116,7 @@ TEST_F(NntiRdmaOpTest, start1) {
         NNTI_work_request_t base_wr = NNTI_WR_INITIALIZER;
 
         rc = t->eq_create(128, NNTI_EQF_UNEXPECTED, &eq);
-        t->alloc(3200, (NNTI_buffer_flags_t)(NNTI_BF_LOCAL_READ|NNTI_BF_LOCAL_WRITE|NNTI_BF_REMOTE_READ|NNTI_BF_REMOTE_WRITE), eq, func_cb, nullptr, &buf_base, &buf_hdl);
+        t->alloc(blocksize*inner, (NNTI_buffer_flags_t)(NNTI_BF_LOCAL_READ|NNTI_BF_LOCAL_WRITE|NNTI_BF_REMOTE_READ|NNTI_BF_REMOTE_WRITE), eq, func_cb, nullptr, &buf_base, &buf_hdl);
 
         MPI_Barrier(MPI_COMM_WORLD);
 
@@ -130,22 +134,29 @@ TEST_F(NntiRdmaOpTest, start1) {
             log_error("RdmaOpTest", "recv_target_hdl() failed: %d", rc);
         }
 
-        for (int j=0;j<100;j++) {
-            for (int i=0;i<10;i++) {
-                rc = get_data(t, target_hdl, i*320, buf_hdl, i*320, 320, peer_hdl, eq);
+        nnti::datatype::nnti_event_callback obj_cb(t, callback());
+        for (int j=0;j<outer;j++) {
+            for (int i=0;i<inner;i++) {
+                rc = get_data_async(t, target_hdl, i*blocksize, buf_hdl, i*blocksize, blocksize, peer_hdl, obj_cb, nullptr);
             }
-            for (int i=0;i<10;i++) {
-                EXPECT_TRUE(verify_buffer(buf_base, i*320, buf_size, 320));
+            for (int i=0;i<inner;i++) {
+                rc = wait_data(t, eq);
+            }
+            for (int i=0;i<inner;i++) {
+                EXPECT_TRUE(verify_buffer(buf_base, i*blocksize, blocksize, blocksize));
             }
         }
 
-        for (int i=0;i<10;i++) {
-            rc = populate_buffer(t, i, i, buf_hdl, buf_base, buf_size);
+        for (int i=0;i<inner;i++) {
+            rc = populate_buffer(t, i, blocksize, i, buf_hdl, buf_base, blocksize*inner);
         }
 
-        for (int j=0;j<100;j++) {
-            for (int i=0;i<10;i++) {
-                rc = put_data(t, buf_hdl, i*320, target_hdl, i*320, 320, peer_hdl, eq);
+        for (int j=0;j<outer;j++) {
+            for (int i=0;i<inner;i++) {
+                rc = put_data_async(t, buf_hdl, i*blocksize, target_hdl, i*blocksize, blocksize, peer_hdl, obj_cb, nullptr);
+            }
+            for (int i=0;i<inner;i++) {
+                rc = wait_data(t, eq);
             }
         }
 
@@ -169,7 +180,7 @@ TEST_F(NntiRdmaOpTest, start1) {
 
         rc = t->connect(server_url[0], 1000, &peer_hdl);
         rc = t->eq_create(128, NNTI_EQF_UNEXPECTED, &eq);
-        rc = t->alloc(3200, (NNTI_buffer_flags_t)(NNTI_BF_LOCAL_READ|NNTI_BF_LOCAL_WRITE|NNTI_BF_REMOTE_READ|NNTI_BF_REMOTE_WRITE), eq, obj_cb, nullptr, &buf_base, &buf_hdl);
+        rc = t->alloc(blocksize*inner, (NNTI_buffer_flags_t)(NNTI_BF_LOCAL_READ|NNTI_BF_LOCAL_WRITE|NNTI_BF_REMOTE_READ|NNTI_BF_REMOTE_WRITE), eq, obj_cb, nullptr, &buf_base, &buf_hdl);
         rc = t->alloc(320, (NNTI_buffer_flags_t)(NNTI_BF_LOCAL_READ|NNTI_BF_LOCAL_WRITE|NNTI_BF_REMOTE_READ|NNTI_BF_REMOTE_WRITE), eq, obj_cb, nullptr, &ack_base, &ack_hdl);
 
         NNTI_buffer_t target_hdl;
@@ -180,8 +191,8 @@ TEST_F(NntiRdmaOpTest, start1) {
             log_error("RdmaOpTest", "send_target_hdl() failed: %d", rc);
         }
 
-        for (int i=0;i<10;i++) {
-            rc = populate_buffer(t, i, i, buf_hdl, buf_base, buf_size);
+        for (int i=0;i<inner;i++) {
+            rc = populate_buffer(t, i, blocksize, i, buf_hdl, buf_base, blocksize*inner);
         }
 
         rc = send_hdl(t, ack_hdl, ack_base, ack_size, peer_hdl, eq);
@@ -194,8 +205,8 @@ TEST_F(NntiRdmaOpTest, start1) {
             log_error("RdmaOpTest", "recv_target_hdl() failed: %d", rc);
         }
 
-        for (int i=0;i<10;i++) {
-            EXPECT_TRUE(verify_buffer(buf_base, i*320, buf_size, 320));
+        for (int i=0;i<inner;i++) {
+            EXPECT_TRUE(verify_buffer(buf_base, i*blocksize, blocksize, blocksize));
         }
 
         t->disconnect(peer_hdl);

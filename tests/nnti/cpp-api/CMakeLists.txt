@@ -17,7 +17,6 @@ add_library(cpptestutils
 )
 set_target_properties(cpptestutils PROPERTIES LINKER_LANGUAGE  CXX )
 target_link_libraries( cpptestutils PUBLIC nnti )
-add_dependencies(cpptestutils generate-nnti_packable)
 #----------------------------------------------------------------------------
 
 set(SERIAL_TEST_LIBS 
@@ -55,6 +54,7 @@ if( Faodel_ENABLE_MPI_SUPPORT )
     add_mpi_test( PingPongCallbackTest       .  2  true  )
     add_mpi_test( QueueSendTest1             .  2  true  )
     add_mpi_test( QueueSendTest2             .  2  true  )
+    add_mpi_test( RdmaLengthTest             .  2  true  )
     add_mpi_test( RdmaOpTest                 .  2  true  )
     add_mpi_test( ShortSendTest              .  2  true  )
     add_mpi_test( UnexpectedCallbackTest     .  2  true  )
@@ -63,4 +63,3 @@ if( Faodel_ENABLE_MPI_SUPPORT )
     add_mpi_test( UrlPidTest                 .  1  true  )
     add_mpi_test( ZeroCopySendTest           .  2  true  )
 endif()
-

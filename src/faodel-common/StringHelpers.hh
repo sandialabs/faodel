@@ -18,6 +18,8 @@ std::string MakePunycode(std::string const &s);
 std::string ExpandPunycode(std::string const &s);
 
 bool IsValidIPString(const std::string &hostname);
+int StringToInt32(int32_t *val, const std::string &name);
+int StringToUInt32(uint32_t *val, const std::string &name);
 int StringToInt64(int64_t *val, const std::string &name);
 int StringToUInt64(uint64_t *val, const std::string &name);
 int StringToPtr(void **val, const std::string &sval);

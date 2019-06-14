@@ -15,17 +15,17 @@
 #include "gtest/gtest.h"
 
 #include "faodel-common/Common.hh"
-#include "webhook/WebHook.hh"
+#include "whookie/Whookie.hh"
 #include "lunasa/Lunasa.hh"
 #include "opbox/OpBox.hh"
 #include "kelpie/Kelpie.hh"
-#include "webhook/Server.hh"
+#include "whookie/Server.hh"
 
 std::string default_config_string =
   R"EOF(
 
 #bootstrap.debug true
-#webhook.debug true
+#whookie.debug true
 #opbox.debug true
 #dirman.debug true
 #kelpie.debug true
@@ -101,7 +101,7 @@ int main( int argc, char **argv ) {
   // Tell the DHT it can shut down
   if( mpi_rank == 0 ) {
     faodel::nodeid_t root_id( root_id_str );
-    webhook::retrieveData( root_id, "/killme", nullptr );
+    whookie::retrieveData( root_id, "/killme", nullptr );
   }
 
   MPI_Barrier( MPI_COMM_WORLD );

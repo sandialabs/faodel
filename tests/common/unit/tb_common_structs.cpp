@@ -5,7 +5,7 @@
 // This aggregates tests for basic structures including:
 //
 //    Bucket        : A hash of a string
-//    NodeID        : Holds host/port for webhook
+//    NodeID        : Holds host/port for whookie
 //    NameAndNode   : A string label and a node id
 //    DirectoryInfo : Holds a list of name/node resource
 
@@ -286,12 +286,12 @@ TEST_F(DirectoryInfoTest, SimpleByHand) {
   DirectoryInfo di1("ref:/my/thing&num=2&ag0=0x19900001&ag1=0x19900002&info=silly%20stuff");
   
   EXPECT_FALSE(di1.IsEmpty());
-  EXPECT_EQ(2, di1.children.size());
-  if(di1.children.size()==2){
-    EXPECT_EQ("ag0", di1.children[0].name);
-    EXPECT_EQ("ag1", di1.children[1].name);
-    EXPECT_EQ("0x19900001", di1.children[0].node.GetHex());
-    EXPECT_EQ("0x19900002", di1.children[1].node.GetHex());
+  EXPECT_EQ(2, di1.members.size());
+  if(di1.members.size()==2){
+    EXPECT_EQ("ag0", di1.members[0].name);
+    EXPECT_EQ("ag1", di1.members[1].name);
+    EXPECT_EQ("0x19900001", di1.members[0].node.GetHex());
+    EXPECT_EQ("0x19900002", di1.members[1].node.GetHex());
   }
   EXPECT_EQ("silly stuff", di1.info);
 
@@ -310,14 +310,14 @@ TEST_F(DirectoryInfoTest, SimpleByHand) {
 
   DirectoryInfo di2(url2);
   EXPECT_FALSE(di2.IsEmpty());
-  EXPECT_EQ(10, di2.children.size());
-  if(di2.children.size() == 10) {
+  EXPECT_EQ(10, di2.members.size());
+  if(di2.members.size() == 10) {
     for(int i=0; i<10; i++) {
       string s_node = "0x1990000"+to_string(i);
       string s_name = "ag"+to_string(i);
       EXPECT_TRUE(di2.ContainsNode(nodeid_t(s_node)));
-      EXPECT_EQ(s_name, di2.children[i].name);
-      EXPECT_EQ(nodeid_t(s_node), di2.children[i].node);
+      EXPECT_EQ(s_name, di2.members[i].name);
+      EXPECT_EQ(nodeid_t(s_node), di2.members[i].node);
     }
   }
   EXPECT_EQ("rain is in the plains", di2.info);

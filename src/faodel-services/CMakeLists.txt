@@ -14,7 +14,7 @@ set(SOURCES
   MPISyncStart.cpp
 )
 
-LIST( APPEND Services_imports webhook common )
+LIST( APPEND Services_imports whookie common )
 if( Faodel_ENABLE_MPI_SUPPORT )
   LIST( APPEND Services_imports MPI::MPI_CXX )
 endif()

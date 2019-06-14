@@ -10,12 +10,15 @@
 #include <memory>
 #include <functional>
 
+
 #include "lunasa/DataObject.hh"
 
 #include "kelpie/Key.hh"
 
+#include <boost/serialization/vector.hpp> //For packing ObjectCapacities
 
-//Forward references.. plugg
+
+//Forward references
 namespace faodel {
 class ResourceURL;
 }
@@ -83,6 +86,7 @@ struct kv_row_info_t {
   uint32_t            num_row_receiver_nodes; //!< How many nodes are waiting on updates to this row
   uint32_t            num_row_dependencies;   //!< How many actions are waiting if this row has activities
   Availability        availability;           //!< Where the row is available
+  void Wipe();
   std::string str();
   void ChangeAvailabilityFromLocalToRemote();
 };
@@ -96,6 +100,7 @@ struct kv_col_info_t {
   uint32_t            num_col_receiver_nodes; //!< How many nodes are waiting on updates to this column
   uint32_t            num_col_dependencies;   //!< How many local actions are waiting on this col
   Availability        availability;           //!< Whether item is available locally
+  void Wipe();
   std::string str();
   void ChangeAvailabilityFromLocalToRemote();
 };
@@ -131,6 +136,25 @@ struct PoolBehavior {
   static pool_behavior_t ParseString(std::string parse_line);
   static std::string GetString(pool_behavior_t f);
 };
+
+
+class ObjectCapacities {
+public:
+  std::vector<kelpie::Key> keys;
+  std::vector<size_t> capacities;
+
+  void Append(const ObjectCapacities &other) {
+    keys.insert(keys.end(), other.keys.begin(), other.keys.end());
+    capacities.insert(capacities.end(), other.capacities.begin(), other.capacities.end());
+  }
+  //Serialization hook
+  template <typename Archive>
+  void serialize(Archive &ar, const unsigned int version){
+    ar & keys;
+    ar & capacities;
+  }
+};
+
 
 
 //Pool callbacks

@@ -96,6 +96,33 @@ endif()
     
 
 
+#######################
+## Cassandra IOM
+#######################
+
+if( Faodel_ENABLE_IOM_CASSANDRA )
+  
+  # The DataStax Cassandra C/C++ driver generates a pkgconfig module, so let's try to find that.
+  set( PKG_CONFIG_USE_CMAKE_PREFIX_PATH 1 )
+  
+  pkg_search_module( cassandra_pc cassandra REQUIRED )
+  
+  if( cassandra_pc_FOUND )
+    set( CASSANDRA_FOUND TRUE )
+    set( FAODEL_HAVE_CASSANDRA TRUE )
+    
+    add_library( Faodel::Cassandra INTERFACE IMPORTED )
+    target_include_directories( Faodel::Cassandra INTERFACE ${cassandra_pc_INCLUDE_DIRS} )
+    target_link_libraries( Faodel::Cassandra INTERFACE ${cassandra_pc_LDFLAGS} )
+    target_compile_definitions( Faodel::Cassandra INTERFACE ${cassandra_pc_CFLAGS_OTHER} )
+    
+    message( STATUS "Will build Cassandra IOM, Faodel_ENABLE_IOM_CASSANDRA set and Cassandra driver found" )
+  else()
+    message( STATUS "Cannot build Cassandra IOM as requested, Cassandra driver not found. Set CMAKE_PREFIX_PATH" )
+  endif()
+
+endif()
+  
 ########################
 ## MPI
 ########################
@@ -198,7 +225,7 @@ if (Faodel_NETWORK_LIBRARY STREQUAL "libfabric")
     endif()
     
     LIST( APPEND FaodelNetlib_TARGETS Libfabric )
-    set( PKGCONFIG_REQUIRES "libfabric" )
+    set( PKGCONFIG_REQUIRES "${PKGCONFIG_REQUIRES} libfabric" )
     message( STATUS "Found Libfabric, target appended to FaodelNetlib_TARGETS" )
   endif()
 

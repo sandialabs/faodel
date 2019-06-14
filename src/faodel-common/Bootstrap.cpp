@@ -111,10 +111,10 @@ vector<string> GetStartupOrder() {
 }
 
 /**
- * @brief Call for webhook to set our nodeid
+ * @brief Call for whookie to set our nodeid
  *
  * @param[in] iuo A marker signifying that this is only for internal use
- * @param[in] nodeid The webhook nodeid for this node
+ * @param[in] nodeid The whookie nodeid for this node
  * @note This function is intended for internal use only.
  */
 void setNodeID(internal_use_only_t iuo, NodeID nodeid) {
@@ -207,7 +207,7 @@ Configuration GetConfiguration() {
 }
 
 /**
- * @brief Webhook for dumping info about the bootstraps
+ * @brief Whookie for dumping info about the bootstraps
  * @param rs ReplyStream to update with info
  */
 void dumpInfo(faodel::ReplyStream &rs) {

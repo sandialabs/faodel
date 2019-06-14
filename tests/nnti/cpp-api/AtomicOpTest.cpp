@@ -110,7 +110,13 @@ TEST_F(NntiAtomicOpTest, start1) {
         NNTI_work_request_t base_wr = NNTI_WR_INITIALIZER;
 
         rc = t->eq_create(128, NNTI_EQF_UNEXPECTED, &eq);
-        t->alloc(3200, (NNTI_buffer_flags_t)(NNTI_BF_LOCAL_READ|NNTI_BF_LOCAL_WRITE|NNTI_BF_REMOTE_READ|NNTI_BF_REMOTE_WRITE), eq, func_cb, nullptr, &buf_base, &buf_hdl);
+        t->alloc(3200,
+                 (NNTI_buffer_flags_t)(NNTI_BF_LOCAL_READ|NNTI_BF_LOCAL_WRITE|NNTI_BF_REMOTE_READ|NNTI_BF_REMOTE_WRITE|NNTI_BF_LOCAL_ATOMIC|NNTI_BF_REMOTE_ATOMIC),
+                 eq,
+                 func_cb,
+                 nullptr,
+                 &buf_base,
+                 &buf_hdl);
 
         MPI_Barrier(MPI_COMM_WORLD);
 
@@ -180,8 +186,20 @@ TEST_F(NntiAtomicOpTest, start1) {
 
         rc = t->connect(server_url[0], 1000, &peer_hdl);
         rc = t->eq_create(128, NNTI_EQF_UNEXPECTED, &eq);
-        rc = t->alloc(3200, (NNTI_buffer_flags_t)(NNTI_BF_LOCAL_READ|NNTI_BF_LOCAL_WRITE|NNTI_BF_REMOTE_READ|NNTI_BF_REMOTE_WRITE), eq, obj_cb, nullptr, &buf_base, &buf_hdl);
-        rc = t->alloc(320, (NNTI_buffer_flags_t)(NNTI_BF_LOCAL_READ|NNTI_BF_LOCAL_WRITE|NNTI_BF_REMOTE_READ|NNTI_BF_REMOTE_WRITE), eq, obj_cb, nullptr, &ack_base, &ack_hdl);
+        rc = t->alloc(3200,
+                      (NNTI_buffer_flags_t)(NNTI_BF_LOCAL_READ|NNTI_BF_LOCAL_WRITE|NNTI_BF_REMOTE_READ|NNTI_BF_REMOTE_WRITE|NNTI_BF_LOCAL_ATOMIC|NNTI_BF_REMOTE_ATOMIC),
+                      eq,
+                      obj_cb,
+                      nullptr,
+                      &buf_base,
+                      &buf_hdl);
+        rc = t->alloc(320,
+                      (NNTI_buffer_flags_t)(NNTI_BF_LOCAL_READ|NNTI_BF_LOCAL_WRITE|NNTI_BF_REMOTE_READ|NNTI_BF_REMOTE_WRITE),
+                      eq,
+                      obj_cb,
+                      nullptr,
+                      &ack_base,
+                      &ack_hdl);
 
         NNTI_buffer_t target_hdl;
         NNTI_peer_t   recv_peer;

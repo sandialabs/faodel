@@ -49,8 +49,8 @@ public:
   
   
   
-  void HandleWebhookStatus(const std::map<std::string,std::string> &args, std::stringstream &results);
-  void HandleWebhookActiveOps(const std::map<std::string,std::string> &args, std::stringstream &results);
+  void HandleWhookieStatus(const std::map<std::string,std::string> &args, std::stringstream &results);
+  void HandleWhookieActiveOps(const std::map<std::string,std::string> &args, std::stringstream &results);
   std::string GetType() const override { return "threaded"; }
 
   //InfoInterface

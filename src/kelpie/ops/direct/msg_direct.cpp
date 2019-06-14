@@ -9,6 +9,8 @@
 
 #include "kelpie/ops/direct/msg_direct.hh"
 
+using namespace std;
+
 namespace kelpie {
 
 
@@ -148,6 +150,9 @@ msg_direct_status_t * msg_direct_status_t::Alloc(
 
   return msg;
 }
+
+
+
 
 
 }  // namespace kelpie

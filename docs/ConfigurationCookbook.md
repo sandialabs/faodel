@@ -5,7 +5,7 @@
 Many FAODEL components support the debug flag. In particular:
 ```
 bootstrap.debug    true
-webhook.debug      true
+whookie.debug      true
 lunasa.debug       true
 opbox.debug        true
 mpisyncstart.debug true
@@ -14,7 +14,7 @@ kelpie.debug       true
 ```
 
 ## Delaying Exit
-It can be beneficial to use webhook as a means of querying the state of
+It can be beneficial to use whookie as a means of querying the state of
 a running (or halted) simulation. You can either halt or delay shutdown
 via bootstrap options. Also, you can display a large "ok" message on a 
 successful exit to make it more obvious how the sim ended.

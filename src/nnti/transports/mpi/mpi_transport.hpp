@@ -66,7 +66,7 @@ class mpi_transport
     friend class nnti::datatype::mpi_buffer;
 
 private:
-    struct webhook_stats {
+    struct whookie_stats {
         std::atomic<uint64_t> pinned_bytes;
         std::atomic<uint64_t> pinned_buffers;
         std::atomic<uint64_t> unexpected_sends;
@@ -79,7 +79,7 @@ private:
         std::atomic<uint64_t> gets;
         std::atomic<uint64_t> puts;
 
-        webhook_stats()
+        whookie_stats()
         {
             pinned_bytes.store(0);
             pinned_buffers.store(0);
@@ -138,7 +138,7 @@ private:
     uint64_t                                               cmd_op_freelist_size_;
     nnti::core::nnti_freelist<nnti::core::mpi_cmd_op*>    *cmd_op_freelist_;
 
-    struct webhook_stats *stats_;
+    struct whookie_stats *stats_;
 
     NNTI_attrs_t attrs_;
 
@@ -658,16 +658,16 @@ private:
         const std::map<std::string,std::string> &args,
         std::stringstream &results);
     std::string
-    build_webhook_path(
+    build_whookie_path(
         const char                  *service);
     std::string
-    build_webhook_connect_path(void);
+    build_whookie_connect_path(void);
     std::string
-    build_webhook_disconnect_path(void);
+    build_whookie_disconnect_path(void);
     void
-    register_webhook_cb(void);
+    register_whookie_cb(void);
     void
-    unregister_webhook_cb(void);
+    unregister_whookie_cb(void);
 
     NNTI_result_t
     create_send_op(

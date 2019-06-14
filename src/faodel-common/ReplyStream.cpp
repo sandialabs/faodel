@@ -303,6 +303,47 @@ void ReplyStream::mkList(const vector<string> &entries, const string &label) {
 }
 
 /**
+ * @brief Encode a link
+ * @param[in] name The human text for the item
+ * @param[in] link The html link for the item
+ * @param[in] link_is_important In TEXT mode, whether or not to include the http link
+ * @return The encoded string
+ */
+string ReplyStream::createLink(std::string name, std::string link, bool link_is_important) {
+
+    switch (format) {
+    case ReplyStreamType::TEXT:
+      if(!link_is_important) return name;
+      return name + "[" + link + "]";
+      break;
+
+    case ReplyStreamType::HTML:
+      return html::mkLink(name,link);
+
+    default:
+      cerr << "Unsupported format in ReplyStream\n";
+      exit(-1);
+  }
+
+}
+
+/**
+ * @brief Add bold markings around some text
+ * @param text The input text to make bold
+ * @return The text with bold markings
+ */
+string ReplyStream::createBold(std::string text) {
+  switch (format) {
+    case ReplyStreamType::TEXT: return text;
+    case ReplyStreamType::HTML: return "<b>"+text+"</b>";
+    default:
+      cerr << "Unsupported format in ReplyStream\n";
+      exit(-1);
+  }
+
+}
+
+/**
  * @brief Close out a replystream (appends any footer markup)
  */
 void ReplyStream::Finish() {

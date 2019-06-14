@@ -10,14 +10,14 @@
 #include "faodel-common/Debug.hh"
 #include "faodel-services/BackBurner.hh"
 
-#include "webhook/WebHook.hh"
-#include "webhook/Server.hh"
+#include "whookie/Whookie.hh"
+#include "whookie/Server.hh"
 
 #include "opbox/OpBox.hh"
 #include "opbox/core/OpBoxCoreThreaded.hh"
 //#include "opbox/core/OpBoxCoreUnconfigured.hh"
 
-#include "opbox/core/Singleton.hh" //for registry webhook
+#include "opbox/core/Singleton.hh" //for registry whookie
 
 
 using namespace std;
@@ -77,11 +77,11 @@ void OpBoxCoreThreaded::init(const faodel::Configuration &config) {
   dbg("Done with opbox::net::Init()");
   opbox::net::RegisterRecvCallback(opbox::internal::HandleIncomingMessage);
 
-  webhook::Server::updateHook("/opbox", [this] (const map<string,string> &args, stringstream &results) {
-      return HandleWebhookStatus(args, results);
+  whookie::Server::updateHook("/opbox", [this] (const map<string,string> &args, stringstream &results) {
+      return HandleWhookieStatus(args, results);
   });
-  webhook::Server::updateHook("/opbox/ops", [this] (const map<string,string> &args, stringstream &results) {
-      return HandleWebhookActiveOps(args, results);
+  whookie::Server::updateHook("/opbox/ops", [this] (const map<string,string> &args, stringstream &results) {
+      return HandleWhookieActiveOps(args, results);
   });
 
 
@@ -111,8 +111,8 @@ void OpBoxCoreThreaded::finish() {
   dbg("private finish");
   kassert(initialized && running, "Attempted to finish OpBoxCoreThreaded that is not started");
 
-  webhook::Server::deregisterHook("/opbox");
-  webhook::Server::deregisterHook("/opbox/ops");
+  whookie::Server::deregisterHook("/opbox");
+  whookie::Server::deregisterHook("/opbox/ops");
 
   opbox::net::Finish();
 
@@ -204,10 +204,17 @@ int OpBoxCoreThreaded::HandleIncomingMessage(opbox::net::peer_ptr_t peer, messag
 
   //See if this is an unexpected message
   if(my_mailbox == 0){
-    dbg("Creating new TargetOp");
+    dbg("Creating new TargetOp. OpID is "+std::to_string(incoming_message->op_id));
+
 
     //New communication. Spin up a new op to andle it.
     op = opbox::internal::CreateNewTargetOp(incoming_message->op_id);
+
+    if(op==nullptr) {
+      KHALT("Incoming message asked for an opid that was not known");
+    }
+
+
     addActiveOp(op); //Sets the mailbox if needed
     my_mailbox = op->GetAssignedMailbox();
   } else {
@@ -446,12 +453,12 @@ void OpBoxCoreThreaded::endActiveOp(mailbox_t mailbox){
 
 
 /**
- * @brief HandleWebhookStatus Process a request from Webhook to get status information
+ * @brief HandleWhookieStatus Process a request from Whookie to get status information
  *
  * @param[in] args    The map of k/v parameters the user sent in this request
  * @param[in] results The stringstream to write results to
  */
-void OpBoxCoreThreaded::HandleWebhookStatus(
+void OpBoxCoreThreaded::HandleWhookieStatus(
                     const std::map<std::string,std::string> &args,
                     std::stringstream &results) {
 
@@ -467,17 +474,17 @@ void OpBoxCoreThreaded::HandleWebhookStatus(
 
     rs.mkText(html::mkLink("Current Active Ops", "/opbox/ops"));
     
-    opbox::internal::Singleton::impl.webhookInfoRegistry(rs);
+    opbox::internal::Singleton::impl.whookieInfoRegistry(rs);
     rs.Finish();
 }
 
 /**
- * @brief HandleWebhookActiveOps Process a request from Webhook to get Active Op information
+ * @brief HandleWhookieActiveOps Process a request from Whookie to get Active Op information
  *
  * @param[in] args    The map of k/v parameters the user sent in this request
  * @param[in] results The stringstream to write results to
  */
-void OpBoxCoreThreaded::HandleWebhookActiveOps(
+void OpBoxCoreThreaded::HandleWhookieActiveOps(
                     const std::map<std::string,std::string> &args,
                     std::stringstream &results) {
 

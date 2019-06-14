@@ -21,7 +21,7 @@ namespace faodel {
  * FAODEL components often need a simple way to reference different
  * ranks that are running in the system. The nodeid_t provides a simple and
  * concise (64b) value for referencing other ranks. Internally, it is just
- * the IP address and port number a particular rank uses for its Webhook
+ * the IP address and port number a particular rank uses for its Whookie
  * instance. Users are expected to pass the nodeid_t around by itself without
  * looking into its internal value.
  *

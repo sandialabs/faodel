@@ -50,19 +50,19 @@ void example5_polling(){
 
   //No mpi barrier here. Immediately start checking for capacity
 
-  //Poll until we have the right number of children
-  while(dir.children.size() < G.mpi_size){
+  //Poll until we have the right number of members
+  while(dir.members.size() < G.mpi_size){
     std::this_thread::sleep_for(std::chrono::seconds(1));
     ok = dirman::GetRemoteDirectoryInfo(ResourceURL(dir_path), &dir);
     assert(ok && "");
-    cout <<"Rank "<<G.mpi_rank<<" sees "<<dir.children.size()<<" children\n";
+    cout <<"Rank "<<G.mpi_rank<<" sees "<<dir.members.size()<<" members\n";
   }
 
 
   //Dump info
   cout <<"Info: '"<<dir.info
        <<"' ReferenceNode: " <<dir.GetReferenceNode().GetHex()
-       <<" NumberChildren: " <<dir.children.size()<<endl;
+       <<" NumberMembers: " <<dir.members.size()<<endl;
 
   MPI_Barrier(MPI_COMM_WORLD);
 
@@ -71,8 +71,8 @@ void example5_polling(){
   if(test_id<0) test_id=0;
 
   if(G.mpi_rank==test_id){
-    cout <<"Rank "<<G.mpi_rank<<" sees the following children:\n";
-    for(auto &name_node : dir.children){
+    cout <<"Rank "<<G.mpi_rank<<" sees the following members:\n";
+    for(auto &name_node : dir.members){
       cout <<"     "<<name_node.name
            <<"  "<<name_node.node.GetHex() <<endl;
     }

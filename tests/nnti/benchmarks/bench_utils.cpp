@@ -27,7 +27,7 @@
 #include "faodel-common/Bootstrap.hh"
 #include "faodel-common/NodeID.hh"
 
-#include "webhook/Server.hh"
+#include "whookie/Server.hh"
 
 #include "nnti/nnti_logger.hpp"
 
@@ -72,7 +72,7 @@ test_setup(int                           argc,
 
     num_clients = num_procs - num_servers;
 
-    faodel::bootstrap::Start(config, webhook::bootstrap);
+    faodel::bootstrap::Start(config, whookie::bootstrap);
 
     t = nnti::transports::factory::get_instance(config);
 
@@ -116,7 +116,7 @@ test_setup(int                           argc,
 
     num_clients = num_procs - num_servers;
 
-    faodel::bootstrap::Start(config, webhook::bootstrap);
+    faodel::bootstrap::Start(config, whookie::bootstrap);
 
     t = nnti::transports::factory::get_instance(config);
 
@@ -149,7 +149,7 @@ test_setup(int                           argc,
         config.Append(s);
     }
 
-    faodel::bootstrap::Start(config, webhook::bootstrap);
+    faodel::bootstrap::Start(config, whookie::bootstrap);
 
     t = nnti::transports::factory::get_instance(config);
 

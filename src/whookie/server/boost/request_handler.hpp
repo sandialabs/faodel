@@ -8,15 +8,15 @@
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
 
-#ifndef WEBHOOK_REQUEST_HANDLER_HPP
-#define WEBHOOK_REQUEST_HANDLER_HPP
+#ifndef WHOOKIE_REQUEST_HANDLER_HPP
+#define WHOOKIE_REQUEST_HANDLER_HPP
 
 #include <string>
 #include <map>
 #include <functional>
 #include <mutex>
 
-#include "webhook/Server.hh"
+#include "whookie/Server.hh"
 
 namespace http {
 namespace server {
@@ -40,30 +40,33 @@ public:
   void handle_request(const request& req, reply& rep);
 
   //CDU
-  int registerHook(const std::string &name, webhook::cb_web_handler_t func);
-  int updateHook(const std::string &name, webhook::cb_web_handler_t func);
+  int updateAppName(std::string name) { app_name=name; return 0; }
+  int registerHook(const std::string &name, whookie::cb_web_handler_t func);
+  int updateHook(const std::string &name, whookie::cb_web_handler_t func);
   int deregisterHook(const std::string &name);
   
   std::string makeHTMLHeader(const std::string &name);
   
 private:
 
+  std::string app_name;
+
   /// Perform URL-decoding on a string. Returns false if the encoding was
   /// invalid.
   static bool url_decode(const std::string& in, std::string& out);
 
-  std::map<std::string, webhook::cb_web_handler_t> cbs;
+  std::map<std::string, whookie::cb_web_handler_t> cbs;
   std::mutex cbs_mutex;
 
   std::pair<std::string,std::string> splitString(const std::string &item, char delim);
   std::map<std::string,std::string> parseArgString(const std::string &args);
   
-  void dumpRegisteredHandles(std::stringstream &results);
-  void dumpAbout(std::stringstream &results);
+  void dumpRegisteredHandles(const std::map<std::string,std::string> &args, std::stringstream &results);
+  void dumpAbout(const std::map<std::string,std::string> &args, std::stringstream &results);
 
 };
 
 } // namespace server
 } // namespace http
 
-#endif // WEBHOOK_REQUEST_HANDLER_HPP
+#endif // WHOOKIE_REQUEST_HANDLER_HPP

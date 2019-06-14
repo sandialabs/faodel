@@ -6,7 +6,7 @@
 // a config with runtime info. This service can currently perform two
 // updates for dirman resources:
 //
-// dirman.root_node_mpi rank ==> dirman.root_node webhook_nodeid
+// dirman.root_node_mpi rank ==> dirman.root_node whookie_nodeid
 //    Often you want to designate a certain rank in a job as the root node
 //    for the dirman service, but you don't know what the nodeid is until
 //    you start. If the mpisyncstart service sees the dirman.root_node_mpi
@@ -77,7 +77,7 @@ int main(int argc, char **argv) {
   config.Append("dirman.root_node_mpi",  "0");
 
   //Running this should cause the mpisyncstart to translate the
-  //dirman,root_node_mpi rank to a webhook nodeid. You should
+  //dirman,root_node_mpi rank to a whookie nodeid. You should
   //see the update when you
   faodel::bootstrap::Start(config, config_dump_bootstrap);
   faodel::bootstrap::Finish();

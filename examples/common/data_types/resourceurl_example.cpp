@@ -51,7 +51,7 @@ void example_resourceurl() {
   ResourceURL u1(url_string);
 
   cout << "URL1 "<<url_string<<" is"
-          << "\n Type:   "<<u1.resource_type
+          << "\n Type:   "<<u1.Type()
           << "\n Bucket: "<<u1.bucket.GetHex() //Buckets get converted to 32b hashes immediately
           << "\n Path:   "<<u1.path
           << "\n Name:   "<<u1.name
@@ -73,6 +73,15 @@ void example_resourceurl() {
   cout <<"Modified name is "<<u1.GetFullURL()<<endl;
 
 
+  //Often we need to translate a resource name (eg, /my/pool) into something that
+  //defines all its characteristics. If you don't supply a resource type, FAODEL
+  //assumes you're making a reference to something that will need to be looked up.
+  ResourceURL u2("/my/pool");
+  cout<<"I asked for '/my/pool'. Type is '"<<u2.Type()<<"'. Full Url: "<<u2.GetFullURL()<<endl;
+
+
+
+
   //Some services just manipulate the directory structure. Here we work
   //our way up to the top of the tree.
   ResourceURL utmp = u1;
@@ -81,7 +90,5 @@ void example_resourceurl() {
     utmp=utmp.GetParent();
   }
   cout <<"Root level is "<<utmp.GetPathName()<<"   path="<<utmp.path<<" name="<<utmp.name<<endl;
-
-
 
 }

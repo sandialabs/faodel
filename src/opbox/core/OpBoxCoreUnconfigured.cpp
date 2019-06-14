@@ -9,8 +9,8 @@
 
 #include "faodel-common/NodeID.hh"
 
-#include "webhook/WebHook.hh"
-#include "webhook/Server.hh"
+#include "whookie/Whookie.hh"
+#include "whookie/Server.hh"
 
 using namespace std;
 

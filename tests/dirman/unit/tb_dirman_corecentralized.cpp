@@ -94,10 +94,10 @@ TEST_F(DirManCoreCentralizedTest, Simple){
   EXPECT_EQ(root_node,       di.url.reference_node);
   EXPECT_EQ("/things/a",     di.url.GetPathName());
   EXPECT_EQ("",              di.info);
-  EXPECT_EQ(0,               di.children.size());
+  EXPECT_EQ(0,               di.members.size());
 
 
-  //Register three named children to it
+  //Register three named members to it
   DirectoryInfo di2;
   ok = dmcc->JoinDirWithName(ResourceURL("/things/a"), "b", &di2); EXPECT_TRUE(ok);
   ok = dmcc->JoinDirWithName(ResourceURL("<0x99>/things/a"), "c"); EXPECT_TRUE(ok);
@@ -109,11 +109,11 @@ TEST_F(DirManCoreCentralizedTest, Simple){
   ok = di2.GetChildReferenceNode("c", &n); EXPECT_TRUE(ok); EXPECT_EQ(nodeid_t(0x99,iuo), n);
   ok = di2.GetChildReferenceNode("d", &n); EXPECT_TRUE(ok); EXPECT_EQ(nodeid_t(0x88,iuo), n);
   ok = di2.GetChildReferenceNode("x", &n); EXPECT_FALSE(ok);
-  EXPECT_EQ(3, di2.children.size());
+  EXPECT_EQ(3, di2.members.size());
 
-  //Remove some of the children
+  //Remove some of the members
   DirectoryInfo di3;
-  ok = dmcc->LeaveDir(ResourceURL("/things/a/c"), &di3); EXPECT_TRUE(ok);  EXPECT_EQ(2, di3.children.size());
+  ok = dmcc->LeaveDir(ResourceURL("/things/a/c"), &di3); EXPECT_TRUE(ok);  EXPECT_EQ(2, di3.members.size());
        ok = di3.GetChildReferenceNode("b"); EXPECT_TRUE(ok);
        ok = di3.GetChildReferenceNode("c"); EXPECT_FALSE(ok);
        ok = di3.GetChildReferenceNode("d"); EXPECT_TRUE(ok);
@@ -121,21 +121,21 @@ TEST_F(DirManCoreCentralizedTest, Simple){
 
   ok = dmcc->LeaveDir(ResourceURL("/things/a/X"), &di3); //Fake leave
        EXPECT_FALSE(ok);
-       EXPECT_EQ(2, di3.children.size());
+       EXPECT_EQ(2, di3.members.size());
        ok = di3.GetChildReferenceNode("b"); EXPECT_TRUE(ok);
        ok = di3.GetChildReferenceNode("c"); EXPECT_FALSE(ok);
        ok = di3.GetChildReferenceNode("d"); EXPECT_TRUE(ok);
 
   ok = dmcc->LeaveDir(ResourceURL("/things/a/b"), &di3);
        EXPECT_TRUE(ok);
-       EXPECT_EQ(1, di3.children.size());
+       EXPECT_EQ(1, di3.members.size());
        ok = di3.GetChildReferenceNode("b"); EXPECT_FALSE(ok);
        ok = di3.GetChildReferenceNode("c"); EXPECT_FALSE(ok);
        ok = di3.GetChildReferenceNode("d"); EXPECT_TRUE(ok);
 
   ok = dmcc->LeaveDir(ResourceURL("/things/a/d"), &di3);
        EXPECT_TRUE(ok);
-       EXPECT_EQ(0, di3.children.size());
+       EXPECT_EQ(0, di3.members.size());
        ok = di3.GetChildReferenceNode("b"); EXPECT_FALSE(ok);
        ok = di3.GetChildReferenceNode("c"); EXPECT_FALSE(ok);
        ok = di3.GetChildReferenceNode("d"); EXPECT_FALSE(ok);
@@ -166,7 +166,7 @@ TEST_F(DirManCoreCentralizedTest, JoinNoName){
   ok = dmcc->JoinDirWithoutName(ResourceURL("<0x92>/things/a"));       EXPECT_TRUE(ok);
   ok = dmcc->JoinDirWithoutName(ResourceURL("<0x93>/things/a"));       EXPECT_TRUE(ok);
   ok = dmcc->JoinDirWithoutName(ResourceURL("<0x94>/things/a"), &di2); EXPECT_TRUE(ok);
-  EXPECT_EQ(5, di2.children.size());
+  EXPECT_EQ(5, di2.members.size());
 
   //cout <<di2.to_string()<<endl;
   string child_name="dummy";
@@ -186,7 +186,7 @@ TEST_F(DirManCoreCentralizedTest, JoinNoName){
   ok = dmcc->JoinDirWithoutName(ResourceURL("<0x92>/things/b"));       EXPECT_TRUE(ok);
   ok = dmcc->JoinDirWithoutName(ResourceURL("<0x93>/things/b"));       EXPECT_TRUE(ok);
   ok = dmcc->JoinDirWithoutName(ResourceURL("<0x94>/things/b"), &di2); EXPECT_TRUE(ok);
-  EXPECT_EQ(5, di2.children.size());
+  EXPECT_EQ(5, di2.members.size());
 
   //cout <<di2.to_string()<<endl;
   child_name="dummy";

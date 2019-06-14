@@ -35,9 +35,9 @@ void KelpieCoreNoNet::init(const faodel::Configuration &config) {
   pool_registry.RegisterPoolConstructor("local", &LocalPoolCreate);
   pool_registry.RegisterPoolConstructor("lkv",   &LocalPoolCreate);
 
-  //Register webhook
-  webhook::Server::updateHook("/kelpie", [this] (const map<string,string> &args, stringstream &results) {
-        return HandleWebhookStatus(args, results);
+  //Register whookie
+  whookie::Server::updateHook("/kelpie", [this] (const map<string,string> &args, stringstream &results) {
+        return HandleWhookieStatus(args, results);
     });
 
 }
@@ -50,7 +50,7 @@ void KelpieCoreNoNet::start(){
 void KelpieCoreNoNet::finish(){
   pool_registry.finish();
   iom_registry.finish();
-  webhook::Server::deregisterHook("/kelpie");
+  whookie::Server::deregisterHook("/kelpie");
 }
 
 void KelpieCoreNoNet::RegisterPoolConstructor(std::string pool_name, fn_PoolCreate_t ctor_function) {
@@ -65,7 +65,7 @@ void KelpieCoreNoNet::RegisterIomConstructor(std::string type, fn_IomConstructor
   iom_registry.RegisterIomConstructor(type, ctor_function);
 }
 
-void KelpieCoreNoNet::HandleWebhookStatus(const std::map<std::string,std::string> &args, std::stringstream &results) {
+void KelpieCoreNoNet::HandleWhookieStatus(const std::map<std::string,std::string> &args, std::stringstream &results) {
 
     faodel::ReplyStream rs(args, "Kelpie Status", &results);
 
@@ -73,7 +73,7 @@ void KelpieCoreNoNet::HandleWebhookStatus(const std::map<std::string,std::string
     stats.push_back({"Parameter", "Setting"});
     stats.push_back({"Core Type", GetType()});
     rs.mkTable(stats, "Kelpie Status");
-    lkv.webhookInfo(rs);
+    lkv.whookieInfo(rs);
 
     rs.Finish();
 }

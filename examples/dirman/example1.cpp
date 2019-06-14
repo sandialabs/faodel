@@ -47,7 +47,7 @@ void example1_create_and_fetch(){
 
   cout <<"Info: '"<<dir.info
        <<"' ReferenceNode: " <<dir.GetReferenceNode().GetHex()
-       <<" NumberChildren: " <<dir.children.size()<<endl;
+       <<" NumberMembers: " <<dir.members.size()<<endl;
 
   MPI_Barrier(MPI_COMM_WORLD);
 }

@@ -45,7 +45,7 @@ public:
                        std::vector<std::string> &requires,
                        std::vector<std::string> &optional) const override;
 
-  void webhookInfoRegistry(faodel::ReplyStream &rs) { return registry.webhookInfo(rs); }
+  void whookieInfoRegistry(faodel::ReplyStream &rs) { return registry.whookieInfo(rs); }
 
   OpRegistry registry;
   OpBoxCoreBase *core;

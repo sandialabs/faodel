@@ -25,7 +25,7 @@ Building the entire FAODEL stack with these options can't hurt.
 
 ## Prerequisites
 
-This test requires the entire FAODEL stack: sbl, common, webhook, nnti,
+This test requires the entire FAODEL stack: sbl, common, whookie, nnti,
 lunasa, and opbox.
 
 

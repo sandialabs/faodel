@@ -109,7 +109,7 @@ protected:
     *child_offset = first_child_offset;
     return;
   }
-  virtual bool GenChildVector(unsigned int fanout, nodeid_t parent_id, unsigned int num_rows, vector<NameAndNode> *children){
+  virtual bool GenChildVector(unsigned int fanout, nodeid_t parent_id, unsigned int num_rows, vector<NameAndNode> *members){
 
     unsigned int child_level, child_id, child_offset;
     GetChildInfo(fanout, parent_id.nid-tree_starting_node_id, &child_level, &child_id, &child_offset);
@@ -117,7 +117,7 @@ protected:
     if(child_level >= num_rows) return false;
 
     for(unsigned int i=0; i<fanout; i++){
-      children->push_back( NameAndNode(GetEntryName(child_level, child_offset+i), nodeid_t(child_id+i,iuo)) );
+      members->push_back( NameAndNode(GetEntryName(child_level, child_offset+i), nodeid_t(child_id+i,iuo)) );
     }
     return true;
   }
@@ -184,13 +184,13 @@ TEST_F(DirectoryCacheTest, SimpleByHand){
   EXPECT_EQ("/x/y",     ro.url.path);
   EXPECT_EQ("z",        ro.url.name);
   EXPECT_EQ(def_bucket, ro.url.bucket);
-  EXPECT_EQ(0,          ro.children.size());
+  EXPECT_EQ(0,          ro.members.size());
 
 
   //--- Modify the item, push it back, and verify ----
-  ro.children.push_back(NameAndNode("Bobby",nodeid_t(101,iuo)));
-  ro.children.push_back(NameAndNode("Billy",nodeid_t(102,iuo)));
-  ro.children.push_back(NameAndNode("Betty",nodeid_t(103,iuo)));
+  ro.members.push_back(NameAndNode("Bobby",nodeid_t(101,iuo)));
+  ro.members.push_back(NameAndNode("Billy",nodeid_t(102,iuo)));
+  ro.members.push_back(NameAndNode("Betty",nodeid_t(103,iuo)));
 
   ok = dc->Update(ro);
   EXPECT_TRUE(ok);
@@ -203,15 +203,15 @@ TEST_F(DirectoryCacheTest, SimpleByHand){
   EXPECT_EQ("/x/y",     ro2.url.path);
   EXPECT_EQ("z",        ro2.url.name);
   EXPECT_EQ(def_bucket, ro2.url.bucket);
-  EXPECT_EQ(3,          ro2.children.size());
+  EXPECT_EQ(3,          ro2.members.size());
 
   //cout <<"----"<<ro2.str(2)<<"---\n";
-  EXPECT_EQ("Bobby", ro2.children[0].name);
-  EXPECT_EQ("Billy", ro2.children[1].name);
-  EXPECT_EQ("Betty", ro2.children[2].name);
-  EXPECT_EQ(nodeid_t(101,iuo),     ro2.children[0].node);
-  EXPECT_EQ(nodeid_t(102,iuo),     ro2.children[1].node);
-  EXPECT_EQ(nodeid_t(103,iuo),     ro2.children[2].node);
+  EXPECT_EQ("Bobby", ro2.members[0].name);
+  EXPECT_EQ("Billy", ro2.members[1].name);
+  EXPECT_EQ("Betty", ro2.members[2].name);
+  EXPECT_EQ(nodeid_t(101,iuo),     ro2.members[0].node);
+  EXPECT_EQ(nodeid_t(102,iuo),     ro2.members[1].node);
+  EXPECT_EQ(nodeid_t(103,iuo),     ro2.members[2].node);
   //cout << "////////Item\n"<<dc->str(100)<<"/////Done\n";
 }
 
@@ -260,7 +260,7 @@ TEST_F(DirectoryCacheTest, SimpleAutomated){
   }
 }
 
-TEST_F(DirectoryCacheTest, TreeUpdateChildren){
+TEST_F(DirectoryCacheTest, TreeUpdateMembers){
 
   unsigned int fanout=3;
   unsigned int num_rows=3;
@@ -290,12 +290,12 @@ TEST_F(DirectoryCacheTest, TreeUpdateChildren){
     ok = dc->Lookup(ResourceURL(id_name.second), &ro, &node);
     EXPECT_TRUE(ok);
     EXPECT_EQ(id_name.first, node);
-    EXPECT_EQ(0, ro.children.size());
+    EXPECT_EQ(0, ro.members.size());
 
     nodeid_t id = id_name.first;
 
-    bool had_children = GenChildVector(fanout, id_name.first, num_rows, &ro.children);
-    if(!had_children) continue;
+    bool had_members = GenChildVector(fanout, id_name.first, num_rows, &ro.members);
+    if(!had_members) continue;
 
     ok = dc->Update(ro);
     EXPECT_TRUE(ok);
@@ -309,12 +309,12 @@ TEST_F(DirectoryCacheTest, TreeUpdateChildren){
     EXPECT_TRUE(ok);
     EXPECT_EQ(id_name.first, node);
 
-    vector<NameAndNode> expected_children;
-    bool had_children = GenChildVector(fanout, id_name.first, num_rows, &expected_children);
-    EXPECT_EQ(expected_children.size(), ro.children.size());
-    if(expected_children.size() == ro.children.size()){
-      for(unsigned int i=0; i< expected_children.size(); i++){
-        EXPECT_EQ(expected_children[i], ro.children[i]);
+    vector<NameAndNode> expected_members;
+    bool had_members = GenChildVector(fanout, id_name.first, num_rows, &expected_members);
+    EXPECT_EQ(expected_members.size(), ro.members.size());
+    if(expected_members.size() == ro.members.size()){
+      for(unsigned int i=0; i< expected_members.size(); i++){
+        EXPECT_EQ(expected_members[i], ro.members[i]);
       }
     }
   }
@@ -362,23 +362,23 @@ TEST_F(DirectoryCacheTest, TreeJoin){
     EXPECT_TRUE(ok);
     EXPECT_EQ(id_name.first, node);
 
-    vector<NameAndNode> expected_children;
-    bool had_children = GenChildVector(fanout, id_name.first, num_rows, &expected_children);
+    vector<NameAndNode> expected_members;
+    bool had_members = GenChildVector(fanout, id_name.first, num_rows, &expected_members);
 
 
-    EXPECT_EQ(expected_children.size(), ro.children.size());
-    if(expected_children.size() == ro.children.size()){
-      for(unsigned int i=0; i< expected_children.size(); i++){
-        EXPECT_EQ(expected_children[i], ro.children[i]);
+    EXPECT_EQ(expected_members.size(), ro.members.size());
+    if(expected_members.size() == ro.members.size()){
+      for(unsigned int i=0; i< expected_members.size(); i++){
+        EXPECT_EQ(expected_members[i], ro.members[i]);
       }
     } else {
       cout <<"Child problem for "<<id_name.second<<endl;
       cout <<"Expected: \n";
-      for(auto &node_name : expected_children)
+      for(auto &node_name : expected_members)
         cout<<node_name.name <<" "<<node_name.node.GetHex()<<endl;
 
       cout <<"Actual:\n";
-      for(auto node_name : ro.children)
+      for(auto node_name : ro.members)
         cout<<node_name.name <<" "<<node_name.node.GetHex()<<endl;
       exit(0);
     }
@@ -395,7 +395,7 @@ TEST_F(DirectoryCacheTest, JoinLeave) {
   DirectoryInfo di0;
   ok = dc->Create(DirectoryInfo("<0x05>/my"));         EXPECT_TRUE(ok);
   ok = dc->Join(ResourceURL("<0x10>/my/thing"), &di0); EXPECT_TRUE(ok);
-  EXPECT_EQ(1, di0.children.size());
+  EXPECT_EQ(1, di0.members.size());
   di0.GetChildReferenceNode("thing",&ref_node); EXPECT_EQ(nodeid_t(0x10,iuo),ref_node);
 
 
@@ -412,7 +412,7 @@ TEST_F(DirectoryCacheTest, JoinLeave) {
   DirectoryInfo di1;
   ok = dc->Lookup(ResourceURL("/my/thing"), &di1, &ref_node); EXPECT_TRUE(ok);
   EXPECT_EQ(nodeid_t(0x10, iuo), ref_node);
-  EXPECT_EQ(di1.children.size(), 4);
+  EXPECT_EQ(di1.members.size(), 4);
   di1.GetChildReferenceNode("a", &ref_node); EXPECT_EQ(nodeid_t(0x20,iuo), ref_node);
   di1.GetChildReferenceNode("b", &ref_node); EXPECT_EQ(nodeid_t(0x21,iuo), ref_node);
   di1.GetChildReferenceNode("c", &ref_node); EXPECT_EQ(nodeid_t(0x22,iuo), ref_node);
@@ -428,12 +428,12 @@ TEST_F(DirectoryCacheTest, JoinLeave) {
   ok = di1.GetChildReferenceNode("c", &ref_node); EXPECT_FALSE(ok);
   ok = di1.GetChildReferenceNode("d", &ref_node); EXPECT_EQ(nodeid_t(0x23,iuo), ref_node);
 
-  //Get rid of all children, one-by-one
-  for(auto name_node : di1.children){
+  //Get rid of all members, one-by-one
+  for(auto name_node : di1.members){
     ok = dc->Leave(ResourceURL("/my/thing/"+name_node.name)); EXPECT_TRUE(ok);
   }
   ok = dc->Lookup(ResourceURL("/my/thing"), &di1, &ref_node); EXPECT_TRUE(ok);
-  EXPECT_EQ(0, di1.children.size());
+  EXPECT_EQ(0, di1.members.size());
 
 
   //Add first tree back in
@@ -455,20 +455,20 @@ TEST_F(DirectoryCacheTest, JoinLeave) {
   ok = dc->Lookup(ResourceURL("/my/thing"), &di2, &ref_node); EXPECT_TRUE(ok);
   di2.GetChildReferenceNode("bb", &ref_node); EXPECT_EQ(nodeid_t(0x31,iuo), ref_node);
   di2.GetChildReferenceNode("aa", &ref_node); EXPECT_EQ(nodeid_t(0x21,iuo), ref_node);
-  EXPECT_EQ(2, di2.children.size());
+  EXPECT_EQ(2, di2.members.size());
 
   //Left child tree aa
   ok = dc->Lookup(ResourceURL("/my/thing/aa"), &di2, &ref_node); EXPECT_TRUE(ok);
   di2.GetChildReferenceNode("1", &ref_node); EXPECT_EQ(nodeid_t(0x22,iuo), ref_node);
   di2.GetChildReferenceNode("2", &ref_node); EXPECT_EQ(nodeid_t(0x23,iuo), ref_node);
   di2.GetChildReferenceNode("3", &ref_node); EXPECT_EQ(nodeid_t(0x24,iuo), ref_node);
-  EXPECT_EQ(3, di2.children.size());
+  EXPECT_EQ(3, di2.members.size());
 
   //Right child tree bb
   ok = dc->Lookup(ResourceURL("/my/thing/bb"), &di2, &ref_node); EXPECT_TRUE(ok);
   di2.GetChildReferenceNode("1", &ref_node); EXPECT_EQ(nodeid_t(0x32,iuo), ref_node);
   di2.GetChildReferenceNode("2", &ref_node); EXPECT_EQ(nodeid_t(0x33,iuo), ref_node);
-  EXPECT_EQ(2, di2.children.size());
+  EXPECT_EQ(2, di2.members.size());
 
 
   //Delete bb. Should leave /my /my/thing /my/thing/aa
@@ -478,13 +478,13 @@ TEST_F(DirectoryCacheTest, JoinLeave) {
   //Verify rest of stuff still there
   ok = dc->Lookup(ResourceURL("/my/thing"), &di2); EXPECT_TRUE(ok);
   di2.GetChildReferenceNode("aa", &ref_node); EXPECT_EQ(nodeid_t(0x21,iuo), ref_node);
-  EXPECT_EQ(1, di2.children.size());
+  EXPECT_EQ(1, di2.members.size());
   ok = dc->Lookup(ResourceURL("/my/thing/bb"), &di2); EXPECT_FALSE(ok);
   ok = dc->Lookup(ResourceURL("/my/thing/aa"), &di2); EXPECT_TRUE(ok);
   di2.GetChildReferenceNode("1", &ref_node); EXPECT_EQ(nodeid_t(0x22,iuo), ref_node);
   di2.GetChildReferenceNode("2", &ref_node); EXPECT_EQ(nodeid_t(0x23,iuo), ref_node);
   di2.GetChildReferenceNode("3", &ref_node); EXPECT_EQ(nodeid_t(0x24,iuo), ref_node);
-  EXPECT_EQ(3, di2.children.size());
+  EXPECT_EQ(3, di2.members.size());
 
   //vector<ResourceURL> urls1;
   //dc->GetAllURLs(&urls1);

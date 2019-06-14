@@ -12,22 +12,27 @@
 
 // Format: resource_type:<node>[bucket]/my/path/name&option1=x&option2=y
 
-
-
 //Example URLs
-// peer:/my/path
-// peer:/my/path&put=blocking,remote,remote2,local&get=remote
-// peer:[mybucket]/my/path
-// dht:[mybucket]/my/path&member_count=25&replication=1
-// local:
-
-
-
-// rm:<0x0123>[mybucket]/my/path
-// dht:<0x0123>[0x1234]/my/path&num_nodes=4
-
-// bucket: when prepended with 0x, treat the value as the actual hash. Otherwise hash it.
-
+// 1. peer:/my/path/mynodename
+//    You can use the peer type to label a specific node in the system. This
+//    is handy if you want to register ranks from one sim and use them in another
+//
+// 2. ref:/my/path/mydht
+//    If you know the name of a resource but not how its defined, you can
+//    issue a lookup to DirMan to retrieve its contents
+//
+// 3. local:
+//    In kelpie you can talk directly to your local kv. You can append options
+//    to customize how you want interface with it.
+//
+// 4. dht:[mybucket]/my/path/mydht&min_members=4&behavior=writetoremote_writetoiom_readtolocal&iom=myiom
+//    You can define a resource and add options to specify how it behaves. In
+//    this example we have a dht named /my/path/mydht that
+//    needs four member nodes to work. A Publish operation will write data to the
+//    remote node's memory and an associated iom named myiom. Wants/Needs will only
+//    cache the data at the requesting node. This example does not include
+//    the actual list of nodes in the pool.
+//
 // Note: a root level item like "/myroot" has path="/" and name "myroot"
 //       the same way "/a/b/c" has path "/a/b" and name "c"
 
@@ -93,7 +98,10 @@ bool ResourceURL::IsFullURL() const {
  */
 string ResourceURL::GetURL(bool include_type, bool include_node, bool include_bucket, bool include_options) const {
   stringstream ss;
-  if(include_type)         ss<<resource_type<<":"; //It's ok for RT to be blank. Useful for requests where we don't know type yet.
+  //if(include_type)         ss<<resource_type<<":"; //It's ok for RT to be blank. Useful for requests where we don't know type yet.
+  if(include_type) {
+    ss << ((resource_type.empty()) ? "ref" : resource_type) << ":";
+  }
   if(include_node)         ss<<"<"<<reference_node.GetHex()<<dec<<">";
   if(include_bucket)       ss<<"["<<bucket.GetHex()<<"]";
   if(path!="/")            ss<<path;
@@ -230,7 +238,6 @@ rc_t ResourceURL::ParseURL(const string url,
   size_t j,i=0;
   string tmp_type, tmp_bucket, tmp_nodeid, tmp_path_and_name, tmp_options;
 
-
   while(i<url.size()) {
 
     switch(url.at(i)) {
@@ -296,6 +303,11 @@ rc_t ResourceURL::ParseURL(const string url,
     }
   }
 
+  //User may mark type as ref. Normalize that to ""
+  if(tmp_type=="ref") {
+    tmp_type="";
+  }
+
   //Normalize type for local references
   if((tmp_type=="local") || (tmp_type=="localkv")||(tmp_type=="lkv")) {
     tmp_type = "local";
@@ -310,31 +322,39 @@ rc_t ResourceURL::ParseURL(const string url,
   //Split the path and name
   if(!tmp_path_and_name.empty()) {
 
-    //Chop off last char
-    if(tmp_path_and_name.back() == '/') {
-      tmp_path_and_name = tmp_path_and_name.substr(0, tmp_path_and_name.size()-1);
-    }
-
-    j=tmp_path_and_name.find_last_of("/");
-    if(j!=string::npos) {
-      //Has a slash somewhere. It still could be at the beginning or end
-
-      tmp_path = (j==0) ? "/" : tmp_path_and_name.substr(0,j);
-      tmp_name = tmp_path_and_name.substr(j+1);
-    } else {
-      //Did not have / in it. Assume it's root level
+    //Check for root path
+    if(tmp_path_and_name == "/") {
       tmp_path = "/";
-      tmp_name = tmp_path_and_name;
+      tmp_name = "";
+
+    } else {
+      //All others need to separate path and name
+
+      //Chop off last /
+      if(tmp_path_and_name.back() == '/') {
+        tmp_path_and_name.pop_back();
+      }
+
+      //Find the separator between path and name
+      j = tmp_path_and_name.find_last_of("/");
+      if(j != string::npos) {
+        //Has a slash somewhere. It still could be at the beginning or end
+        tmp_path = (j == 0) ? "/" : tmp_path_and_name.substr(0, j);
+        tmp_name = tmp_path_and_name.substr(j + 1);
+      } else {
+        //Did not have / in it. Assume it's root level
+        tmp_path = "/";
+        tmp_name = tmp_path_and_name;
+      }
+
+      //Validate. Should be /x/y  and z
+      if(tmp_path.at(0) != '/')
+        throw std::invalid_argument("ResourceURL parse problem: Path did not start with '/' in url '" + url + "'");
+
+        //Some resource names are special and permit no path
+      else if((tmp_name.empty()) && (tmp_type != "local") && (tmp_type != "unconfigured"))
+        throw std::invalid_argument("ResourceURL parse problem: Had zero-length name in url '" + url + "'");
     }
-
-    //Validate. Should be /x/y  and z
-    if(tmp_path.at(0)!='/')
-      throw std::invalid_argument("ResourceURL parse problem: Path did not start with '/' in url '"+url+"'");
-
-    //Some resource names are special and permit no path
-    else if((tmp_name.empty()) && (tmp_type!="local") && (tmp_type!="unconfigured"))
-      throw std::invalid_argument("ResourceURL parse problem: Had zero-length name in url '"+url+"'");
-
 
   } else {
 

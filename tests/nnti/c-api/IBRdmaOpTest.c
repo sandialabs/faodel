@@ -17,7 +17,7 @@
 
 #include "test_utils.h"
 
-int success=TRUE;
+int success=1;
 
 int main(int argc, char *argv[])
 {
@@ -93,8 +93,8 @@ int main(int argc, char *argv[])
 
         rc = get_data(transport, target_hdl, buf_hdl, peer_hdl, eq);
 
-        if (verify_buffer(buf_base, 0, buf_size) == FALSE) {
-            success = FALSE;
+        if (verify_buffer(buf_base, 0, buf_size) == 0) {
+            success = 0;
         }
 
         for (i=0;i<10;i++) {
@@ -128,7 +128,7 @@ int main(int argc, char *argv[])
         rc = NNTI_connect(transport, server_url, 1000, &peer_hdl);
         log_debug("IBRdmaOpTest", "NNTI_connect() rc=%d", rc);
         if (rc != NNTI_OK) {
-            success = FALSE;
+            success = 0;
         }
         rc = NNTI_eq_create(transport, 128, NNTI_EQF_UNEXPECTED, NULL, NULL, &eq);
         rc = NNTI_alloc(transport, buf_size, NNTI_BF_LOCAL_READ|NNTI_BF_LOCAL_WRITE|NNTI_BF_REMOTE_READ|NNTI_BF_REMOTE_WRITE, eq, cb_func, NULL, &buf_base, &buf_hdl);
@@ -157,8 +157,8 @@ int main(int argc, char *argv[])
             log_error("IBRdmaOpTest", "recv_target_hdl() failed: %d", rc);
         }
 
-        if (verify_buffer(buf_base, 0, buf_size) == FALSE) {
-            success = FALSE;
+        if (verify_buffer(buf_base, 0, buf_size) == 0) {
+            success = 0;
         }
 
         sleep(1);
@@ -166,14 +166,14 @@ int main(int argc, char *argv[])
         rc = NNTI_disconnect(transport, peer_hdl);
         log_debug("IBRdmaOpTest", "NNTI_disconnect() rc=%d", rc);
         if (rc != NNTI_OK) {
-            success = FALSE;
+            success = 0;
         }
     }
 
     if (is_init) {
         NNTI_fini(transport);
     } else {
-        success = FALSE;
+        success = 0;
     }
 
     if (success)

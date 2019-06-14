@@ -18,7 +18,7 @@
 #include "faodel-common/Bootstrap.hh"
 #include "faodel-common/NodeID.hh"
 
-#include "webhook/Server.hh"
+#include "whookie/Server.hh"
 
 #include "nnti/nnti.h"
 #include "nnti/nnti_logger.h"
@@ -38,7 +38,7 @@ test_bootstrap_start(void)
     config = faodel::Configuration(default_config_string);
     config.AppendFromReferences();
 
-    faodel::bootstrap::Start(config, webhook::bootstrap);
+    faodel::bootstrap::Start(config, whookie::bootstrap);
 
 }
 
@@ -132,7 +132,7 @@ recv_target_hdl(NNTI_transport_t transport,
     NNTI_work_request_t base_wr = NNTI_WR_INITIALIZER;
 
     uint32_t msgs_received=0;
-    while (TRUE) {
+    while (1) {
         rc = NNTI_eq_wait(&eq, 1, 1000, &which, &event);
         if (rc != NNTI_OK) {
             log_error("test_utils", "eq_wait() failed: %d", rc);
@@ -230,7 +230,7 @@ recv_hdl(NNTI_transport_t    transport,
     NNTI_work_request_t base_wr = NNTI_WR_INITIALIZER;
 
     uint32_t msgs_received=0;
-    while (TRUE) {
+    while (1) {
         rc = NNTI_eq_wait(&eq, 1, 1000, &which, &event);
         if (rc != NNTI_OK) {
             log_error("test_utils", "eq_wait() failed: %d", rc);
@@ -319,7 +319,7 @@ recv_ack(NNTI_transport_t    transport,
     log_debug("test_utils", "recv_ack - enter");
 
     uint32_t msgs_received=0;
-    while (TRUE) {
+    while (1) {
         rc = NNTI_eq_wait(&eq, 1, 1000, &which, &event);
         if (rc != NNTI_OK) {
             log_error("test_utils", "eq_wait() failed: %d", rc);
@@ -378,7 +378,7 @@ verify_buffer(char          *buf_base,
               uint64_t       buf_offset,
               uint64_t       buf_size)
 {
-    int success=TRUE;
+    int success=1;
 
     char     *payload = buf_base;
 
@@ -392,7 +392,7 @@ verify_buffer(char          *buf_base,
 
     if (*(uint32_t*)payload != crc) {
         log_error("test_utils", "crc mismatch (expected=0x%08x  actual=0x%08x)", *(uint32_t*)payload, (uint32_t)crc);
-        success = FALSE;
+        success = 0;
     }
 
     return success;
@@ -458,7 +458,7 @@ recv_data(NNTI_transport_t transport,
     NNTI_work_request_t base_wr = NNTI_WR_INITIALIZER;
 
     uint32_t msgs_received=0;
-    while (TRUE) {
+    while (1) {
         rc = NNTI_eq_wait(&eq, 1, 1000, &which, event);
         if (rc != NNTI_OK) {
             log_error("test_utils", "eq_wait() failed: %d", rc);

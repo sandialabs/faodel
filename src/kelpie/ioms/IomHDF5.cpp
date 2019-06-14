@@ -351,7 +351,7 @@ rc_t IomHDF5::GetInfo(faodel::bucket_t bucket, const kelpie::Key &key, kv_col_in
   rc_t rc;
 
   if(col_info not_eq nullptr)
-    std::memset(col_info, 0, sizeof *col_info);
+    col_info->Wipe();
 
   std::string target = "/" + bucket.GetHex() + "/" + key.str();
 

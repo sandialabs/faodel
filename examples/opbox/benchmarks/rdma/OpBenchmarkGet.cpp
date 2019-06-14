@@ -18,6 +18,7 @@ const string OpBenchmarkGet::op_name = "OpBenchmarkGet";
 OpBenchmarkGet::OpBenchmarkGet(opbox::net::peer_ptr_t dst, uint32_t size, uint32_t count, uint32_t max_inflight)
         : faodel::LoggingInterface("Opbox", "OpBenchmarkGet"),
           state(State::start),
+          warmup_count(10),
           size(size), count(count), max_inflight(max_inflight),
           started(0), inflight(0), completed(0),
           first_burst_sent(false),
@@ -30,6 +31,7 @@ OpBenchmarkGet::OpBenchmarkGet(opbox::net::peer_ptr_t dst, uint32_t size, uint32
 OpBenchmarkGet::OpBenchmarkGet(op_create_as_target_t t)
         : faodel::LoggingInterface("Opbox", "OpBenchmarkGet"),
           state(State::start),
+          warmup_count(0),
           size(0), count(0), max_inflight(0),
           started(0), inflight(0), completed(0),
           first_burst_sent(false),
@@ -153,6 +155,10 @@ WaitingType OpBenchmarkGet::UpdateTarget(OpArgs *args) {
       createAckMessage(incoming_msg->src,
                        0, //Not expecting a reply
                        incoming_msg->src_mailbox);
+
+      for (int i=0;i<warmup_count;i++) {
+          opbox::net::Get(peer, &nbr, rdma_ldo, AllEventsCallback(this));
+      }
 
       state = State::tgt_created;
 

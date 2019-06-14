@@ -8,6 +8,8 @@
 
 #include "kelpie/pools/UnconfiguredPool/UnconfiguredPool.hh"
 
+using namespace std;
+
 namespace kelpie {
 
 UnconfiguredPool::UnconfiguredPool()
@@ -22,12 +24,14 @@ rc_t UnconfiguredPool::Publish(const Key &key, const lunasa::DataObject &user_ld
 rc_t UnconfiguredPool::Want(const Key &key, size_t expected_ldo_user_bytes,
                                fn_want_callback_t callback)                        { Panic("Want");    return KELPIE_OK; }
 rc_t UnconfiguredPool::Need(const Key &key, size_t expected_ldo_user_bytes,
-                            lunasa::DataObject *user_ldo)                          { Panic("Need");    return KELPIE_OK; }
+                               lunasa::DataObject *user_ldo)                       { Panic("Need");    return KELPIE_OK; }
 rc_t UnconfiguredPool::Info(const Key &key, kv_col_info_t *col_info)               { Panic("Info");    return KELPIE_OK; }
 rc_t UnconfiguredPool::RowInfo(const Key &key, kv_row_info_t *row_info)            { Panic("RowInfo"); return KELPIE_OK; }
 rc_t UnconfiguredPool::Drop(const Key &key)                                        { Panic("Drop");    return KELPIE_OK; }
+rc_t UnconfiguredPool::List(const Key &search_key, ObjectCapacities *capacities)   { Panic("List");    return KELPIE_OK; }
+
 int UnconfiguredPool::FindTargetNode(const Key &key, faodel::nodeid_t *node_id,
-                                     net::peer_ptr_t *peer_ptr)                    { Panic("FindTargetNode"); return 0; }
+                                net::peer_ptr_t *peer_ptr)                         { Panic("FindTargetNode"); return 0; }
 
 void UnconfiguredPool::Panic(std::string caller) const {
   std::stringstream ss;

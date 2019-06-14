@@ -5,7 +5,7 @@
 
 #include "lunasa/core/LunasaCoreUnconfigured.hh"
 
-#include "webhook/Server.hh"
+#include "whookie/Server.hh"
 
 using namespace std;
 
@@ -23,7 +23,7 @@ LunasaCoreUnconfigured::~LunasaCoreUnconfigured() {
 }
 
 
-void LunasaCoreUnconfigured::init(string lmm_name, string emm_name, bool use_webhook,
+void LunasaCoreUnconfigured::init(string lmm_name, string emm_name, bool use_whookie,
                                const faodel::Configuration &config){
   Panic("(LunasaCoreUnconfigured) init");
 }

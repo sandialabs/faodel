@@ -20,8 +20,8 @@
 #include "kelpie/localkv/LocalKVRow.hh"
 #include "kelpie/pools/Pool.hh"
 
-#include "webhook/WebHook.hh"
-#include "webhook/Server.hh"
+#include "whookie/Whookie.hh"
+#include "whookie/Server.hh"
 
 
 #include "lunasa/DataObject.hh"
@@ -108,6 +108,10 @@ public:
   //Drop a particular item
   rc_t drop(faodel::bucket_t bucket, const Key &key);
 
+  //Locate info about one or more keys
+  rc_t list(faodel::bucket_t bucket, const Key &key_prefix,
+                    ObjectCapacities *object_capacities);
+
   //Get info for a particular item
   rc_t getColInfo(faodel::bucket_t bucket, const Key &key, kv_col_info_t *col_info);
   rc_t getRowInfo(faodel::bucket_t bucket, const Key &key, kv_row_info_t *row_info);
@@ -129,11 +133,11 @@ public:
   //Internal: Delete everything
   void wipeAll(faodel::internal_use_only_t iuo);
 
-  //Webhook helpers
-  void HandleWebhookStatus(const std::map<std::string,std::string> &args, std::stringstream &results);
-  void HandleWebhookRow(const std::map<std::string,std::string> &args, std::stringstream &results);
-  void HandleWebhookCell(const std::map<std::string,std::string> &args, std::stringstream &results);
-  void webhookInfo(faodel::ReplyStream &rs, bool detailed=false);
+  //Whookie helpers
+  void HandleWhookieStatus(const std::map<std::string,std::string> &args, std::stringstream &results);
+  void HandleWhookieRow(const std::map<std::string,std::string> &args, std::stringstream &results);
+  void HandleWhookieCell(const std::map<std::string,std::string> &args, std::stringstream &results);
+  void whookieInfo(faodel::ReplyStream &rs, bool detailed=false);
 
   //InfoInterface function
   void sstr(std::stringstream &ss, int depth=0, int indent=0) const override;

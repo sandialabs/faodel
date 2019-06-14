@@ -51,7 +51,7 @@ set(SOURCES
 
 add_subdirectory( net )
 
-LIST( APPEND Opbox_imports lunasa ${FaodelNetlib_TARGETS} services webhook common sbl Boost::serialization )
+LIST( APPEND Opbox_imports lunasa ${FaodelNetlib_TARGETS} services whookie common sbl Boost::serialization )
 
 add_library( opbox ${HEADERS} ${SOURCES} )
 target_link_libraries( opbox PUBLIC ${Opbox_imports} )

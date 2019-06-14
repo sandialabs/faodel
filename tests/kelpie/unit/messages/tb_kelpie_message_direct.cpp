@@ -27,12 +27,12 @@ protected:
     faodel::Configuration config;
     if(enable_debug){
       config.Append("bootstrap.debug","true");
-      config.Append("webhook.debug", "true");
+      config.Append("whookie.debug", "true");
       config.Append("lunasa.debug", "true");
       config.Append("opbox.debug","true");
     }
     //Force this to an mpi implementation to make running easier
-    config.Append("net.transport.name","mpi");
+    //config.Append("net.transport.name","mpi");
     bootstrap::Start(config, kelpie::bootstrap);
   }
 

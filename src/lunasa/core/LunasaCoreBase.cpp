@@ -33,17 +33,17 @@ void LunasaCoreBase::init(const faodel::Configuration &config)
   #endif
   
   string lmm_name, emm_name, def_mm;
-  bool use_webhook;
+  bool use_whookie;
   config.GetLowercaseString(&lmm_name,        "lunasa.lazy_memory_manager",  "malloc");
   config.GetLowercaseString(&emm_name,        "lunasa.eager_memory_manager",  default_eager_memory_manager);
   config.GetLowercaseString(&def_mm,          "lunasa.default_mm_style",     "lazy");
-  config.GetBool(&use_webhook,                "lunasa.use_webhook",          "true");
+  config.GetBool(&use_whookie,                "lunasa.use_whookie",          "true");
 
   ConfigureLogging(config); //Pull out any logging options
 
   dbg("New lunasacore "+GetType()+" initializing. LazyMem: "+lmm_name+" EagerMem: "+emm_name+" DefStyle: "+def_mm);
 
-  init(lmm_name, emm_name, use_webhook, config);
+  init(lmm_name, emm_name, use_whookie, config);
 
   configured=true;
 }

@@ -21,7 +21,8 @@ namespace sbl  {
         severity_level  severity)
     : logger_id_(0),
       logger_id_attr_(logger_id_),
-      severity_(severity)
+      severity_(severity),
+      disabled(false)
     {
         boostlogger_.add_attribute("LoggerID", logger_id_attr_);
     }
@@ -30,7 +31,8 @@ namespace sbl  {
         severity_level severity)
     : logger_id_(logger_id),
       logger_id_attr_(logger_id_),
-      severity_(severity)
+      severity_(severity),
+      disabled(false)
     {
         boostlogger_.add_attribute("LoggerID", logger_id_attr_);
     }
@@ -160,11 +162,29 @@ namespace sbl  {
     }
 
     /* private methods */
+    void source::disable(void)
+    {
+        disabled = true;
+        std::cerr << \
+            "Boost.Log threw a fatal exception - SBL logging disabled to avoid a segfault.\n"
+            "This usually happens when an app exits without shutting down Faodel.\n"
+            "Try adding a call to 'faodel::bootstrap::Finish()' at the end of main() and \n"
+            "before MPI_Finalize() in an MPI app.\n";
+    }
+
     void source::output(
             const char *channel,
             const char *msg)
     {
-        BOOST_LOG_CHANNEL_SEV(boostlogger_, channel, severity_) << msg;
+        if (disabled) {
+            return;
+        }
+        try {
+            BOOST_LOG_CHANNEL_SEV(boostlogger_, channel, severity_) << msg;
+        }
+        catch (std::exception &e) {
+            disable();
+        }
 
         return;
     }
@@ -174,7 +194,15 @@ namespace sbl  {
             const char *prefix,
             const char *msg)
     {
-        BOOST_LOG_CHANNEL_SEV(boostlogger_, channel, severity_) << prefix << msg;
+        if (disabled) {
+            return;
+        }
+        try {
+            BOOST_LOG_CHANNEL_SEV(boostlogger_, channel, severity_) << prefix << msg;
+        }
+        catch (std::exception &e) {
+            disable();
+        }
 
         return;
     }
@@ -186,9 +214,18 @@ namespace sbl  {
     {
         char buf[256];
 
+        if (disabled) {
+            return;
+        }
+
         vsprintf(buf, msg, params);
 
-        BOOST_LOG_CHANNEL_SEV(boostlogger_, channel, severity_) << buf;
+        try {
+            BOOST_LOG_CHANNEL_SEV(boostlogger_, channel, severity_) << buf;
+        }
+        catch (std::exception &e) {
+            disable();
+        }
 
         return;
     }
@@ -201,11 +238,19 @@ namespace sbl  {
     {
         char buf[256];
 
+        if (disabled) {
+            return;
+        }
+
         vsprintf(buf, msg, params);
 
-        BOOST_LOG_CHANNEL_SEV(boostlogger_, channel, severity_) << prefix << buf;
+        try {
+            BOOST_LOG_CHANNEL_SEV(boostlogger_, channel, severity_) << prefix << buf;
+        }
+        catch (std::exception &e) {
+            disable();
+        }
 
         return;
     }
-
 }

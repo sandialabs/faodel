@@ -41,7 +41,7 @@ dirman.resources_mpi[] dht:/static/root_node&info="RootNode"  LAST
 
 
 #bootstrap.debug true
-#webhook.debug true
+#whookie.debug true
 #opbox.debug true
 #dirman.debug true
 
@@ -67,10 +67,10 @@ TEST_F(DirManCentralized, Simple){
 
   //Lookup the root node. We had mpisyncstart figure this out in configuration
   ok = dirman::GetDirectoryInfo(ResourceURL("ref:/static/root_node"), &dir_info); EXPECT_TRUE(ok);
-  EXPECT_EQ(1, dir_info.children.size());
-  if(dir_info.children.size()==1) {
-    root_node = dir_info.children.at(0).node;
-    //cout <<"------>Root node is "<<dir_info.children.at(0).node.GetHex()<<endl;
+  EXPECT_EQ(1, dir_info.members.size());
+  if(dir_info.members.size()==1) {
+    root_node = dir_info.members.at(0).node;
+    //cout <<"------>Root node is "<<dir_info.members.at(0).node.GetHex()<<endl;
   }
 
   //Centralized should always point to root node
@@ -91,17 +91,17 @@ TEST_F(DirManCentralized, Simple){
   ok = dirman::HostNewDir(DirectoryInfo("/this/is/valid&info=MegaThing")); EXPECT_TRUE(ok);
   ok = dirman::GetLocalDirectoryInfo(ResourceURL("/this/is/valid"), &dir_info); EXPECT_TRUE(ok); //Fails if not local only
   EXPECT_EQ("MegaThing",dir_info.info);
-  EXPECT_EQ(0, dir_info.children.size());
+  EXPECT_EQ(0, dir_info.members.size());
 
   //Create a brother
   ok = dirman::HostNewDir(DirectoryInfo("/this/is/nothing&info=MiniThing")); EXPECT_TRUE(ok);
   ok = dirman::GetLocalDirectoryInfo(ResourceURL("/this/is/nothing"), &dir_info); EXPECT_TRUE(ok); //Fails if not local only
   EXPECT_EQ("MiniThing",dir_info.info);
-  EXPECT_EQ(0, dir_info.children.size());
+  EXPECT_EQ(0, dir_info.members.size());
 
   //Fetch the parent
   ok = dirman::GetDirectoryInfo(ResourceURL("/this/is"), &dir_info); EXPECT_TRUE(ok); //Fails if not local only
-  EXPECT_EQ(2, dir_info.children.size());
+  EXPECT_EQ(2, dir_info.members.size());
   //cout <<"Parent is "<<dir_info.str()<<endl;
 
 }

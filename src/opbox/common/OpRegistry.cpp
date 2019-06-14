@@ -162,26 +162,26 @@ Op * OpRegistry::CreateOp(unsigned int op_id){
 
 
 /**
- * @brief Process a request from Webhook to get status information
+ * @brief Process a request from Whookie to get status information
  *
  * @param[in] args    The map of k/v parameters the user sent in this request
  * @param[in] results The stringstream to write results to
  */
-void OpRegistry::HandleWebhookStatus(
+void OpRegistry::HandleWhookieStatus(
                     const std::map<std::string,std::string> &args,
                     std::stringstream &results) {
 
   faodel::ReplyStream rs(args, "OpBox OpRegistry Status", &results);
-  webhookInfo(rs);
+  whookieInfo(rs);
   rs.Finish();
 }
 
 /**
- * @brief Append information about the reqistry to a webhook replystream
+ * @brief Append information about the reqistry to a whookie replystream
  *
  * @param[in] rs The replystream that output should be written to
  */
-void OpRegistry::webhookInfo(faodel::ReplyStream &rs) {
+void OpRegistry::whookieInfo(faodel::ReplyStream &rs) {
 
   rs.tableBegin("OpRegistry");
   rs.tableTop({"Parameter","Setting"});

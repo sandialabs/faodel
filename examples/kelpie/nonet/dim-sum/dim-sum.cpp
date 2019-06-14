@@ -24,7 +24,7 @@ kelpie.type nonet
 
 # Uncomment these options to get debug info for each component
 #bootstrap.debug true
-#webhook.debug   true
+#whookie.debug   true
 #opbox.debug     true
 #dirman.debug    true
 #kelpie.debug    true

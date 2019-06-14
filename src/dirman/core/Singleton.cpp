@@ -8,8 +8,8 @@
 #include "dirman/core/DirManCoreStatic.hh"
 #include "dirman/core/DirManCoreCentralized.hh"
 
-#include "webhook/WebHook.hh"
-#include "webhook/Server.hh"
+#include "whookie/Whookie.hh"
+#include "whookie/Server.hh"
 
 using namespace std;
 
@@ -51,7 +51,7 @@ void SingletonImpl::GetBootstrapDependencies(
                        vector<string> &optional) const {
   name = "dirman";
   requires = {"opbox"};
-  optional = {"webhook", "mpisyncstart"};
+  optional = {"whookie", "mpisyncstart"};
 }
 
 
@@ -85,11 +85,11 @@ void SingletonImpl::Init(const faodel::Configuration &config){
     exit(-1);
   }
 
-  webhook::Server::updateHook("/dirman", [this] (const map<string,string> &args, stringstream &results) {
-      return core->HandleWebhookStatus(args, results);
+  whookie::Server::updateHook("/dirman", [this] (const map<string,string> &args, stringstream &results) {
+      return core->HandleWhookieStatus(args, results);
     });
-  webhook::Server::updateHook("/dirman/entry", [this] (const map<string,string> &args, stringstream &results) {
-      return core->HandleWebhookEntry(args, results);
+  whookie::Server::updateHook("/dirman/entry", [this] (const map<string,string> &args, stringstream &results) {
+      return core->HandleWhookieEntry(args, results);
     });
 
 }
@@ -117,7 +117,7 @@ void SingletonImpl::Finish() {
     dirman_service_none=false;
     return;
   }
-  webhook::Server::deregisterHook("/dirman");
+  whookie::Server::deregisterHook("/dirman");
 
 
   if(IsUnconfigured()){

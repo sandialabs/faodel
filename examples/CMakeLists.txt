@@ -2,6 +2,10 @@ cmake_minimum_required(VERSION 3.8.0)
 
 project(faodel_examples LANGUAGES CXX C)
 
+# Policy assertions
+if( POLICY CMP0074 )
+    cmake_policy( SET CMP0074 NEW ) # find_package() uses PackageName_ROOT vars
+endif()
 
 # By default, cmake looks in your ~/.cmake directory for information
 # about packages. While that should be fine for most users, we disable
@@ -15,7 +19,7 @@ find_package( Faodel CONFIG REQUIRED )
 
 
 add_subdirectory( common )
-add_subdirectory( webhook )
+add_subdirectory( whookie )
 
 if( Faodel_ENABLE_MPI_SUPPORT )
   # These examples have some MPI requirements, so don't build if no mpi

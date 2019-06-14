@@ -7,7 +7,7 @@ function (nntiProcessXDR inpath outpath)
    add_custom_command(
      OUTPUT ${outpath}/${file}.c
      COMMAND rpcgen -Cc ${inpath}
-        | sed -e "\"s#include.*${file}.*#include <nnti/${file}.h>#\""
+        | sed -e "\"s#include.*${file}.*#include <nnti/serializers/xdr/${file}.h>#\""
                 > ${outpath}/${file}.c
      DEPENDS ${inpath} ${outpath}/${file}.h)
 
@@ -16,7 +16,7 @@ function (nntiProcessXDR inpath outpath)
      OUTPUT ${outpath}/${file}.h
      COMMAND rpcgen -Ch ${inpath}
         | sed -e "\"s#rpc/rpc.h#${file}.h#\""
-        | sed -e "\"s#include <${file}.h>#include <nnti/${file}.h>#\""
+        | sed -e "\"s#include <${file}.h>#include <nnti/serializers/xdr/${file}.h>#\""
         | perl -pe \"BEGIN{undef $$/\;} s/\(enum\\s\\w+\\s\\{\\n\(\\s*.*?,\\n\)*?\\s*.*?\),\(\\n\\s*\\}\;\)/\\1\\3/smg\"
         > ${outpath}/${file}.h
      DEPENDS ${inpath})

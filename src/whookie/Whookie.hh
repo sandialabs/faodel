@@ -2,12 +2,12 @@
 // LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
 // the U.S. Government retains certain rights in this software. 
 
-#ifndef WEBHOOK_WEBHOOK_HH
-#define WEBHOOK_WEBHOOK_HH
+#ifndef WHOOKIE_WHOOKIE_HH
+#define WHOOKIE_WHOOKIE_HH
 
-#include "webhook/client/Client.hh"
+#include "whookie/client/Client.hh"
 
 #include "faodel-common/QuickHTML.hh"
 #include "faodel-common/ReplyStream.hh"
 
-#endif // WEBHOOK_WEBHOOK_HH
+#endif // WHOOKIE_WHOOKIE_HH

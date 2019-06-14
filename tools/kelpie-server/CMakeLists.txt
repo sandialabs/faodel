@@ -1,4 +1,6 @@
-if( Faodel_ENABLE_MPI_SUPPORT )
+
+if(Faodel_ENABLE_MPI_SUPPORT)
+
   set(
     SOURCES
           kelpie_server_main.cpp
@@ -9,8 +11,11 @@ if( Faodel_ENABLE_MPI_SUPPORT )
 
   target_link_libraries( kelpie-server kelpie) #Faodel::kelpie )
 
-  install(TARGETS kelpie-server
-          EXPORT faodelTargets
-          RUNTIME DESTINATION "${BINARY_INSTALL_DIR}" COMPONENT bin
-    )
-endif()
+  install(
+     TARGETS kelpie-server
+     EXPORT faodelTargets
+     RUNTIME DESTINATION "${BINARY_INSTALL_DIR}" COMPONENT bin
+  )
+
+
+endif(Faodel_ENABLE_MPI_SUPPORT)

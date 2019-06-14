@@ -18,7 +18,7 @@
 #include "dirman/DirMan.hh"
 #include "kelpie/Kelpie.hh"
 
-#include "webhook/Server.hh"
+#include "whookie/Server.hh"
 
 #include "support/Globals.hh"
 
@@ -54,7 +54,7 @@ target.dirman.host_root
 #kelpie.type standard
 
 #bootstrap.debug true
-#webhook.debug true
+#whookie.debug true
 #opbox.debug true
 #dirman.debug true
 #kelpie.debug true
@@ -132,16 +132,16 @@ TEST_F(MPIRFTTest, CheckRFTs) {
   auto di_back1 = rft_back1.GetDirectoryInfo();
 
   //Full size
-  EXPECT_EQ(G.mpi_size,   di_full.children.size());
-  EXPECT_EQ(G.mpi_size,   di_full0.children.size());
-  EXPECT_EQ(G.mpi_size,   di_full1.children.size());
+  EXPECT_EQ(G.mpi_size,   di_full.members.size());
+  EXPECT_EQ(G.mpi_size,   di_full0.members.size());
+  EXPECT_EQ(G.mpi_size,   di_full1.members.size());
 
 
   //Back size: everyone but us
   int num_back = G.mpi_size-1; //not us
-  EXPECT_EQ(num_back, di_back.children.size());
-  EXPECT_EQ(num_back, di_back0.children.size());
-  EXPECT_EQ(num_back, di_back1.children.size());
+  EXPECT_EQ(num_back, di_back.members.size());
+  EXPECT_EQ(num_back, di_back0.members.size());
+  EXPECT_EQ(num_back, di_back1.members.size());
 
 
 
@@ -151,11 +151,11 @@ TEST_F(MPIRFTTest, CheckRFTs) {
 
   count = rft_full.FindTargetNode(key, &node_id);  EXPECT_EQ(1, count); EXPECT_EQ(my_id, node_id);
   count = rft_full0.FindTargetNode(key, &node_id); EXPECT_EQ(1, count); EXPECT_EQ(my_id, node_id);
-  count = rft_full1.FindTargetNode(key, &node_id); EXPECT_EQ(1, count); EXPECT_EQ(di_full.children[1].node, node_id);
+  count = rft_full1.FindTargetNode(key, &node_id); EXPECT_EQ(1, count); EXPECT_EQ(di_full.members[1].node, node_id);
 
-  count = rft_back.FindTargetNode(key, &node_id);  EXPECT_EQ(1, count); EXPECT_EQ(di_back.children[0].node, node_id);
-  count = rft_back0.FindTargetNode(key, &node_id); EXPECT_EQ(1, count); EXPECT_EQ(di_back.children[0].node, node_id);
-  count = rft_back1.FindTargetNode(key, &node_id); EXPECT_EQ(1, count); EXPECT_EQ(di_back.children[1].node, node_id);
+  count = rft_back.FindTargetNode(key, &node_id);  EXPECT_EQ(1, count); EXPECT_EQ(di_back.members[0].node, node_id);
+  count = rft_back0.FindTargetNode(key, &node_id); EXPECT_EQ(1, count); EXPECT_EQ(di_back.members[0].node, node_id);
+  count = rft_back1.FindTargetNode(key, &node_id); EXPECT_EQ(1, count); EXPECT_EQ(di_back.members[1].node, node_id);
 
 }
 

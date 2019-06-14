@@ -50,11 +50,16 @@ public:
 
 
 
-  DataObject(uint32_t dataCapacity); // Shortcut for creating a new LDO
+  // Shortcut for creating new LDOs using default allocator
+  DataObject(uint32_t dataCapacity);
+  DataObject(uint16_t metaCapacity, uint32_t dataCapacity); 
+
   DataObject(void *userMemory,
              uint16_t metaCapacity, uint32_t dataCapacity,
              void (*userCleanupFunc)(void *)); // Create an LDO from pre-allocated memory
 
+  // NOTE: DataObjects are not currently designed to be subclassed.  As a result, we've decided to
+  //       leave this destructor as non-virtual for now.
   ~DataObject() override;
   
 
@@ -93,6 +98,10 @@ public:
   uint32_t writeToFile(const char *filename) const; //Write header/meta/data to file
   uint32_t readFromFile(const char *filename); //Read header/meta/data from file
 
+  // clear the contents of the LDO
+  void WipeMeta(); 
+  void WipeData(); 
+  void WipeUser(); //Meta + Data
 
   /*! @brief Determine whether memory is registered
    * 

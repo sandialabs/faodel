@@ -14,7 +14,7 @@
 
 #include "test_utils.h"
 
-int success=TRUE;
+int success=1;
 
 
 int
@@ -57,7 +57,7 @@ main(int argc, char *argv[])
 
     if (stat(log_filename, &sb) == -1) {
         perror("stat");
-        success=FALSE;
+        success=0;
     }
 
     if (success)

@@ -56,7 +56,10 @@ public:
 
   virtual rc_t Info(const Key &key,  kv_col_info_t *col_info) = 0;
   virtual rc_t RowInfo(const Key &key,  kv_row_info_t *row_info) = 0;
+
   virtual rc_t Drop(const Key &key) = 0;
+
+  virtual rc_t List(const Key &search_key, ObjectCapacities *object_capacities=nullptr) = 0;
 
   virtual int FindTargetNode(const Key &key, faodel::nodeid_t *node_id, net::peer_ptr_t *peer_ptr) = 0;
 

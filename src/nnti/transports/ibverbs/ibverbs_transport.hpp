@@ -79,7 +79,7 @@ class ibverbs_transport
 
 private:
     NNTI_STATS_DATA(
-    struct webhook_stats {
+    struct whookie_stats {
         std::atomic<uint64_t> pinned_bytes;
         std::atomic<uint64_t> pinned_buffers;
         std::atomic<uint64_t> unexpected_sends;
@@ -95,7 +95,7 @@ private:
         std::atomic<uint64_t> fadds;
         std::atomic<uint64_t> cswaps;
 
-        webhook_stats()
+        whookie_stats()
         {
             pinned_bytes.store(0);
             pinned_buffers.store(0);
@@ -114,12 +114,16 @@ private:
         }
     };
 
-    struct webhook_stats *stats_;
+    struct whookie_stats *stats_;
     )
 
     NNTI_attrs_t attrs_;
 
     bool                            started_;
+
+    std::string                     interface_dev_list_;
+    std::string                     kernel_dev_list_;
+    std::string                     fs_dev_list_;
 
     struct ibv_device              *dev_;
     uint16_t                        nic_lid_;
@@ -141,6 +145,12 @@ private:
     struct ibv_comp_channel        *long_get_comp_channel_;
     struct ibv_cq                  *long_get_cq_;
     struct ibv_srq                 *long_get_srq_;
+
+    bool                            have_odp_;
+    bool                            have_implicit_odp_;
+    bool                            odp_enabled_;
+    bool                            use_odp_;
+    struct ibv_mr                  *odp_mr_;
 
     bool                            have_exp_qp_;
     bool                            byte_swap_atomic_result_;
@@ -614,6 +624,13 @@ public:
 
 private:
     bool
+    have_odp(void);
+    bool
+    have_implicit_odp(void);
+    int
+    register_odp();
+
+    bool
     have_exp_qp(void);
     bool
     atomic_result_is_be(void);
@@ -638,8 +655,14 @@ private:
     void
     stop_progress_thread(void);
 
+    void
+    open_ib_device(struct ibv_device *dev);
+    bool
+    is_port_active(struct ibv_device *dev, int port);
     struct ibv_device *
-    get_ib_device(void);
+    find_active_ib_device(struct ibv_device **dev_list, int dev_count, int *port);
+    bool
+    select_ib_device(struct ibv_device **dev_list, int dev_count, int *port);
 
     void
     connect_cb(
@@ -658,19 +681,19 @@ private:
         const std::map<std::string,std::string> &args,
         std::stringstream &results);
     std::string
-    build_webhook_path(
+    build_whookie_path(
         nnti::core::nnti_connection *conn,
         const char                  *service);
     std::string
-    build_webhook_connect_path(
+    build_whookie_connect_path(
         nnti::core::nnti_connection *conn);
     std::string
-    build_webhook_disconnect_path(
+    build_whookie_disconnect_path(
         nnti::core::nnti_connection *conn);
     void
-    register_webhook_cb(void);
+    register_whookie_cb(void);
     void
-    unregister_webhook_cb(void);
+    unregister_whookie_cb(void);
 
     NNTI_result_t
     create_send_op(
@@ -733,19 +756,24 @@ private:
     NNTI_event_t *
     create_event(
         nnti::core::ibverbs_cmd_msg *cmd_msg,
-        uint64_t                     offset);
+        uint64_t                     offset,
+        NNTI_result_t                result);
     NNTI_event_t *
     create_event(
-        nnti::core::ibverbs_cmd_msg *cmd_msg);
+        nnti::core::ibverbs_cmd_msg *cmd_msg,
+        NNTI_result_t                result);
     NNTI_event_t *
     create_event(
-        nnti::core::ibverbs_cmd_op *cmd_op);
+        nnti::core::ibverbs_cmd_op *cmd_op,
+        NNTI_result_t               result);
     NNTI_event_t *
     create_event(
-        nnti::core::ibverbs_rdma_op *rdma_op);
+        nnti::core::ibverbs_rdma_op *rdma_op,
+        NNTI_result_t                result);
     NNTI_event_t *
     create_event(
-        nnti::core::ibverbs_atomic_op *atomic_op);
+        nnti::core::ibverbs_atomic_op *atomic_op,
+        NNTI_result_t                  result);
 
     nnti::datatype::nnti_buffer *
     unpack_buffer(

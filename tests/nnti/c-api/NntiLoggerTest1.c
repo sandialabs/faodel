@@ -14,7 +14,7 @@
 
 #include "test_utils.h"
 
-int success=TRUE;
+int success=1;
 
 
 int
@@ -59,7 +59,7 @@ main(int argc, char *argv[])
     sprintf(logfile, "%s.%d.log", log_filename, getpid());
     if (stat(logfile, &sb) == -1) {
         perror("stat");
-        success=FALSE;
+        success=0;
     }
 
     if (success)

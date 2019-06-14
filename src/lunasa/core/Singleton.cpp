@@ -9,8 +9,8 @@
 #include "lunasa/core/LunasaCoreSplit.hh"
 
 
-#include "webhook/WebHook.hh"
-#include "webhook/Server.hh"
+#include "whookie/Whookie.hh"
+#include "whookie/Server.hh"
 
 #include "lunasa/Lunasa.hh"
 
@@ -58,7 +58,7 @@ void SingletonImpl::GetBootstrapDependencies(
 
   name = "lunasa";
   requires = {};
-  optional = {"webhook", "mpisyncstart"};
+  optional = {"whookie", "mpisyncstart"};
 }
 
 
@@ -117,7 +117,7 @@ void SingletonImpl::Init(const faodel::Configuration &config){
     core->RegisterPinUnpin(registered_pin_function, registered_unpin_function);
   }
 
-  webhook::Server::updateHook("/lunasa/dataobject_type_registry",
+  whookie::Server::updateHook("/lunasa/dataobject_type_registry",
                               [this] (const map<string,string> &args, stringstream &results) {
     faodel::ReplyStream rs(args, "Lunasa DataObject Type Registry", &results);
     dataobject_type_registry.DumpRegistryStatus(rs);
@@ -148,7 +148,7 @@ void SingletonImpl::Finish() {
     error("Attempted to finish Lunasa that is unconfigured");
   } else {
 
-    webhook::Server::deregisterHook("/lunasa/dataobject_type_registry");
+    whookie::Server::deregisterHook("/lunasa/dataobject_type_registry");
 
     //Remove core and reset to unconfigured state
     delete core;
@@ -191,8 +191,8 @@ void SingletonImpl::RegisterPinUnpin(net_pin_fn pin, net_unpin_fn unpin) {
  */
 std::string bootstrap(){
 
-  //register dependencies. Should only need to do webhook
-  webhook::bootstrap();
+  //register dependencies. Should only need to do whookie
+  whookie::bootstrap();
 
   //register ourselves
   faodel::bootstrap::RegisterComponent(&lunasa::internal::Singleton::impl, true); //lunasa

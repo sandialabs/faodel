@@ -78,7 +78,7 @@ bool DirectoryCache::CreateAndLinkParents(const DirectoryInfo &resource){
 
   //Link in the parents
   if(ok){
-    DirectoryInfo *r;
+    DirectoryInfo *pdir;
     bool found_existing_parent=false;
     ResourceURL child_url = resource.url;
 
@@ -86,16 +86,17 @@ bool DirectoryCache::CreateAndLinkParents(const DirectoryInfo &resource){
 
       ResourceURL parent_url = child_url.GetParent();
 
-      found_existing_parent = _lookup(parent_url, &r, nullptr);
+      found_existing_parent = _lookup(parent_url, &pdir, nullptr);
 
       if(!found_existing_parent){
         //Didn't find parent, so create it and add to the map
-        r = new DirectoryInfo(parent_url);
-        known_resources[parent_url.GetBucketPathName()] = r;
+        pdir = new DirectoryInfo(parent_url);
+        known_resources[parent_url.GetBucketPathName()] = pdir;
       }
-      //Either way, link to the child
-      bool tmp_ok = r->Join(child_url.reference_node, child_url.name);
-      kassert(tmp_ok, "Error creating parent in directory tree");
+
+      //Either way, link to the child. Note: child may already be here depending
+      //on what's been searched for earlier.
+      pdir->Join(child_url.reference_node, child_url.name);
 
       child_url=parent_url; //Move up one level
     }
@@ -306,11 +307,20 @@ bool DirectoryCache::Lookup(const faodel::ResourceURL &search_url, DirectoryInfo
   bool found;
   DirectoryInfo *r;
 
-  dbg("Lookup "+search_url.GetFullURL());
+  dbg("Lookup " + search_url.GetBucketPathName());
 
   mutex->ReaderLock();
-  found = _lookup(search_url, &r, reference_node);
-  if(resource_info) *resource_info = (found) ? *r : DirectoryInfo(); //Not found: set to empty
+
+  if(search_url.IsRoot()) {
+    //Special case: figure out what's in the root directory
+    found = _lookupRootDir(search_url.bucket, resource_info); //This populates users struct
+    if((resource_info) && (!found)) *resource_info = DirectoryInfo(); //Send empty if no fields
+
+  } else {
+    //Normal lookup for a subdirectory
+    found = _lookup(search_url, &r, reference_node);
+    if(resource_info) *resource_info = (found) ? *r : DirectoryInfo(); //Not found: set to empty
+  }
   mutex->Unlock();
   return found;
 }
@@ -329,9 +339,18 @@ bool DirectoryCache::Lookup(const vector<faodel::ResourceURL> &resource_urls, ve
   mutex->ReaderLock();
   for(const auto &resource_url : resource_urls) {
     DirectoryInfo *r;
-    found = _lookup(resource_url, &r, nullptr);
-    if(resource_infos){
-      resource_infos->push_back( (found) ? *r : DirectoryInfo() );
+    if(resource_url.IsRoot()) {
+      //Special case: figure out what's in the root directory
+      DirectoryInfo resource_info;
+      found = _lookupRootDir(resource_url.bucket, &resource_info);
+      if(resource_infos) {
+        resource_infos->push_back( (found) ? resource_info : DirectoryInfo() );
+      }
+    } else {
+      found = _lookup(resource_url, &r, nullptr);
+      if(resource_infos){
+        resource_infos->push_back( (found) ? *r : DirectoryInfo() );
+      }
     }
     all_found = all_found && found;
   }
@@ -381,10 +400,10 @@ void DirectoryCache::GetAllNames(vector<string> *names) {
   mutex->Unlock();
 }
 
-void DirectoryCache::webhookInfo(faodel::ReplyStream &rs){
+void DirectoryCache::whookieInfo(faodel::ReplyStream &rs){
 
   rs.tableBegin("DirectoryCache "+GetComponentName());
-  rs.tableTop({"Name","ReferenceNode","NumChildren","Info"});
+  rs.tableTop({"Name","ReferenceNode","Nummembers","Info"});
   mutex->ReaderLock();
   for(auto &name_dirptr : known_resources){
     stringstream ss;
@@ -393,7 +412,7 @@ void DirectoryCache::webhookInfo(faodel::ReplyStream &rs){
     rs.tableRow( {
           ss.str(),//name_dirptr.first,
           name_dirptr.second->GetReferenceNode().GetHtmlLink(),
-          to_string(name_dirptr.second->children.size()),
+          to_string(name_dirptr.second->members.size()),
           name_dirptr.second->info });
   }
   mutex->Unlock();
@@ -435,7 +454,7 @@ void DirectoryCache::sstr(stringstream &ss, int depth, int indent) const {
  */
 bool DirectoryCache::_lookup(const faodel::ResourceURL &url, DirectoryInfo **resource_info, nodeid_t *reference_node){
 
-  kassert(resource_info!=nullptr, "Invalid resource info");
+  kassert(resource_info!=nullptr, "Invalid resource info pointer");
   kassert(url.Valid(), "Invalid url given to DC:"+url.GetFullURL());
 
   map<string,DirectoryInfo *>::iterator it;
@@ -459,15 +478,42 @@ bool DirectoryCache::_lookup(const faodel::ResourceURL &url, DirectoryInfo **res
   if(reference_node) *reference_node = it->second->url.reference_node;
   return true;
 }
+bool DirectoryCache::_lookupRootDir(bucket_t bucket, faodel::DirectoryInfo *resource_info) {
+  bool found=false;
+  kassert(resource_info!=nullptr, "Invalid resource info pointer");
+
+  //Set the dir info to root
+  if(resource_info) {
+    resource_info->url.bucket = bucket;
+    resource_info->url.path   = "/";
+    resource_info->url.name   = "";
+  }
+
+
+  //TODO: Change from scanning all to maintaining a root data structure
+
+  for(auto const &bucketname_diptr: known_resources) {
+    //cout<<"Found '"<< bucketname_diptr.first << "' isRoot "<< bucketname_diptr.second->url.IsRootLevel()<<endl;
+    if((bucketname_diptr.second->url.IsRootLevel())    &&
+       (bucketname_diptr.second->url.bucket == bucket)     ) { //Only show our bucket
+      if(resource_info){
+         resource_info->members.push_back( NameAndNode(bucketname_diptr.second->url.name,
+                                                        bucketname_diptr.second->url.reference_node) );
+      }
+      found=true;
+    }
+  }
+return found;
+}
 
 /**
- * @brief Remove a single directory and report who its children were
+ * @brief Remove a single directory and report who its members were
  * @param url -  The resource to remove
- * @param children -  A list of children that this node had
+ * @param members -  A list of members that this node had
  * @retval TRUE Resource found and removed
  * @retval FALSE Resource wasn't found. Not removed.
  */
-bool DirectoryCache::_removeSingleDir(const faodel::ResourceURL &url, std::vector<ResourceURL> *children){
+bool DirectoryCache::_removeSingleDir(const faodel::ResourceURL &url, std::vector<ResourceURL> *members){
 
   map<string,DirectoryInfo *>::iterator it;
   string bucket_path_name = url.GetBucketPathName();
@@ -479,10 +525,10 @@ bool DirectoryCache::_removeSingleDir(const faodel::ResourceURL &url, std::vecto
 
   DirectoryInfo *r = it->second;
   known_resources.erase(it);
-  for( auto &name_node : r->children ){
-    if((children!=nullptr) && (!name_node.name.empty())){
+  for( auto &name_node : r->members ){
+    if((members!=nullptr) && (!name_node.name.empty())){
       dbg("_removeSingleDir marking for removal: "+bucket_path_name+"/"+name_node.name);
-      children->push_back( ResourceURL(bucket_path_name+"/"+name_node.name));
+      members->push_back( ResourceURL(bucket_path_name+"/"+name_node.name));
     }
   }
   delete r;

@@ -24,6 +24,15 @@ string availability_to_string(const Availability &a){
   }
 }
 
+/**
+ * @brief Clear out all data values in this data structure
+ */
+void kv_row_info_t::Wipe(){
+  row_bytes=0;
+  num_cols_in_row=num_row_receiver_nodes=num_row_dependencies=0;
+  availability = Availability::Unavailable;
+}
+
 string kv_row_info_t::str(){
   std::stringstream ss;
   ss<<"RowInfo: "
@@ -42,6 +51,15 @@ void kv_row_info_t::ChangeAvailabilityFromLocalToRemote(){
     availability = Availability::InRemoteMemory;
 }
 
+/**
+ * @brief Clear out all data values in this data structure
+ */
+void kv_col_info_t::Wipe(){
+  node_origin=faodel::NODE_UNSPECIFIED;
+  num_bytes=0;
+  num_col_receiver_nodes=num_col_dependencies=0;
+  availability = Availability::Unavailable;
+}
 
 string kv_col_info_t::str(){
   std::stringstream ss;
@@ -91,20 +109,20 @@ pool_behavior_t PoolBehavior::ParseString(string parse_line) {
 
   pool_behavior_t f=0;
   for(auto &s : syms) {
-    if      (s=="writetolocal")  f |= PoolBehavior::WriteToLocal;
-    else if (s=="writetoremote") f |= PoolBehavior::WriteToRemote;
-    else if (s=="writetoiom") f |= PoolBehavior::WriteToIOM;
-    else if (s=="readtolocal") f |= PoolBehavior::ReadToLocal;
-    else if (s=="readtoremote") f |= PoolBehavior::ReadToRemote;
-    else if (s=="writearound") f |= PoolBehavior::WriteAround;
-    else if (s=="writeall") f |= PoolBehavior::WriteToAll;
-    else if (s=="readtonone") f |= PoolBehavior::ReadToNone;
-    else if (s=="defaultiom") f |= PoolBehavior::DefaultIOM;
-    else if (s=="defaultlocaliom") f |= PoolBehavior::DefaultLocalIOM;
-    else if (s=="defaultremoteiom") f |= PoolBehavior::DefaultRemoteIOM;
+    if      (s=="writetolocal")      f |= PoolBehavior::WriteToLocal;
+    else if (s=="writetoremote")     f |= PoolBehavior::WriteToRemote;
+    else if (s=="writetoiom")        f |= PoolBehavior::WriteToIOM;
+    else if (s=="readtolocal")       f |= PoolBehavior::ReadToLocal;
+    else if (s=="readtoremote")      f |= PoolBehavior::ReadToRemote;
+    else if (s=="writearound")       f |= PoolBehavior::WriteAround;
+    else if (s=="writeall")          f |= PoolBehavior::WriteToAll;
+    else if (s=="readtonone")        f |= PoolBehavior::ReadToNone;
+    else if (s=="defaultiom")        f |= PoolBehavior::DefaultIOM;
+    else if (s=="defaultlocaliom")   f |= PoolBehavior::DefaultLocalIOM;
+    else if (s=="defaultremoteiom")  f |= PoolBehavior::DefaultRemoteIOM;
     else if (s=="defaultcachingiom") f |= PoolBehavior::DefaultCachingIOM;
     else {
-      throw runtime_error("Unable to parse Action string token "+s+" inside "+parse_line);
+      throw runtime_error("Unable to parse behavior string token "+s+" inside "+parse_line);
     }
   }
   return f;
@@ -112,12 +130,12 @@ pool_behavior_t PoolBehavior::ParseString(string parse_line) {
 std::string PoolBehavior::GetString(pool_behavior_t f) {
   vector<string> names;
 
-  if(f & PoolBehavior:: WriteToLocal) names.push_back("WriteToLocal");
+  if(f & PoolBehavior:: WriteToLocal)  names.push_back("WriteToLocal");
   if(f & PoolBehavior:: WriteToRemote) names.push_back("WriteToRemote");
-  if(f & PoolBehavior:: WriteToIOM) names.push_back("WriteToIOM");
-  if(f & PoolBehavior:: ReadToLocal) names.push_back("ReadToLocal");
-  if(f & PoolBehavior:: ReadToRemote) names.push_back("ReadToRemote");
-  if(f & PoolBehavior:: ReadToLocal) names.push_back("ReadToLocal");
+  if(f & PoolBehavior:: WriteToIOM)    names.push_back("WriteToIOM");
+  if(f & PoolBehavior:: ReadToLocal)   names.push_back("ReadToLocal");
+  if(f & PoolBehavior:: ReadToRemote)  names.push_back("ReadToRemote");
+  if(f & PoolBehavior:: ReadToLocal)   names.push_back("ReadToLocal");
 
   string s = faodel::Join(names,' ');
   return s;

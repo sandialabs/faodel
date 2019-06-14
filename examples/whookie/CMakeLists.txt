@@ -1,5 +1,5 @@
 
-set( EXAMPLE_LIBS Faodel::webhook Faodel::common )
+set( EXAMPLE_LIBS Faodel::whookie Faodel::common )
 
 add_subdirectory( simple )
 

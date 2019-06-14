@@ -16,6 +16,8 @@
 #include "kelpie/ops/direct/OpKelpiePublish.hh"
 #include "kelpie/ops/direct/OpKelpieGetBounded.hh"
 #include "kelpie/ops/direct/OpKelpieGetUnbounded.hh"
+#include "kelpie/ops/direct/OpKelpieList.hh"
+
 
 
 using namespace std;
@@ -54,13 +56,16 @@ void KelpieCoreStandard::init(const faodel::Configuration &config) {
   opbox::RegisterOp<OpKelpiePublish>();
   opbox::RegisterOp<OpKelpieGetBounded>();
   opbox::RegisterOp<OpKelpieGetUnbounded>();
+  opbox::RegisterOp<OpKelpieList>();
   OpKelpieMeta::configure(faodel::internal_use_only, &lkv);
   OpKelpiePublish::configure(faodel::internal_use_only, &lkv);
   OpKelpieGetBounded::configure(faodel::internal_use_only, &lkv);
   OpKelpieGetUnbounded::configure(faodel::internal_use_only, &lkv);
+  OpKelpieList::configure(faodel::internal_use_only, &config, &lkv);
 
-  webhook::Server::updateHook("/kelpie", [this] (const map<string,string> &args, stringstream &results) {
-        return HandleWebhookStatus(args, results);
+
+  whookie::Server::updateHook("/kelpie", [this] (const map<string,string> &args, stringstream &results) {
+        return HandleWhookieStatus(args, results);
     });
 
 
@@ -71,11 +76,12 @@ void KelpieCoreStandard::start(){
 }
 
 void KelpieCoreStandard::finish(){
-  webhook::Server::deregisterHook("/kelpie");
+  whookie::Server::deregisterHook("/kelpie");
   OpKelpieMeta::configure(faodel::internal_use_only, nullptr);  //TODO: Would be nice to be a dummy lkv
   OpKelpiePublish::configure(faodel::internal_use_only, nullptr);  //TODO: Would be nice to be a dummy lkv
   OpKelpieGetBounded::configure(faodel::internal_use_only, nullptr);  //TODO: Would be nice to be a dummy lkv
   OpKelpieGetUnbounded::configure(faodel::internal_use_only, nullptr);  //TODO: Would be nice to be a dummy lkv
+  OpKelpieList::configure(faodel::internal_use_only, nullptr, nullptr);
   pool_registry.finish();
   iom_registry.finish();
 }
@@ -96,13 +102,13 @@ IomBase * KelpieCoreStandard::FindIOM(iom_hash_t iom_hash) {
   return iom_registry.Find(iom_hash);
 }
 
-void KelpieCoreStandard::HandleWebhookStatus(const std::map<std::string,std::string> &args, std::stringstream &results) {
+void KelpieCoreStandard::HandleWhookieStatus(const std::map<std::string,std::string> &args, std::stringstream &results) {
   faodel::ReplyStream rs(args, "Kelpie Status", &results);
 
   vector<pair<string,string>> stats;
   stats.push_back(pair<string,string>("Core Type", GetType()));
   rs.mkTable(stats, "Kelpie Status");
-  lkv.webhookInfo(rs);
+  lkv.whookieInfo(rs);
 
   rs.Finish();
 }

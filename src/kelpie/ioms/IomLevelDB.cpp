@@ -219,7 +219,7 @@ rc_t IomLevelDB::GetInfo(faodel::bucket_t bucket, const kelpie::Key &key, kv_col
   std::string val;
 
   if(col_info not_eq nullptr)
-    std::memset(col_info, 0, sizeof *col_info);
+    col_info->Wipe();
 
   leveldb::DB *db = bucketToDB(bucket);
   leveldb::Status s = db->Get(leveldb::ReadOptions(), key.str(), &val);

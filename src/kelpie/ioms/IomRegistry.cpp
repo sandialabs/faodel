@@ -9,7 +9,7 @@
 #include "faodel-common/MutexWrapper.hh"
 #include "faodel-common/StringHelpers.hh"
 #include "faodel-common/LoggingInterface.hh"
-#include "webhook/Server.hh"
+#include "whookie/Server.hh"
 
 #include "kelpie/ioms/IomRegistry.hh"
 
@@ -19,6 +19,9 @@
 #endif
 #ifdef FAODEL_HAVE_HDF5
 #include "kelpie/ioms/IomHDF5.hh"
+#endif
+#ifdef FAODEL_HAVE_CASSANDRA
+#include "kelpie/ioms/IomCassandra.hh"
 #endif
 
 using namespace std;
@@ -144,6 +147,13 @@ void IomRegistry::init(const faodel::Configuration &config) {
   RegisterIomConstructor( "hdf5", fn_hdf5 );
 #endif
 
+#ifdef FAODEL_HAVE_CASSANDRA
+  fn_IomConstructor_t fn_cassandra = [] (string name, const map< string, string > &settings) -> IomBase * {
+				       return new IomCassandra( name, settings );
+			       };
+  RegisterIomConstructor( "cassandra", fn_cassandra );
+#endif
+
   
   //Get the list of Ioms this Configuration wants to use
   string s,role;
@@ -182,8 +192,8 @@ void IomRegistry::init(const faodel::Configuration &config) {
     }
   }
 
-  webhook::Server::updateHook("/kelpie/iom_registry", [this] (const map<string,string> &args, stringstream &results) {
-      return HandleWebhookStatus(args, results);
+  whookie::Server::updateHook("/kelpie/iom_registry", [this] (const map<string,string> &args, stringstream &results) {
+      return HandleWhookieStatus(args, results);
     });
 
 }
@@ -194,7 +204,7 @@ void IomRegistry::init(const faodel::Configuration &config) {
 void IomRegistry::finish() {
 
   dbg("Finishing");
-  webhook::Server::deregisterHook("kelpie/iom_registry");
+  whookie::Server::deregisterHook("kelpie/iom_registry");
   
   //Tell all ioms to shutdown (may trigger some close operations)
   for(auto &name_iomptr : ioms_by_hash_pre) {
@@ -243,11 +253,11 @@ IomBase * IomRegistry::Find(iom_hash_t iom_hash) {
 }
 
 /**
- * @brief Webhook for dumping info about known IOMs
- * @param args Incoming webhook args
+ * @brief Whookie for dumping info about known IOMs
+ * @param args Incoming whookie args
  * @param results Results handed back
  */
-void IomRegistry::HandleWebhookStatus(const std::map<std::string,std::string> &args, std::stringstream &results) {
+void IomRegistry::HandleWhookieStatus(const std::map<std::string,std::string> &args, std::stringstream &results) {
 
   auto ii=args.find("iom_name");
   

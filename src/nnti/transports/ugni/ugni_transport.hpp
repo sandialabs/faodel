@@ -85,7 +85,7 @@ class ugni_transport
 
 private:
     NNTI_STATS_DATA(
-    struct webhook_stats {
+    struct whookie_stats {
         std::atomic<uint64_t> pinned_bytes;
         std::atomic<uint64_t> pinned_buffers;
         std::atomic<uint64_t> unexpected_sends;
@@ -100,7 +100,7 @@ private:
         std::atomic<uint64_t> fadds;
         std::atomic<uint64_t> cswaps;
 
-        webhook_stats()
+        whookie_stats()
         {
             pinned_bytes.store(0);
             pinned_buffers.store(0);
@@ -118,7 +118,7 @@ private:
         }
     };
 
-    struct webhook_stats *stats_;
+    struct whookie_stats *stats_;
     )
 
     struct drc_info_t {
@@ -667,26 +667,26 @@ private:
         const std::map<std::string,std::string> &args,
         std::stringstream &results);
     std::string
-    build_webhook_path(
+    build_whookie_path(
         const char *service);
     std::string
-    build_webhook_path(
+    build_whookie_path(
         nnti::core::nnti_connection *conn,
         const char                  *service);
     std::string
-    build_webhook_connect_path(void);
+    build_whookie_connect_path(void);
     std::string
-    build_webhook_connect_path(
+    build_whookie_connect_path(
         nnti::core::nnti_connection *conn);
     std::string
-    build_webhook_disconnect_path(void);
+    build_whookie_disconnect_path(void);
     std::string
-    build_webhook_disconnect_path(
+    build_whookie_disconnect_path(
         nnti::core::nnti_connection *conn);
     void
-    register_webhook_cb(void);
+    register_whookie_cb(void);
     void
-    unregister_webhook_cb(void);
+    unregister_whookie_cb(void);
 
     NNTI_result_t
     create_send_op(

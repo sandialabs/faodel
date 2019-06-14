@@ -7,8 +7,8 @@
 
 #include "faodel-common/Common.hh"
 
-#include "webhook/WebHook.hh"
-#include "webhook/Server.hh"
+#include "whookie/Whookie.hh"
+#include "whookie/Server.hh"
 
 #include "opbox/ops/Op.hh"
 #include "opbox/common/Types.hh"
@@ -45,8 +45,8 @@ public:
 
   Op * CreateOp(unsigned int op_id);
 
-  void HandleWebhookStatus(const std::map<std::string,std::string> &args, std::stringstream &results);
-  void webhookInfo(faodel::ReplyStream &rs);
+  void HandleWhookieStatus(const std::map<std::string,std::string> &args, std::stringstream &results);
+  void whookieInfo(faodel::ReplyStream &rs);
 
   //InfoInterface
   void sstr(std::stringstream &ss, int depth=0, int indent=0) const override;

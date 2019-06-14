@@ -20,7 +20,7 @@ dirman.type           centralized
 
 # Turn these on if you want to see more debug messages
 #bootstrap.debug           true
-#webhook.debug             true
+#whookie.debug             true
 #opbox.debug               true
 #dirman.debug              true
 #dirman.cache.others.debug true

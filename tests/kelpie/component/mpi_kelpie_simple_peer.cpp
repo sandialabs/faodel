@@ -19,7 +19,7 @@
 #include "dirman/DirMan.hh"
 #include "kelpie/Kelpie.hh"
 
-#include "webhook/Server.hh"
+#include "whookie/Server.hh"
 
 #include "support/Globals.hh"
 
@@ -43,7 +43,7 @@ target.dirman.host_root
 kelpie.type standard
 
 #bootstrap.debug true
-#webhook.debug true
+#whookie.debug true
 #opbox.debug true
 #dirman.debug true
 #kelpie.debug true
@@ -74,7 +74,7 @@ TEST_F(MPISimplePeerTest, BasicDHTCreateAndPublish){
   ResourceURL url("dht:/mydht");
   kelpie::Pool dht = kelpie::Connect(url);
   DirectoryInfo dir_info = dht.GetDirectoryInfo();
-  EXPECT_EQ(G.mpi_size-1, dir_info.children.size());
+  EXPECT_EQ(G.mpi_size-1, dir_info.members.size());
 
 
   //First: Verify remote doesn't know what this item is

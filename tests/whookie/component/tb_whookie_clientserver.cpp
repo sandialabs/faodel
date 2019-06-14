@@ -11,8 +11,8 @@
 
 #include "faodel-common/Common.hh"
 
-#include "webhook/Server.hh"
-#include "webhook/client/Client.hh"
+#include "whookie/Server.hh"
+#include "whookie/client/Client.hh"
 #include "faodel-common/QuickHTML.hh"
 
 #include "faodel-common/Bootstrap.hh"
@@ -23,10 +23,10 @@ using namespace std;
 int num_tests=0;
 
 string default_config = R"EOF(
-webhook.port 1996
+whookie.port 1996
 
 #bootstrap.debug true
-#webhook.debug true
+#whookie.debug true
 
 )EOF";
 
@@ -36,16 +36,16 @@ class ClientServer : public testing::Test {
 protected:
   void SetUp() override {
 
-    server_node = webhook::Server::GetNodeID();
+    server_node = whookie::Server::GetNodeID();
     //cout <<server_node.GetHttpLink()<<endl;
     num_tests++; //Keep track so main can close out this many tests
   }
 
   void TearDown() override {
     //TODO: ideally we'd put a stop here, but when the count goes to zero, the
-    //      global webhook will stop all threads and close in a way that eats
+    //      global whookie will stop all threads and close in a way that eats
     //      the port. For now, handle 
-    //webhook::stop(); //stop kills it for everyone
+    //whookie::stop(); //stop kills it for everyone
     
     //faodel::bootstrap::FinishSoft();
   }
@@ -62,7 +62,7 @@ TEST_F(ClientServer, Simple){
 
   //Add a hook to let user set a variable
   string value1;
-  webhook::Server::registerHook("/test_simple1", [&value1] (const map<string,string> &args, stringstream &results) {
+  whookie::Server::registerHook("/test_simple1", [&value1] (const map<string,string> &args, stringstream &results) {
       //cout <<"Got op\n";
       //Grab the value
       auto new_val = args.find("newval");
@@ -77,7 +77,7 @@ TEST_F(ClientServer, Simple){
 
   //Add a hook to let user set a variable. This one doesn't put html around it.
   string value2;
-  webhook::Server::registerHook("/test_simple2", [&value2] (const map<string,string> &args, stringstream &results) {
+  whookie::Server::registerHook("/test_simple2", [&value2] (const map<string,string> &args, stringstream &results) {
       //cout <<"Got op\n";
       //Grab the value
       auto new_val = args.find("newval");
@@ -95,19 +95,19 @@ TEST_F(ClientServer, Simple){
   for(int i=0; i<10; i++){
     stringstream ss_newval; ss_newval <<i;
     stringstream ss_path;   ss_path << "/test_simple2&newval="<<i;
-    rc = webhook::retrieveData(server_node, ss_path.str(), &result);
+    rc = whookie::retrieveData(server_node, ss_path.str(), &result);
     EXPECT_EQ(0,rc);
     EXPECT_EQ(ss_newval.str(), value2);
     //cout <<"Got back "<<value2<<endl;
     //cout <<"Result is :'"<<result<<"'\n";    
   }
   
-  rc=webhook::Server::deregisterHook("/test_simple1"); EXPECT_EQ(0,rc);
-  rc=webhook::Server::deregisterHook("/test_simple2"); EXPECT_EQ(0,rc);
+  rc=whookie::Server::deregisterHook("/test_simple1"); EXPECT_EQ(0,rc);
+  rc=whookie::Server::deregisterHook("/test_simple2"); EXPECT_EQ(0,rc);
 
   //Try again and make sure
   result="";
-  rc = webhook::retrieveData(server_node, "/test_simple2", &result);
+  rc = whookie::retrieveData(server_node, "/test_simple2", &result);
   EXPECT_EQ(-2,rc);
   EXPECT_EQ("", result);
 }
@@ -116,16 +116,16 @@ TEST_F(ClientServer, Registrations){
   int rc;
   
   //Register some simple things
-  rc=webhook::Server::registerHook("/regtest1",        [] (const map<string,string> &args, stringstream &results) { cout <<"Got op\n"; }); EXPECT_EQ(0,rc);
-  rc=webhook::Server::registerHook("/regtest1/thing1", [] (const map<string,string> &args, stringstream &results) { cout <<"Got op\n"; }); EXPECT_EQ(0,rc);
-  rc=webhook::Server::registerHook("/regtest1/thing2", [] (const map<string,string> &args, stringstream &results) { cout <<"Got op\n"; }); EXPECT_EQ(0,rc);
-  rc=webhook::Server::registerHook("/regtest2",        [] (const map<string,string> &args, stringstream &results) { cout <<"Got op\n"; }); EXPECT_EQ(0,rc);
+  rc=whookie::Server::registerHook("/regtest1",        [] (const map<string,string> &args, stringstream &results) { cout <<"Got op\n"; }); EXPECT_EQ(0,rc);
+  rc=whookie::Server::registerHook("/regtest1/thing1", [] (const map<string,string> &args, stringstream &results) { cout <<"Got op\n"; }); EXPECT_EQ(0,rc);
+  rc=whookie::Server::registerHook("/regtest1/thing2", [] (const map<string,string> &args, stringstream &results) { cout <<"Got op\n"; }); EXPECT_EQ(0,rc);
+  rc=whookie::Server::registerHook("/regtest2",        [] (const map<string,string> &args, stringstream &results) { cout <<"Got op\n"; }); EXPECT_EQ(0,rc);
 
   //Deregister some things
-  rc=webhook::Server::deregisterHook("/regtest1");        EXPECT_EQ(0,rc);
-  rc=webhook::Server::deregisterHook("/regtest1/thing1"); EXPECT_EQ(0,rc);
-  rc=webhook::Server::deregisterHook("/regtest1/thing2"); EXPECT_EQ(0,rc);
-  rc=webhook::Server::deregisterHook("/regtest2");        EXPECT_EQ(0,rc);
+  rc=whookie::Server::deregisterHook("/regtest1");        EXPECT_EQ(0,rc);
+  rc=whookie::Server::deregisterHook("/regtest1/thing1"); EXPECT_EQ(0,rc);
+  rc=whookie::Server::deregisterHook("/regtest1/thing2"); EXPECT_EQ(0,rc);
+  rc=whookie::Server::deregisterHook("/regtest2");        EXPECT_EQ(0,rc);
 }
 
 
@@ -135,7 +135,7 @@ TEST_F(ClientServer, ReplyStream){
   
   //Add a hook to let user set a variable
   string value1;
-  webhook::Server::registerHook("/test_replystream", [&value1] (const map<string,string> &args, stringstream &results) {
+  whookie::Server::registerHook("/test_replystream", [&value1] (const map<string,string> &args, stringstream &results) {
       faodel::ReplyStream rs(args, "ReplyStream", &results);
       
       auto new_val = args.find("newval");
@@ -157,7 +157,7 @@ TEST_F(ClientServer, ReplyStream){
 
   int rc;
   string result;
-  rc = webhook::retrieveData(server_node, "/test_replystream&format=txt", &result);
+  rc = whookie::retrieveData(server_node, "/test_replystream&format=txt", &result);
   EXPECT_EQ(0,rc);
   string exp_string="Here is the top part of the page\n"
     "New Section Header\n"
@@ -172,7 +172,7 @@ TEST_F(ClientServer, ReplyStream){
   EXPECT_EQ(exp_string, result);
 
 
-  rc=webhook::Server::deregisterHook("/test_replystream");        EXPECT_EQ(0,rc);
+  rc=whookie::Server::deregisterHook("/test_replystream");        EXPECT_EQ(0,rc);
 }
 
 
@@ -183,7 +183,7 @@ TEST_F(ClientServer, ManyRequests){
   
   //Add a hook to let user set a variable
   string value1;
-  webhook::Server::registerHook("/test_vals", [&value1] (const map<string,string> &args, stringstream &results) {
+  whookie::Server::registerHook("/test_vals", [&value1] (const map<string,string> &args, stringstream &results) {
       faodel::ReplyStream rs(args, "ReplyStream", &results);
       
       auto new_val = args.find("newval");
@@ -201,7 +201,7 @@ TEST_F(ClientServer, ManyRequests){
   string test_val="test_val";
   for(int i=0; i<100; i++){
 
-    rc = webhook::retrieveData(server_node, "/test_vals&format=txt&newval="+test_val, &result);
+    rc = whookie::retrieveData(server_node, "/test_vals&format=txt&newval="+test_val, &result);
     EXPECT_EQ(0,rc);
     EXPECT_EQ(test_val+"\n", result);
   }
@@ -214,7 +214,7 @@ TEST_F(ClientServer, ManyRequests){
           string result;
           for(int j=0; j<1000; j++) {
             string test_val="test_"+to_string(i)+"_"+to_string(j);
-            int rc = webhook::retrieveData(tmp_server_node, "/test_vals&format=txt&newval="+test_val, &result);
+            int rc = whookie::retrieveData(tmp_server_node, "/test_vals&format=txt&newval="+test_val, &result);
             EXPECT_EQ(0,rc); 
             EXPECT_EQ(test_val+"\n", result);
           }
@@ -225,7 +225,7 @@ TEST_F(ClientServer, ManyRequests){
     t.join();
   }
 
-  rc=webhook::Server::deregisterHook("/test_vals");        EXPECT_EQ(0,rc);
+  rc=whookie::Server::deregisterHook("/test_vals");        EXPECT_EQ(0,rc);
 }
 
 
@@ -234,9 +234,9 @@ int main(int argc, char **argv){
 
   ::testing::InitGoogleTest(&argc, argv);
 
-  faodel::bootstrap::Start(faodel::Configuration(default_config), webhook::bootstrap );
-  faodel::nodeid_t nid = webhook::Server::GetNodeID();
-  cout <<"Webhook address: "<<nid.GetHttpLink()<<endl;
+  faodel::bootstrap::Start(faodel::Configuration(default_config), whookie::bootstrap );
+  faodel::nodeid_t nid = whookie::Server::GetNodeID();
+  cout <<"Whookie address: "<<nid.GetHttpLink()<<endl;
 
   
   int rc = RUN_ALL_TESTS();

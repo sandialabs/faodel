@@ -11,8 +11,8 @@
 
 #include "faodelConfig.h"
 
-#include "webhook/WebHook.hh"
-#include "webhook/Server.hh"
+#include "whookie/Whookie.hh"
+#include "whookie/Server.hh"
 
 #include "lunasa/Lunasa.hh"
 
@@ -52,7 +52,7 @@ void RegisterPinUnpin(net_pin_fn pin, net_unpin_fn unpin) {
  * @brief Update Lunasa with information about how to display a particular DataObject type
  * @param tag The integer id for a particular user data type (usually a hash of the name)
  * @param name The name for this data type (usually hashed to make the tag)
- * @param dump_func The function for dumping this DataObject type to a webhook replystream
+ * @param dump_func The function for dumping this DataObject type to a whookie replystream
  */
 void RegisterDataObjectType(dataobject_type_t tag, std::string name, fn_DataObjectDump_t dump_func) {
   internal::Singleton::impl.dataobject_type_registry.RegisterDataObjectType(tag, name, dump_func);
@@ -69,7 +69,7 @@ void DeregisterDataObjectType(dataobject_type_t tag) {
 /**
  * @brief Dump info about the DataObject to a reply stream. If unregistered, dump generic hex data
  * @param ldo The DataObject that is to be dumped
- * @param rs The webhook ReplyStream that is appended
+ * @param rs The whookie ReplyStream that is appended
  * @retval TRUE A user-defined dump function was found for dumping the DataObject type
  * @retval FALSE No user-defined dump function available for this DataObject. Dumped using hex output
  */

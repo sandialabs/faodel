@@ -170,6 +170,10 @@ verify_buffer(char     *buf_base,
 
 NNTI_result_t
 wait_data(nnti::transports::transport *t,
+          NNTI_event_queue_t           eq,
+          NNTI_event_t                *event);
+NNTI_result_t
+wait_data(nnti::transports::transport *t,
           NNTI_event_queue_t           eq);
 
 NNTI_result_t

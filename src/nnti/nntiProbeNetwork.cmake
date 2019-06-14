@@ -58,10 +58,22 @@ check_c_source_compiles(
     NNTI_HAVE_IBV_EXP_QP_CREATE_ATOMIC_BE_REPLY;
 )
 check_c_source_compiles(
-    "#include <infiniband/verbs_exp.h>\nint main(){enum ibv_exp_atomic_cap flags = IBV_EXP_ATOMIC_HCA_REPLY_BE;return 0;}"
+    "#include <infiniband/verbs_exp.h>\nint main(){enum ibv_exp_atomic_cap caps = IBV_EXP_ATOMIC_HCA_REPLY_BE;return 0;}"
     NNTI_HAVE_IBV_EXP_ATOMIC_HCA_REPLY_BE;
 )
 check_c_source_compiles(
     "#include <endian.h>\nint main(){be64toh(1LL);return 0;}"
     NNTI_HAVE_BE64TOH;
+)
+check_c_source_compiles(
+    "#include <infiniband/verbs_exp.h>\nint main(){enum ibv_exp_device_attr_comp_mask mask = IBV_EXP_DEVICE_ATTR_ODP;return 0;}"
+    NNTI_HAVE_IBV_EXP_DEVICE_ATTR_ODP;
+)
+check_c_source_compiles(
+    "#include <infiniband/verbs_exp.h>\nint main(){enum ibv_exp_access_flags flags = IBV_EXP_ACCESS_ON_DEMAND;return 0;}"
+    NNTI_HAVE_IBV_EXP_ACCESS_ON_DEMAND;
+)
+check_c_source_compiles(
+    "#include <infiniband/verbs_exp.h>\nint main(){enum ibv_odp_general_cap_bits caps = IBV_EXP_ODP_SUPPORT_IMPLICIT;return 0;}"
+    NNTI_HAVE_IBV_EXP_ODP_SUPPORT_IMPLICIT;
 )

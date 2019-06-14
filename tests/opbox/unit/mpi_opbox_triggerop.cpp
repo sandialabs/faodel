@@ -15,7 +15,7 @@
 #include "faodel-common/Common.hh"
 #include "faodel-common/SerializationHelpers.hh"
 
-#include "webhook/Server.hh"
+#include "whookie/Server.hh"
 #include "lunasa/Lunasa.hh"
 #include "opbox/OpBox.hh"
 

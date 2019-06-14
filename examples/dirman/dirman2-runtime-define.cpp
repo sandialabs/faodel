@@ -26,7 +26,7 @@ dirman.type           centralized
 
 # Turn these on if you want to see more debug messages
 #bootstrap.debug           true
-#webhook.debug             true
+#whookie.debug             true
 #opbox.debug               true
 #dirman.debug              true
 #dirman.cache.others.debug true
@@ -79,11 +79,11 @@ int main(int argc, char **argv){
   //we have the last rank create resource out of the even nodes.
   if(mpi_rank == mpi_size-1) {
 
-    cout <<"Got list of nodes. It has "<<all_nodes.children.size()<<" ranks\n";
+    cout <<"Got list of nodes. It has "<<all_nodes.members.size()<<" ranks\n";
     DirectoryInfo new_dir("ref:/nodelist/odd","My odd nodes");
-    for(int i=1; i<all_nodes.children.size(); i+=2) {
+    for(int i=1; i<all_nodes.members.size(); i+=2) {
       string name = "Rank"+to_string(i);
-      new_dir.Join(all_nodes.children[i].node, name);
+      new_dir.Join(all_nodes.members[i].node, name);
     }
     dirman::HostNewDir(new_dir);
   }

@@ -8,22 +8,22 @@
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
 
-#ifndef WEBHOOK_SERVER_HPP
-#define WEBHOOK_SERVER_HPP
+#ifndef WHOOKIE_SERVER_HPP
+#define WHOOKIE_SERVER_HPP
 
 #include <boost/asio.hpp>
 #include <string>
 #include <thread>
 #include <mutex>
 
-#include "webhook/server/boost/connection.hpp"
-#include "webhook/server/boost/connection_manager.hpp"
-#include "webhook/server/boost/request_handler.hpp"
+#include "whookie/server/boost/connection.hpp"
+#include "whookie/server/boost/connection_manager.hpp"
+#include "whookie/server/boost/request_handler.hpp"
 
 #include "faodel-common/Common.hh"
 #include "faodel-common/LoggingInterface.hh"
 
-#include "webhook/Server.hh"
+#include "whookie/Server.hh"
 
 
 
@@ -98,11 +98,16 @@ public:
 
   bool IsRunning();
   faodel::nodeid_t GetNodeID() { return my_nodeid; }
-  
-  int registerHook(const std::string &name, webhook::cb_web_handler_t func) {
+
+  int updateAppName(std::string app_name_) {
+    app_name=app_name_;
+    return asio_->request_handler_.updateAppName(app_name);
+  }
+
+  int registerHook(const std::string &name, whookie::cb_web_handler_t func) {
     return asio_->request_handler_.registerHook(name, func);
   }
-  int updateHook(const std::string &name, webhook::cb_web_handler_t func) {
+  int updateHook(const std::string &name, whookie::cb_web_handler_t func) {
     return asio_->request_handler_.updateHook(name, func);
   }
   int deregisterHook(const std::string &name) {
@@ -119,13 +124,14 @@ private:
   unsigned int port_;
   std::mutex configured_mutex_;
   int num_starters_;
-  
+
+  std::string app_name;
   std::string requested_address;
   unsigned int requested_port;
   
-  //Provide the configuration webhook was given
-  void HandleWebhookConfig(const std::map<std::string,std::string> &args, std::stringstream &results);
-  void HandleWebhookBootstrap(const std::map<std::string,std::string> &args, std::stringstream &results);
+  //Provide the configuration whookie was given
+  void HandleWhookieConfig(const std::map<std::string,std::string> &args, std::stringstream &results);
+  void HandleWhookieBootstrap(const std::map<std::string,std::string> &args, std::stringstream &results);
 
   /// interate over a list of network interfaces looking for an address to use
   std::string search_interfaces(std::string interfaces);
@@ -145,4 +151,4 @@ private:
 } // namespace server
 } // namespace http
 
-#endif // WEBHOOK_SERVER_HPP
+#endif // WHOOKIE_SERVER_HPP

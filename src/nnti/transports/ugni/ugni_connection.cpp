@@ -146,7 +146,7 @@ namespace core {
         return ss.str();
     }
     /*
-     * generate a key=value (one per line) string that can be included in a WebHook reply
+     * generate a key=value (one per line) string that can be included in a Whookie reply
      */
     std::string
     ugni_connection::reply_string(void)

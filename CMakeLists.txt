@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.8.0)
 project( Faodel
   LANGUAGES CXX C
-  VERSION 1.1811.1
+  VERSION 1.1906.1
   )
 
 
@@ -31,6 +31,9 @@ project( Faodel
 # Policy assertions
 if( POLICY CMP0074 )
     cmake_policy( SET CMP0074 NEW ) # find_package() uses PackageName_ROOT vars
+endif()
+if( POLICY CMP0075 )
+    cmake_policy( SET CMP0075 OLD ) # check_include_file() uses CMAKE_REQUIRED_LIBRARIES var
 endif()
 
 # CMake built-ins that we'll use
@@ -112,12 +115,14 @@ endfunction()
 # Options
 option( BUILD_SHARED_LIBS           "Build Faodel as shared libs"  OFF )
 option( BUILD_TESTS                 "Faodel testing gtest and ctest" ON )
-option( BUILD_DOCS                  "Generate documentation using Doxygen"  ON )
+option( BUILD_DOCS                  "Generate documentation using Doxygen" ON )
 
-option( Faodel_ENABLE_MPI_SUPPORT   "Enable use of MPI communication"       ON )
-option( Faodel_ENABLE_TCMALLOC      "Use tcmalloc from gperftools in Lunasa, potentially other places"  ON )
+option( Faodel_ENABLE_CEREAL        "Enable use of Cereal for serialization in NNTI (disables XDR)" OFF )
+option( Faodel_ENABLE_MPI_SUPPORT   "Enable use of MPI communication" ON )
+option( Faodel_ENABLE_TCMALLOC      "Use tcmalloc from gperftools in Lunasa, potentially other places" ON )
 option( Faodel_ENABLE_IOM_HDF5      "Build the HDF5-based IOM in Kelpie" OFF )
 option( Faodel_ENABLE_IOM_LEVELDB   "Build the LevelDB-based IOM in Kelpie" OFF )
+option( Faodel_ENABLE_IOM_CASSANDRA "Build the Cassandra-based IOM in Kelpie" OFF )
 
 set( Faodel_NETWORK_LIBRARY   "nnti" CACHE STRING "RDMA Network library to use for low-level communication" )
 set_property(CACHE Faodel_NETWORK_LIBRARY PROPERTY STRINGS nnti libfabric)
@@ -337,8 +342,7 @@ set( CMAKE_NO_SYSTEM_FROM_IMPORTED ${savevar} )
 if( Faodel_ENABLE_TCMALLOC )
 
   # Bail out if we're on an architecture that doesn't support tcmalloc
-  if( (CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" ) OR
-      (CMAKE_SYSTEM_PROCESSOR STREQUAL "ppc64le" )    )
+  if( CMAKE_SYSTEM_PROCESSOR STREQUAL "ppc64le" ) 
      message( FATAL_ERROR "The TCMALLOC library included with FAODEL does not currently have "
                           "  support for the ${CMAKE_SYSTEM_PROCESSOR} CPU (it has optimizations"
                           "  for x86_64). You must set Faodel_ENABLE_TCMALLOC to OFF in order to"
@@ -349,11 +353,13 @@ if( Faodel_ENABLE_TCMALLOC )
   message( STATUS "Faodel_ENABLE_TCMALLOC is set, gperftools TPL will be built and tcmalloc will be used" )
   set( PKGCONFIG_TCMALLOC "-ltcmalloc -lspinlock" )
 endif()
-    
+
+add_subdirectory( tpl/cereal )
+
 add_subdirectory( src/sbl )
-add_subdirectory(src/faodel-common)
-add_subdirectory( src/webhook )
-add_subdirectory(src/faodel-services)
+add_subdirectory( src/faodel-common)
+add_subdirectory(src/whookie)
+add_subdirectory( src/faodel-services)
 if( BUILD_NNTI )
   add_subdirectory( src/nnti )
 endif()
@@ -363,7 +369,7 @@ add_subdirectory( src/dirman )
 add_subdirectory( src/kelpie )
 
 # Set some useful properties on our targets, now that they're defined
-foreach( COMP sbl common webhook services lunasa opbox kelpie )
+foreach( COMP sbl common whookie services lunasa opbox kelpie )
   
   target_include_directories( ${COMP}
     INTERFACE
@@ -395,9 +401,8 @@ if (Faodel_NETWORK_LIBRARY STREQUAL "libfabric")
 endif()
 
 # Build tools
-add_subdirectory( tools/faodel-info )
+add_subdirectory( tools/faodel-cli )
 add_subdirectory( tools/kelpie-server )
-add_subdirectory( tools/whookie )
 
 
 # Do the tests
@@ -407,7 +412,7 @@ if( BUILD_TESTS )
   
   add_subdirectory( tests/sbl )
   add_subdirectory( tests/common )
-  add_subdirectory( tests/webhook )
+  add_subdirectory( tests/whookie )
   add_subdirectory( tests/services )
   if( BUILD_NNTI )
     add_subdirectory( tests/nnti )
@@ -603,6 +608,15 @@ else()
     message( STATUS "   MPI Transport explicitly disabled" )
   else()
     message( STATUS "   Not building the MPI Transport" )
+  endif()
+endif()
+if( ${NNTI_USE_XDR} )
+  message( STATUS "   Using XDR for serialization" )
+else()
+  if( ${NNTI_USE_CEREAL} )
+    message( STATUS "   Using Cereal for serialization" )
+  else()
+    message( STATUS "   ERROR - Couldn't find a serialization library" )
   endif()
 endif()
 message( STATUS "" )

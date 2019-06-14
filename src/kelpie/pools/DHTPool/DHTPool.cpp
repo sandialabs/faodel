@@ -10,6 +10,7 @@
 #include <iostream>
 #include <thread>
 #include <stdexcept>
+#include <kelpie/ops/direct/OpKelpieList.hh>
 
 #include "faodel-common/Common.hh"
 #include "faodel-common/Debug.hh"
@@ -39,13 +40,13 @@ DHTPool::DHTPool(const ResourceURL &pool_url)
   }
 
   //Allocate peers and connect to each one
-  for(int i=0; i<dir_info.children.size(); i++){
+  for(size_t i=0; i<dir_info.members.size(); i++){
     net::peer_ptr_t peer;
-    int rc = net::Connect(&peer, dir_info.children[i].node);
+    int rc = net::Connect(&peer, dir_info.members[i].node);
     if(rc!=0) {
-      throw std::runtime_error("Pool "+TypeName()+" could not connect to peer "+dir_info.children[i].name);
+      throw std::runtime_error("Pool "+TypeName()+" could not connect to peer "+dir_info.members[i].name);
     }
-    nodes.push_back(pair<nodeid_t, net::peer_ptr_t>(dir_info.children[i].node, peer));
+    nodes.push_back(pair<nodeid_t, net::peer_ptr_t>(dir_info.members[i].node, peer));
   }
 
   //Pull out iom info in order to associate the iom with this local pool. While iom option was
@@ -243,6 +244,10 @@ rc_t DHTPool::Need(const Key &key, size_t expected_ldo_user_bytes, lunasa::DataO
 
     });
 
+  if(rc!=KELPIE_OK){
+    KTODO("DHTPool could not issue Need");
+  }
+
   while(!is_found)
     cv.wait(lk);
 
@@ -294,7 +299,7 @@ rc_t DHTPool::Info(const Key &key, kv_col_info_t *col_info){
                                      if(result==0){
                                        *col_info = ci;
                                      } else {
-                                       memset(col_info, 0, sizeof(kv_col_info_t));
+                                       col_info->Wipe();
                                      }
                                    }
                                    got_result=true;
@@ -349,6 +354,37 @@ rc_t DHTPool::Drop(const Key &key) {
   }
   KTODO("Drop does not currently support remote operations");
   return KELPIE_TODO;
+}
+
+
+/**
+ * @brief Perform a search for keys that match a specific pattern
+ * @param[in] search_key The key to search for. Row and/or Key may end in '*' for prefix matching
+ * @param[out] object_capacities Info about the objects that match this key search
+ * @retval KELPIE_OK Found matches
+ * @retval KELPIE_ENOENT Did not find matches
+ */
+rc_t DHTPool::List(const kelpie::Key &search_key, ObjectCapacities *object_capacities) {
+
+  dbg("List key "+search_key.str());
+
+  //No local search - always goes out to nodes
+
+  //Wasn't available locally. Prepare to do some messaging
+  std::mutex m;
+  std::condition_variable cv;
+  std::unique_lock<std::mutex> lk(m);
+  int num_targets_left=nodes.size();
+
+  opbox::LaunchOp(new OpKelpieList(nodes, default_bucket, search_key, object_capacities,
+                                   &cv, &num_targets_left));
+
+  while(num_targets_left) {
+    cv.wait(lk);
+  }
+
+  return KELPIE_OK;
+
 }
 
 /**

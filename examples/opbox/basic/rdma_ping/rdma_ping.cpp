@@ -19,7 +19,7 @@ Globals G;
 
 //The FAODEL uses a plain-text configuration string to set
 //different parameters in the stack. The below string defines what
-//port the webhook sever will listen on, the type of directory management
+//port the whookie sever will listen on, the type of directory management
 //service to employ, and whether internal components should spew their
 //debug information or not. If things don't work, try turning on the debug
 //info to get a better idea of where things are breaking
@@ -28,8 +28,8 @@ std::string default_config_string = R"EOF(
 # Note: node_role is defined when we determine if this is a client or a server
 net.transport.name   mpi
 
-master.webhook.port   7777
-server.webhook.port   1992
+master.whookie.port   7777
+server.whookie.port   1992
 
 dirman.type           centralized
 dirman.root_role      master
@@ -38,7 +38,7 @@ dirman.root_role      master
 #target.dirman.write_to_file ./dirman.txt
 
 #bootstrap.debug true
-#webhook.debug   true
+#whookie.debug   true
 #opbox.debug     true
 #dirman.debug    true
 

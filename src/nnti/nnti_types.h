@@ -12,6 +12,10 @@
 /********** Constants **********/
 
 /**
+ * @brief Length of a URL
+ */
+#define NNTI_URL_LEN 128
+/**
  * @brief Length of a hostname
  */
 #define NNTI_HOSTNAME_LEN 32
@@ -30,10 +34,51 @@
 /**
  * @brief The number of transport mechanisms supported by NNTI.
  */
-#define NNTI_TRANSPORT_COUNT 2
+#define NNTI_TRANSPORT_COUNT 4
 
 
 /********** Enumerations **********/
+
+enum NNTI_datatype_t {
+    NNTI_dt_peer         = 1111,
+    NNTI_dt_buffer       = 1112,
+    NNTI_dt_work_id      = 1113,
+    NNTI_dt_work_request = 1114,
+    NNTI_dt_transport    = 1115,
+    NNTI_dt_event_queue  = 1116,
+    NNTI_dt_callback     = 1117
+};
+
+/**
+ * @brief Enumerator of the transport mechanisms supported by NNTI.
+ *
+ * The <tt>\ref NNTI_transport_id_t</tt> enumerator provides integer values
+ * to represent the supported transport mechanisms.
+ */
+enum NNTI_transport_id_t {
+    /** @brief No operations permitted. */
+    NNTI_TRANSPORT_NULL,
+
+    /** @brief Use Infiniband to transfer rpc requests. */
+    NNTI_TRANSPORT_IBVERBS,
+
+    /** @brief Use Cray ugni to transfer rpc requests. */
+    NNTI_TRANSPORT_UGNI,
+
+    /** @brief Use MPI to transfer rpc requests. */
+    NNTI_TRANSPORT_MPI
+};
+typedef enum NNTI_transport_id_t NNTI_transport_id_t;
+
+#if defined(NNTI_BUILD_IBVERBS)
+#define NNTI_DEFAULT_TRANSPORT NNTI_TRANSPORT_IBVERBS
+#elif defined(NNTI_BUILD_UGNI)
+#define NNTI_DEFAULT_TRANSPORT NNTI_TRANSPORT_UGNI
+#elif defined(NNTI_BUILD_MPI)
+#define NNTI_DEFAULT_TRANSPORT NNTI_TRANSPORT_MPI
+#else
+#define NNTI_DEFAULT_TRANSPORT NNTI_TRANSPORT_NULL
+#endif
 
 /**
  * @brief Enumerator of results that NNTI functions could generate.
@@ -78,7 +123,7 @@ enum NNTI_result_t {
     /** @brief Not initialized. */
     NNTI_ENOTINIT,
 
-    /** @brief Insufficient priveleges to perform operation. */
+    /** @brief Insufficient privileges to perform operation. */
     NNTI_EPERM,
 
     /** @brief Either an operation was interrupted by a signal
@@ -192,7 +237,9 @@ enum NNTI_buffer_flags_t {
     /** @brief a remote process/NIC can write to this buffer */
     NNTI_BF_REMOTE_WRITE =  8,
     /** @brief SENDs to this memory occur at the offset+length of the last SEND */
-    NNTI_BF_QUEUING      = 16
+    NNTI_BF_QUEUING      = 16,
+    NNTI_BF_LOCAL_ATOMIC = 32,
+    NNTI_BF_REMOTE_ATOMIC = 64
 };
 typedef enum NNTI_buffer_flags_t NNTI_buffer_flags_t;
 
@@ -207,6 +254,8 @@ typedef uint64_t NNTI_event_queue_t;
 
 /** @brief Opaque handle to a process */
 typedef uint64_t NNTI_peer_t;
+
+typedef uint64_t NNTI_process_id_t;
 
 /** @brief Opaque handle to a transport */
 typedef uint64_t NNTI_transport_t;

@@ -15,7 +15,7 @@
 #include "nnti/nnti_logger.h"
 
 
-int success=TRUE;
+int success=1;
 
 
 int main(int argc, char *argv[])
@@ -68,12 +68,12 @@ int main(int argc, char *argv[])
         rc = NNTI_connect(transport, server_url, 1000, &peer_hdl);
         log_debug("IBConnectTest", "NNTI_connect() rc=%d", rc);
         if (rc != NNTI_OK) {
-            success = FALSE;
+            success = 0;
         } else {
             rc = NNTI_disconnect(transport, peer_hdl);
             log_debug("IBConnectTest", "NNTI_disconnect() rc=%d", rc);
             if (rc != NNTI_OK) {
-                success = FALSE;
+                success = 0;
             }
         }
     }
@@ -81,7 +81,7 @@ int main(int argc, char *argv[])
     if (is_init) {
         NNTI_fini(transport);
     } else {
-        success = FALSE;
+        success = 0;
     }
 
     if (success)

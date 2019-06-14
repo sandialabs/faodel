@@ -143,7 +143,7 @@ bool DataObjectTypeRegistry::DumpDataObject(const DataObject &ldo, faodel::Reply
 }
 
 /**
- * @brief Webhook function for dumping out information about the registry to a replystream
+ * @brief Whookie function for dumping out information about the registry to a replystream
  * @param rs The ReplyStream to append
  * @note This does not finish the reply stream
  */

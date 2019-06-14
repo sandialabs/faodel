@@ -17,7 +17,7 @@
 #include <sstream>
 #include <string>
 
-#include "nnti/nnti_packable.h"
+#include "nnti/nnti_serialize.hpp"
 #include "nnti/nnti_types.h"
 #include "nnti/nnti_threads.h"
 #include "nnti/nnti_util.hpp"
@@ -45,8 +45,9 @@ private:
 
 protected:
     NNTI_buffer_p_t        packable_;
-    const static uint64_t  packed_size_=256;
-    char                   packed_[packed_size_];
+    const static uint64_t  max_packed_size_=256;
+    char                   packed_[max_packed_size_];
+    uint64_t               packed_size_;
 
     uint32_t               id_;
     bool                   free_in_dtor_;
@@ -172,7 +173,9 @@ public:
     {
         unpack(packed_buf, packed_len);
 
+#if NNTI_USE_XDR == 1
         memcpy(&packed_[0], packed_buf, std::min(packed_len, packed_size_));
+#endif
 
         log_debug("nnti_buffer", "flags_=0x%04X", flags_);
 
@@ -227,43 +230,17 @@ public:
     uint64_t
     packed_size(void)
     {
-        uint64_t packed_len=0;
-
-        xdrproc_t sizeof_fn = (xdrproc_t)&xdr_NNTI_buffer_p_t;
-
-        packed_len  = xdr_sizeof(sizeof_fn, &packable_);
-        packed_len += sizeof(NNTI_datatype_t);
-
-        return packed_len;
+        if (packed_size_ == 0) {
+            packed_size_ = nnti::serialize::packed_buffer_size(&packable_);
+        }
+        return packed_size_;
     }
 
     NNTI_result_t
     internal_pack(void)
     {
-        XDR              encode_xdrs;
-        xdrproc_t        encode_fn   = (xdrproc_t)&xdr_NNTI_buffer_p_t;
-        uint64_t         bytes_left  = packed_size_;
-        char            *p           = packed_;
-
-        *(NNTI_datatype_t*)packed_ = NNTI_dt_buffer;
-
-        p          += sizeof(NNTI_datatype_t);
-        bytes_left -= sizeof(NNTI_datatype_t);
-
         packable_.flags = flags_;
-
-        xdrmem_create(
-                &encode_xdrs,
-                p,
-                bytes_left,
-                XDR_ENCODE);
-
-        if (!encode_fn(XDRPROC_ARGS(&encode_xdrs, &packable_))) {
-            log_fatal("nnti_buffer", "packing failed");
-            return NNTI_EENCODE;
-        }
-
-        return NNTI_OK;
+        return nnti::serialize::pack_buffer(&packable_, &packed_[0], max_packed_size_, &packed_size_);
     }
 
     NNTI_result_t
@@ -272,49 +249,27 @@ public:
         const uint64_t  packed_buflen)
     {
         memcpy(packed_buf, &packed_[0], (packed_size_ < packed_buflen) ? packed_size_ : packed_buflen);
-
         return NNTI_OK;
     }
 
     NNTI_result_t
     unpack(
         char           *packed_buf,
-        const uint64_t  packed_len)
+        const uint64_t  packed_buflen)
     {
-        XDR              decode_xdrs;
-        xdrproc_t        decode_fn   = (xdrproc_t)&xdr_NNTI_buffer_p_t;
-        NNTI_datatype_t *dt          = (NNTI_datatype_t*)packed_buf;
-        uint64_t         dt_size     = sizeof(NNTI_buffer_p_t);
-        uint64_t         bytes_left  = packed_len;
+        NNTI_result_t rc;
 
-        packed_buf += sizeof(NNTI_datatype_t);
-        bytes_left -= sizeof(NNTI_datatype_t);
-
-        memset(&packable_, 0, dt_size);
-        xdrmem_create(
-                &decode_xdrs,
-                packed_buf,
-                bytes_left,
-                XDR_DECODE);
-
-        if (!decode_fn(XDRPROC_ARGS(&decode_xdrs, &packable_))) {
-            log_fatal("nnti_buffer", "unpacking failed (packed_buf=%p  packed_size=%lu", packed_buf, packed_len);
-            return NNTI_EDECODE;
-        }
-
-        flags_ = (NNTI_buffer_flags_t)packable_.flags;
-
+        packed_size_ = packed_buflen;
+        memcpy(&packed_[0], &packed_buf[0], packed_buflen);
+        rc = nnti::serialize::unpack_buffer(&packable_, &packed_buf[0], packed_buflen);
+        flags_       = (NNTI_buffer_flags_t)packable_.flags;
         return NNTI_OK;
     }
 
     NNTI_result_t
     free_packable(void)
     {
-        xdrproc_t free_fn = (xdrproc_t)&xdr_NNTI_peer_p_t;
-
-        xdr_free(free_fn, (char*)&packable_);
-
-        return NNTI_OK;
+        return nnti::serialize::free_buffer(&packable_);
     }
 
     NNTI_result_t

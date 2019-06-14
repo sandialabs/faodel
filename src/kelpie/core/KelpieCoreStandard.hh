@@ -46,7 +46,7 @@ public:
   std::string GetType() const override { return "standard"; }
   void getLKV(LocalKV **localkv_ptr) override { *localkv_ptr = &lkv; }
 
-  void HandleWebhookStatus(const std::map<std::string,std::string> &args, std::stringstream &results);
+  void HandleWhookieStatus(const std::map<std::string,std::string> &args, std::stringstream &results);
 
   //InfoInterface function
   void sstr(std::stringstream &ss, int depth=0, int indent=0) const override;

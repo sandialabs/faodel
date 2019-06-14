@@ -23,7 +23,7 @@ Globals::~Globals(){
 void Globals::StartAll(int &argc, char **argv, faodel::Configuration &config){
 
   stringstream ss;
-  string webhook_port;
+  string whookie_port;
 
   int provided;
   MPI_Init_thread(&argc, &argv, MPI_THREAD_MULTIPLE, &provided);

@@ -20,7 +20,7 @@
 #include "faodel-common/Configuration.hh"
 #include "faodel-common/Bootstrap.hh"
 
-#include "webhook/Server.hh"
+#include "whookie/Server.hh"
 
 #include "nnti/nnti_logger.hpp"
 
@@ -143,7 +143,7 @@ int main(int argc, char *argv[])
     faodel::Configuration config(default_config_string);
     config.AppendFromReferences();
 
-    faodel::bootstrap::Start(config, webhook::bootstrap);
+    faodel::bootstrap::Start(config, whookie::bootstrap);
 
     t = nnti::transports::factory::get_instance(config);
 
@@ -173,7 +173,7 @@ int main(int argc, char *argv[])
                                                                      my_pingpong_buf,
                                                                      peer_pingpong_buf);
 
-    webhook::Server::registerHook("/pingpong/shutdown", [ppc] (const std::map<std::string,std::string> &args, std::stringstream &results){
+    whookie::Server::registerHook("/pingpong/shutdown", [ppc] (const std::map<std::string,std::string> &args, std::stringstream &results){
         shutdown_cb(ppc);
     });
 

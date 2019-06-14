@@ -48,6 +48,43 @@ CHECK_FUNCTION_EXISTS ("mmap" HAVE_MMAP)
 CHECK_FUNCTION_EXISTS ("posix_memalign" HAVE_MEMALIGN)
 
 CHECK_CXX_SOURCE_COMPILES(
+  "#include <unwind.h>
+   int main(int argc, char **argv)
+   {
+     &_Unwind_Backtrace;
+     return 0;
+   }"
+  unwind_backtrace_exists)
+
+IF (unwind_backtrace_exists)
+  SET(HAVE_UNWIND_BACKTRACE 1 CACHE STRING "unwind_backtrace")
+  message( STATUS "UNWIND BACKTRACE works" )
+ELSE()
+  message( STATUS "UNWIND BACKTRACE **doesn't** work" )
+ENDIF()
+
+CHECK_CXX_SOURCE_COMPILES(
+  "#include <stdlib.h>
+   static void foo(void) __attribute__ ((unused));
+   void foo(void) 
+   { 
+      return; 
+   }
+   int main(int argc, char **argv)
+   {
+     return 0;
+   }"
+  supports__attribute__)
+
+IF (supports__attribute__)
+  SET(HAVE___ATTRIBUTE__ 1 CACHE STRING "have_attribute")
+  message( STATUS "Supports ATTRIBUTE" )
+ELSE()
+  message( STATUS "*DOESN'T support ATTRIBUTE" )
+ENDIF()
+
+
+CHECK_CXX_SOURCE_COMPILES(
   "#include <malloc.h>
    void* (* volatile __malloc_hook)(size_t, const void*) = 0;
    int main(int argc, char **argv)
@@ -57,9 +94,9 @@ CHECK_CXX_SOURCE_COMPILES(
   malloc_hook_volatile)
 
 IF (malloc_hook_volatile)
-  SET(Faodel_PERFTOOLS_MALLOC_HOOK_MAYBE_VOLATILE "volatile" CACHE string "does malloc hook need volatile")
+  SET(Faodel_PERFTOOLS_MALLOC_HOOK_MAYBE_VOLATILE "volatile" CACHE STRING "does malloc hook need volatile")
 ELSE ()
-  SET(Faodel_PERFTOOLS_MALLOC_HOOK_MAYBE_VOLATILE "" CACHE string "does malloc hook need volatile")
+  SET(Faodel_PERFTOOLS_MALLOC_HOOK_MAYBE_VOLATILE "" CACHE STRING "does malloc hook need volatile")
 ENDIF ()
 mark_as_advanced(Faodel_PERFTOOLS_MALLOC_HOOK_MAYBE_VOLATILE)
 
@@ -73,25 +110,25 @@ CHECK_CXX_SOURCE_COMPILES(
   malloc_mallinfo)
 
 IF (malloc_mallinfo)
-  SET(Faodel_PERFTOOLS_HAVE_STRUCT_MALLINFO 1 CACHE string "support for mallinfo")
+  SET(Faodel_PERFTOOLS_HAVE_STRUCT_MALLINFO 1 CACHE STRING "support for mallinfo")
 ENDIF ()
 mark_as_advanced(Faodel_PERFTOOLS_HAVE_STRUCT_MALLINFO)
 
-set(Faodel_PERFTOOLS_DLL_DECL "" CACHE string "On windows, should be __declspec(dllexport)")
-set(Faodel_PERFTOOLS_STL_NAMESPACE "std" CACHE string "namespace where STL code like vector<> is defined")
+set(Faodel_PERFTOOLS_DLL_DECL "" CACHE STRING "On windows, should be __declspec(dllexport)")
+set(Faodel_PERFTOOLS_STL_NAMESPACE "std" CACHE STRING "namespace where STL code like vector<> is defined")
 option(Faodel_PERFTOOLS_TCMALLOC_32K_PAGES "32K of internal page size" OFF)
 option(Faodel_PERFTOOLS_TCMALLOC_64K_PAGES "64K of internal page size" OFF)
 option(Faodel_PERFTOOLS_TCMALLOC_ALIGN_8BYTES "8 bytes of allocation alignment" OFF)
 # option(HAVE_MMAP "System has MMAP" ON)
 # option(NO_HEAP_CHECK "Don't check the heap" ON)
-#set(VERSION "lunasa" CACHE string "version string for the config")
+#set(VERSION "lunasa" CACHE STRING "version string for the config")
 mark_as_advanced(Faodel_PERFTOOLS_DLL_DECL)
 mark_as_advanced(Faodel_PERFTOOLS_STL_NAMESPACE)
 mark_as_advanced(Faodel_PERFTOOLS_TCMALLOC_32K_PAGES)
 mark_as_advanced(Faodel_PERFTOOLS_TCMALLOC_64K_PAGES)
 mark_as_advanced(Faodel_PERFTOOLS_TCMALLOC_ALIGN_8BYTES)
 
-set(Faodel_PERFTOOLS_PACKAGE_VERSION  "2.5" CACHE string "version of this package")
+set(Faodel_PERFTOOLS_PACKAGE_VERSION  "2.5" CACHE STRING "version of this package")
 mark_as_advanced(Faodel_PERFTOOLS_PACKAGE_VERSION)
 execute_process(COMMAND expr "${Faodel_PERFTOOLS_PACKAGE_VERSION}" : "\\([[0-9]]*\\)" OUTPUT_VARIABLE MAJOR)
 execute_process(COMMAND expr "${Faodel_PERFTOOLS_PACKAGE_VERSION}" : "[[0-9]]*\\.\\([[0-9]]*\\)" OUTPUT_VARIABLE MINOR)
@@ -104,16 +141,16 @@ string(STRIP "${MAJOR}" MAJOR)
 string(STRIP "${MINOR}" MINOR)
 string(STRIP "${PATCH}" PATCH)
 
-set(Faodel_PERFTOOLS_TC_VERSION_MAJOR "${MAJOR}" CACHE string "major version of this package")
-set(Faodel_PERFTOOLS_TC_VERSION_MINOR "${MINOR}" CACHE string "minor version of this package")
-set(Faodel_PERFTOOLS_TC_VERSION_PATCH "${PATCH}" CACHE string "patch version of this package")
+set(Faodel_PERFTOOLS_TC_VERSION_MAJOR "${MAJOR}" CACHE STRING "major version of this package")
+set(Faodel_PERFTOOLS_TC_VERSION_MINOR "${MINOR}" CACHE STRING "minor version of this package")
+set(Faodel_PERFTOOLS_TC_VERSION_PATCH "${PATCH}" CACHE STRING "patch version of this package")
 mark_as_advanced(Faodel_PERFTOOLS_TC_VERSION_MAJOR)
 mark_as_advanced(Faodel_PERFTOOLS_TC_VERSION_MINOR)
 mark_as_advanced(Faodel_PERFTOOLS_TC_VERSION_PATCH)
 
-set(Faodel_PERFTOOLS_PRIdS "%d" CACHE string "printf format code for printing size_t and ssize_t")
-set(Faodel_PERFTOOLS_PRIuS "%u" CACHE string "printf format code for printing size_t and ssize_t")
-set(Faodel_PERFTOOLS_PRIxS "%x" CACHE string "printf format code for printing size_t and ssize_t")
+set(Faodel_PERFTOOLS_PRIdS "%d" CACHE STRING "printf format code for printing size_t and ssize_t")
+set(Faodel_PERFTOOLS_PRIuS "%u" CACHE STRING "printf format code for printing size_t and ssize_t")
+set(Faodel_PERFTOOLS_PRIxS "%x" CACHE STRING "printf format code for printing size_t and ssize_t")
 mark_as_advanced(Faodel_PERFTOOLS_PRIdS)
 mark_as_advanced(Faodel_PERFTOOLS_PRIuS)
 mark_as_advanced(Faodel_PERFTOOLS_PRIxS)
@@ -186,6 +223,7 @@ set(TCMALLOC_MINIMAL_SOURCES
   src/tcmalloc.cc
   src/system-alloc.cc
   src/common.cc
+  src/fake_stacktrace_scope.cc
   src/internal_logging.cc
   src/memfs_malloc.cc
   src/central_freelist.cc
@@ -199,7 +237,16 @@ set(TCMALLOC_MINIMAL_SOURCES
   src/maybe_threads.cc
   src/thread_cache.cc
   src/malloc_hook.cc
-  src/malloc_extension.cc)
+  src/malloc_extension.cc
+  src/memory_region_map.cc
+  src/heap-checker.cc
+  src/heap-checker-bcad.cc
+  src/heap-profile-table.cc
+  src/base/linuxthreads.cc
+  src/base/thread_lister.c
+  src/raw_printer.cc
+  src/base/low_level_alloc.cc)
+
 
 add_library( tcmalloc src/config.h.in ${GPERF_HEADERS} ${TCMALLOC_MINIMAL_SOURCES} )
 target_link_libraries( tcmalloc spinlock Threads::Threads )

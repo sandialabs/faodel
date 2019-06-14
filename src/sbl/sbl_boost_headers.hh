@@ -3,8 +3,8 @@
 // the U.S. Government retains certain rights in this software. 
 
 
-#ifndef SBL_BOOST_HEADERS_HPP_
-#define SBL_BOOST_HEADERS_HPP_
+#ifndef SBL_BOOST_HEADERS_HH_
+#define SBL_BOOST_HEADERS_HH_
 
 #include <boost/log/trivial.hpp>
 #include <boost/log/sources/severity_channel_logger.hpp>
@@ -18,4 +18,4 @@
 
 #include <boost/log/utility/setup/common_attributes.hpp>
 
-#endif /* SBL_BOOST_HEADERS_HPP_ */
+#endif /* SBL_BOOST_HEADERS_HH_ */

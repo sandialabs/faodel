@@ -17,12 +17,12 @@ void example_nodeid() {
   //that are running in the system. The nodeid is a 64b value that
   //any rank in the system can communicate with.
 
-  //The Webhook service is responsible for managing a communication
+  //The Whookie service is responsible for managing a communication
   //socket for each rank. This socket is a regular tcp/ip socket
   //(though most transports allow you to run on top of the native
   //hpc interconnect). A rank's nodeid_t can be discovered by
-  //querying webhook:
-  //   webhook::Server::GetMyID();
+  //querying whookie:
+  //   whookie::Server::GetMyID();
 
 
   //You can manually specify the ip/port for a node. This is mostly

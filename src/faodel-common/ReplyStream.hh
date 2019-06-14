@@ -9,15 +9,16 @@
 #include <map>
 #include <sstream>
 #include <utility>
+#include "faodel-common/NodeID.hh"
 
 namespace faodel {
 
 enum class ReplyStreamType { TEXT, HTML, JSON };
 
 /**
- * @brief Provides a way for hooks to pass results back to Webhook
+ * @brief Provides a way for hooks to pass results back to Whookie
  *
- * Webhook needs a way for hooks to provide reply data back to users. A
+ * Whookie needs a way for hooks to provide reply data back to users. A
  * ReplyStream is a wrapper around stringstream that makes it easier
  * to append webpage structure.
  *
@@ -45,6 +46,9 @@ public:
 
   
   void mkList( const std::vector<std::string> &entries, const std::string &label="");
+
+  std::string createLink(std::string name, std::string link, bool link_is_important=false);
+  std::string createBold(std::string text);
   
   void Finish();
   

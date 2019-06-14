@@ -27,7 +27,7 @@
 #include "faodel-common/Bootstrap.hh"
 #include "faodel-common/NodeID.hh"
 
-#include "webhook/Server.hh"
+#include "whookie/Server.hh"
 
 #include "nnti/nnti_logger.hpp"
 
@@ -72,7 +72,7 @@ test_setup(int                           argc,
 
     num_clients = num_procs - num_servers;
 
-    faodel::bootstrap::Start(config, webhook::bootstrap);
+    faodel::bootstrap::Start(config, whookie::bootstrap);
 
     t = nnti::transports::factory::get_instance(config);
 
@@ -114,7 +114,7 @@ test_setup(int                           argc,
 
     num_clients = num_procs - num_servers;
 
-    faodel::bootstrap::Start(config, webhook::bootstrap);
+    faodel::bootstrap::Start(config, whookie::bootstrap);
 
     t = nnti::transports::factory::get_instance(config);
 
@@ -145,7 +145,7 @@ test_setup(int                           argc,
         config.Append(s);
     }
 
-    faodel::bootstrap::Start(config, webhook::bootstrap);
+    faodel::bootstrap::Start(config, whookie::bootstrap);
 
     t = nnti::transports::factory::get_instance(config);
 
@@ -588,19 +588,27 @@ verify_buffer(char          *buf_base,
 
 NNTI_result_t
 wait_data(nnti::transports::transport *t,
-          NNTI_event_queue_t           eq)
+          NNTI_event_queue_t           eq,
+          NNTI_event_t                *event)
 {
     NNTI_result_t rc = NNTI_OK;
-
-    NNTI_event_t        event;
     uint32_t            which;
 
-    rc = t->eq_wait(&eq, 1, 10000, &which, &event);
+    rc = t->eq_wait(&eq, 1, 10000, &which, event);
     if (rc != NNTI_OK) {
         log_error("test_utils", "eq_wait() failed: %d", rc);
     }
 
     return rc;
+}
+
+NNTI_result_t
+wait_data(nnti::transports::transport *t,
+          NNTI_event_queue_t           eq)
+{
+    NNTI_event_t event;
+
+    return wait_data(t, eq, &event);
 }
 
 NNTI_result_t
@@ -682,6 +690,8 @@ send_data_async(nnti::transports::transport         *t,
     }
 
 cleanup:
+    log_debug("test_utils", "send_hdl - exit");
+
     return rc;
 }
 
@@ -776,8 +786,16 @@ send_data(nnti::transports::transport         *t,
                    peer_hdl,
                    cb,
                    context);
+    if (rc != NNTI_OK) {
+        log_error("test_utils", "send_data_async() failed: %d", rc);
+        goto cleanup;
+    }
 
     rc = wait_data(t, eq);
+    if (rc != NNTI_OK) {
+        log_error("test_utils", "wait_data() failed: %d", rc);
+        goto cleanup;
+    }
 
 cleanup:
     return rc;
@@ -892,9 +910,11 @@ get_data_async(nnti::transports::transport         *t,
 
     rc = t->get(&wr, &wid);
     if (rc != NNTI_OK) {
-        log_error("test_utils", "send() failed: %d", rc);
+        log_error("test_utils", "get() failed: %d", rc);
+        goto cleanup;
     }
 
+cleanup:
     log_debug("test_utils", "get_data_async - exit");
 
     return rc;
@@ -963,9 +983,18 @@ get_data(nnti::transports::transport         *t,
                         peer_hdl,
                         cb,
                         context);
+    if (rc != NNTI_OK) {
+        log_error("test_utils", "get_data_async() failed: %d", rc);
+        goto cleanup;
+    }
 
     rc = wait_data(t, eq);
+    if (rc != NNTI_OK) {
+        log_error("test_utils", "wait_data() failed: %d", rc);
+        goto cleanup;
+    }
 
+cleanup:
     log_debug("test_utils", "get_data - exit");
 
     return rc;
@@ -994,7 +1023,12 @@ get_data(nnti::transports::transport         *t,
                   eq,
                   cb,
                   context);
+    if (rc != NNTI_OK) {
+        log_error("test_utils", "get_data() failed: %d", rc);
+        goto cleanup;
+    }
 
+cleanup:
     log_debug("test_utils", "get_data - exit");
 
     return rc;
@@ -1078,9 +1112,11 @@ put_data_async(nnti::transports::transport         *t,
 
     rc = t->put(&wr, &wid);
     if (rc != NNTI_OK) {
-        log_error("test_utils", "send() failed: %d", rc);
+        log_error("test_utils", "put() failed: %d", rc);
+        goto cleanup;
     }
 
+cleanup:
     log_debug("test_utils", "put_data_async - exit");
 
     return rc;
@@ -1107,7 +1143,12 @@ put_data_async(nnti::transports::transport         *t,
                         peer_hdl,
                         cb,
                         context);
+    if (rc != NNTI_OK) {
+        log_error("test_utils", "put_data_async() failed: %d", rc);
+        goto cleanup;
+    }
 
+cleanup:
     log_debug("test_utils", "put_data_async - exit");
 
     return rc;
@@ -1157,9 +1198,18 @@ put_data(nnti::transports::transport         *t,
                         peer_hdl,
                         cb,
                         context);
+    if (rc != NNTI_OK) {
+        log_error("test_utils", "put_data_async() failed: %d", rc);
+        goto cleanup;
+    }
 
     rc = wait_data(t, eq);
+    if (rc != NNTI_OK) {
+        log_error("test_utils", "wait_data() failed: %d", rc);
+        goto cleanup;
+    }
 
+cleanup:
     log_debug("test_utils", "put_data - exit");
 
     return rc;
@@ -1243,9 +1293,11 @@ fadd_async(nnti::transports::transport         *t,
 
     rc = t->atomic_fop(&wr, &wid);
     if (rc != NNTI_OK) {
-        log_error("test_utils", "send() failed: %d", rc);
+        log_error("test_utils", "atomic_fop() failed: %d", rc);
+        goto cleanup;
     }
 
+cleanup:
     log_debug("test_utils", "fadd_async - exit");
 
     return rc;
@@ -1293,9 +1345,18 @@ fadd(nnti::transports::transport         *t,
                     peer_hdl,
                     cb,
                     context);
+    if (rc != NNTI_OK) {
+        log_error("test_utils", "fadd_async() failed: %d", rc);
+        goto cleanup;
+    }
 
     rc = wait_data(t, eq);
+    if (rc != NNTI_OK) {
+        log_error("test_utils", "wait_data() failed: %d", rc);
+        goto cleanup;
+    }
 
+cleanup:
     log_debug("test_utils", "fadd - exit");
 
     return rc;
@@ -1357,9 +1418,11 @@ cswap_async(nnti::transports::transport         *t,
 
     rc = t->atomic_cswap(&wr, &wid);
     if (rc != NNTI_OK) {
-        log_error("test_utils", "send() failed: %d", rc);
+        log_error("test_utils", "atomic_cswap() failed: %d", rc);
+        goto cleanup;
     }
 
+cleanup:
     log_debug("test_utils", "cswap_async - exit");
 
     return rc;
@@ -1410,9 +1473,18 @@ cswap(nnti::transports::transport         *t,
                     peer_hdl,
                     cb,
                     context);
+    if (rc != NNTI_OK) {
+        log_error("test_utils", "cswap_async() failed: %d", rc);
+        goto cleanup;
+    }
 
     rc = wait_data(t, eq);
+    if (rc != NNTI_OK) {
+        log_error("test_utils", "wait_data() failed: %d", rc);
+        goto cleanup;
+    }
 
+cleanup:
     log_debug("test_utils", "cswap - exit");
 
     return rc;

@@ -31,7 +31,7 @@ public:
   virtual void start()=0;
   virtual void finish()=0;
   
-  virtual void init(std::string lmm_name, std::string emm_name, bool use_webhook,
+  virtual void init(std::string lmm_name, std::string emm_name, bool use_whookie,
                     const faodel::Configuration &config) = 0;
   
   virtual void RegisterPinUnpin(net_pin_fn pin, net_unpin_fn unpin) = 0;

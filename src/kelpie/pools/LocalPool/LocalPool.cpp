@@ -238,6 +238,20 @@ rc_t LocalPool::Drop(const Key &key){
 }
 
 /**
+ * @brief Perform a search for keys that match a specific pattern
+ * @param[in] bucket The bucket id we should limit the search to
+ * @param[in] key_prefix The key to search for. Row and/or Key may end in '*' for prefix matching
+ * @param[out] object_capacities Info about the objects that match this key search
+ * @retval KELPIE_OK Found matches
+ * @retval KELPIE_ENOENT Did not find matches
+ */
+rc_t LocalPool::List(const kelpie::Key &search_key, ObjectCapacities *object_capacities) {
+  dbg("List key "+search_key.str());
+
+  return lkv->list(default_bucket, search_key, object_capacities);
+}
+
+/**
  * @brief Use the key's row info to determine which node is responsible for the data
  * @param key The Key label for the blob (only ROW portion used)
  * @param node_id Always NODE_LOCALHOST

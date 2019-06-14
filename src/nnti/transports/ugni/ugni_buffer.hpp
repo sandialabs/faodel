@@ -17,7 +17,7 @@
 #include <alps/libalpslli.h>
 #include <gni_pub.h>
 
-#include "nnti/nnti_packable.h"
+#include "nnti/nnti_serialize.hpp"
 #include "nnti/nnti_types.h"
 
 #include "nnti/nnti_buffer.hpp"

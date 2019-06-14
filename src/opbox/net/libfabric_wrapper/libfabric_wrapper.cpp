@@ -11,8 +11,8 @@
 #include "opbox/net/net.hh"
 #include "opbox/net/peer.hh"
 
-#include "webhook/Server.hh"
-#include "webhook/client/Client.hh"
+#include "whookie/Server.hh"
+#include "whookie/client/Client.hh"
 #include "faodel-common/QuickHTML.hh"
 
 #include "opbox/net/libfabric_wrapper/fab_transport.hh"
@@ -76,7 +76,7 @@ using namespace std;
 using namespace opbox;
 using namespace faodel;
 using namespace lunasa;
-using namespace webhook;
+using namespace whookie;
 
 namespace opbox {
 namespace net {
@@ -256,8 +256,8 @@ Start()
         std::cerr << "NetLibfabric -> Provider name (verbs/sockets/gni) not specified.  Defaulting to 'sockets'." << std::endl;;
         trans_name = "sockets";
     }
-    assert(webhook::Server::IsRunning() && "Webhook not started before fabric started");
-    fabtrns->mynodeid = webhook::Server::GetNodeID();
+    assert(whookie::Server::IsRunning() && "Whookie not started before fabric started");
+    fabtrns->mynodeid = whookie::Server::GetNodeID();
 //    cout << "mynodeid = " << fabtrns->mynodeid.GetHex() << endl;
     if((trans_name == "gni") || (trans_name == "ugni")) {
         fabtrns->my_transport_id = 2;

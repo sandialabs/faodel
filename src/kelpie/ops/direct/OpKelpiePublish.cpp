@@ -50,9 +50,9 @@ OpKelpiePublish::OpKelpiePublish(
                      const iom_hash_t iom_hash,
                      const pool_behavior_t behavior_flags,
                      fn_publish_callback_t cb_result)
-  : state(State::orig_pub_send),
+  : Op(true), state(State::orig_pub_send),
     peer(target_ptr),
-    cb_info_result(cb_result), Op(true) {
+    cb_info_result(cb_result)  {
 
   ldo_data = ldo_users_data;  //We need to keep a copy of the ldo until sent
 
@@ -68,7 +68,7 @@ OpKelpiePublish::OpKelpiePublish(
  * @return OpKelpiePublish
  */
 OpKelpiePublish::OpKelpiePublish(Op::op_create_as_target_t t)
-  : state(State::trgt_pub_start), ldo_msg(), Op(t) {
+  : Op(t), state(State::trgt_pub_start), ldo_msg(){
 
   //No work to do - done in target's state machine
   peer = 0;

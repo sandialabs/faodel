@@ -39,7 +39,7 @@ public:
 
   bool operator<( const LocalKVCell &x) const;
   
-  size_t getUserSize() {
+  size_t getUserSize() const {
     return ldo.GetUserSize();
   }
 

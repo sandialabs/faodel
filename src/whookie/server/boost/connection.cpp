@@ -8,11 +8,11 @@
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
 
-#include "webhook/server/boost/connection.hpp"
+#include "whookie/server/boost/connection.hpp"
 #include <utility>
 #include <vector>
-#include "webhook/server/boost/connection_manager.hpp"
-#include "webhook/server/boost/request_handler.hpp"
+#include "whookie/server/boost/connection_manager.hpp"
+#include "whookie/server/boost/request_handler.hpp"
 
 
 namespace http {

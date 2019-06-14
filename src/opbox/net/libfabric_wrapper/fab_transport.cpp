@@ -11,8 +11,8 @@
 #include "opbox/net/net.hh"
 #include "opbox/net/peer.hh"
 
-#include "webhook/Server.hh"
-#include "webhook/client/Client.hh"
+#include "whookie/Server.hh"
+#include "whookie/client/Client.hh"
 #include "faodel-common/QuickHTML.hh"
 
 #include <boost/algorithm/string.hpp>
@@ -581,11 +581,11 @@ fab_transport::create_rdm_connection_server(
     struct fi_info *my_fi;
     string hostname, port, rem_name, rem_port;
 
-    auto new_val = args.find("rem_webhook_hostname");
+    auto new_val = args.find("rem_whookie_hostname");
     if(new_val != args.end()){
         hostname = new_val->second;
     }
-    new_val = args.find("rem_webhook_port");
+    new_val = args.find("rem_whookie_port");
     if(new_val != args.end()){
         port = new_val->second;
     }
@@ -668,17 +668,17 @@ fab_transport::fab_init_rdm(const char *provider_name)
     hints->fabric_attr->prov_name = strdup(provider_name);
     hints->domain_attr->mr_mode = FI_MR_BASIC;
 
-    //src_port = webhook::port();
-    // have a global port relative to webhook port , which is unique to start libfabric as server connection
-    // There is really no connection but this is to indetify the src_addr, dest_addr etc for webhook exchange
+    //src_port = whookie::port();
+    // have a global port relative to whookie port , which is unique to start libfabric as server connection
+    // There is really no connection but this is to indetify the src_addr, dest_addr etc for whookie exchange
     //
-    faodel::nodeid_t nid = webhook::Server::GetNodeID();;
+    faodel::nodeid_t nid = whookie::Server::GetNodeID();;
     string s_host, s_port;
     uint32_t b_host; uint16_t b_port;
 
     nid.GetIPPort(&s_host, &s_port);
     nid.GetIPPort(&b_host, &b_port);
-//    cout << "webhook " << s_host<<" / "<<s_port<<std::endl;
+//    cout << "whookie " << s_host<<" / "<<s_port<<std::endl;
     my_fab_port = b_port + FAB_PORT_AUX;
     std::string s_port_aux = std::to_string(my_fab_port);
     ret = fi_getinfo(FI_VERSION(1,0), s_host.c_str(), s_port_aux.c_str(), FI_SOURCE, hints, &fi);
@@ -724,10 +724,10 @@ fab_transport::fab_init_rdm(const char *provider_name)
 
     ret = fi_enable(ep);
     error_check(ret, "fi_enable");
-    webhook::Server::registerHook("/fab/rdmlookup", [this] (const map<string,string> &args, stringstream &results) {
+    whookie::Server::registerHook("/fab/rdmlookup", [this] (const map<string,string> &args, stringstream &results) {
         create_rdm_connection_server(args, results);
     });
-    webhook::Server::registerHook("/fab/disconnect", [this] (const map<string,string> &args, stringstream &results) {
+    whookie::Server::registerHook("/fab/disconnect", [this] (const map<string,string> &args, stringstream &results) {
         destroy_rdm_connection_server(args, results);
     });
     //cout << "Fab init RDM done " << std::endl;
@@ -760,8 +760,8 @@ fab_transport::create_rdm_connection_client(
 
 //    cout << "outbound connection to " << peer_nodeid.GetHex() << endl;
 
-    ss_path << "/fab/rdmlookup&rem_webhook_hostname="<<mynodeid.GetIP()<<"&rem_webhook_port="<<mynodeid.GetPort()<< "&rem_peer_port=" <<s;
-    ret = webhook::retrieveData(peer_nodeid.GetIP() , peer_nodeid.GetPort() , ss_path.str(), &result);
+    ss_path << "/fab/rdmlookup&rem_whookie_hostname="<<mynodeid.GetIP()<<"&rem_whookie_port="<<mynodeid.GetPort()<< "&rem_peer_port=" <<s;
+    ret = whookie::retrieveData(peer_nodeid.GetIP() , peer_nodeid.GetPort() , ss_path.str(), &result);
     boost::trim_right(result);
     vector<string> result_parts = faodel::SplitPath(result);
     //cout <<"Result is : '" << result_parts[0] << "' part 1  '" << result_parts[1] << "'\n";
@@ -867,14 +867,14 @@ fab_transport::fab_init_ib (const char *provider_name)
     hints->fabric_attr->prov_name = strdup(provider_name);
     hints->domain_attr->mr_mode   = FI_MR_BASIC;
 
-    faodel::nodeid_t nid = webhook::Server::GetNodeID();;
+    faodel::nodeid_t nid = whookie::Server::GetNodeID();;
     string s_host, s_port;
     uint32_t b_host;
     uint16_t b_port;
 
     nid.GetIPPort(&s_host, &s_port);
     nid.GetIPPort(&b_host, &b_port);
-    //cout << "webhook " << s_host<<" / "<<s_port<<std::endl;
+    //cout << "whookie " << s_host<<" / "<<s_port<<std::endl;
     my_fab_port = b_port + FAB_PORT_AUX;
     std::string s_port_aux = std::to_string(my_fab_port);
 
@@ -910,8 +910,8 @@ fab_transport::fab_init_ib (const char *provider_name)
 
     rc = fi_cq_open (domain, &cq_attr, &cq, NULL);
     error_check(rc,"fi_cq_open");
-    // Register for webhooks to lookup my IB Ip address and port, where fabric connection mgmt running
-    webhook::Server::registerHook("/fab/iblookup", [this] (const map<string,string> &args, stringstream &results) {
+    // Register for whookies to lookup my IB Ip address and port, where fabric connection mgmt running
+    whookie::Server::registerHook("/fab/iblookup", [this] (const map<string,string> &args, stringstream &results) {
         struct fab_connection *conn=create_ib_pending_connection(args);
         std::string my_port = to_string(my_fab_port);
         string s_host, s_port;
@@ -1063,11 +1063,11 @@ fab_transport::create_ib_pending_connection (
     char* addr;
     uint16_t lport;
     struct fab_connection* conn = new fab_connection;
-    auto new_val = args.find("rem_webhook_hostname");
+    auto new_val = args.find("rem_whookie_hostname");
     if(new_val != args.end()){
         hostname = new_val->second;
     }
-    new_val = args.find("rem_webhook_port");
+    new_val = args.find("rem_whookie_port");
     if(new_val != args.end()){
         port = new_val->second;
     }
@@ -1183,17 +1183,17 @@ fab_transport::client_connect_ib (
         (uint16_t) ntohs (((struct sockaddr_in *) fi->src_addr)->sin_port);
 //    cout << "client_ib_connect() - My addr:" << src_addr << " conn port  " << src_port << " addrlen " << fi->src_addrlen <<std::endl;
 
-    ss_path << "/fab/iblookup&rem_webhook_hostname=" << mynodeid.GetIP()<<"&rem_webhook_port="<<mynodeid.GetPort()<<"&rem_peer_name="<<src_addr<<"&rem_peer_port="<<src_port;
+    ss_path << "/fab/iblookup&rem_whookie_hostname=" << mynodeid.GetIP()<<"&rem_whookie_port="<<mynodeid.GetPort()<<"&rem_peer_name="<<src_addr<<"&rem_peer_port="<<src_port;
 //    cout << "client_ib_connect() - ss_path='" << ss_path.str() << "'" << endl;
 
     int retries = 5;
-    ret = webhook::retrieveData(peer_nodeid.GetIP() , peer_nodeid.GetPort() , ss_path.str(), &result);
+    ret = whookie::retrieveData(peer_nodeid.GetIP() , peer_nodeid.GetPort() , ss_path.str(), &result);
     while (ret != 0 && --retries) {
         sleep(1);
-        ret = webhook::retrieveData(peer_nodeid.GetIP() , peer_nodeid.GetPort() , ss_path.str(), &result);
+        ret = whookie::retrieveData(peer_nodeid.GetIP() , peer_nodeid.GetPort() , ss_path.str(), &result);
     }
     if (ret != 0) {
-        std::cout << "client_connect_ib() - webhook::retrieveData() timed out" << std::endl;
+        std::cout << "client_connect_ib() - whookie::retrieveData() timed out" << std::endl;
         return(NULL);
     }
 
@@ -1277,13 +1277,16 @@ fab_transport::disconnect(struct fab_peer *peer)
     string result;
     stringstream ss_path;
 
-    ss_path << "/fab/disconnect&rem_webhook_hostname="<<mynodeid.GetIP()<<"&rem_webhook_port="<<mynodeid.GetPort();
-    ret = webhook::retrieveData(peer->remote_nodeid.GetIP() , peer->remote_nodeid.GetPort() , ss_path.str(), &result);
+    ss_path << "/fab/disconnect&rem_whookie_hostname="<<mynodeid.GetIP()<<"&rem_whookie_port="<<mynodeid.GetPort();
+    ret = whookie::retrieveData(peer->remote_nodeid.GetIP() , peer->remote_nodeid.GetPort() , ss_path.str(), &result);
 
     auto victim = peer_map.find(peer->remote_nodeid);
     if (victim != peer_map.end()) {
         peer_map.erase(peer->remote_nodeid);
-        ret = fi_av_remove(av, &peer->remote_addr, 1, 0);
+        if ((my_transport_id == 2) ||
+            (my_transport_id == 3)) {
+            ret = fi_av_remove(av, &peer->remote_addr, 1, 0);
+        }
     } else {
         abort();
     }
@@ -1298,11 +1301,11 @@ fab_transport::destroy_rdm_connection_server(
     int ret;
     string hostname, port;
 
-    auto new_val = args.find("rem_webhook_hostname");
+    auto new_val = args.find("rem_whookie_hostname");
     if(new_val != args.end()){
         hostname = new_val->second;
     }
-    new_val = args.find("rem_webhook_port");
+    new_val = args.find("rem_whookie_port");
     if(new_val != args.end()){
         port = new_val->second;
     }

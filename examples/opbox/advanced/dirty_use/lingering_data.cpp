@@ -42,14 +42,14 @@ Globals G;
 std::string default_config_string = R"EOF(
 # Note: node_role is defined when we determine if this is a client or a server
 net.transport.name    mpi
-master.webhook.port   7777
-server.webhook.port   1991
+master.whookie.port   7777
+server.whookie.port   1991
 
 dirman.type           centralized
 dirman.root_role      master
 
 #bootstrap.debug true
-#webhook.debug   true
+#whookie.debug   true
 #opbox.debug     true
 #dirman.debug    true
 lunasa.debug true

@@ -47,7 +47,7 @@ public:
 
   bool HasActiveAllocations() const override;
 
-  void webhookMemoryAllocations(faodel::ReplyStream &rs, const std::string &allocator_name) override;
+  void whookieMemoryAllocations(faodel::ReplyStream &rs, const std::string &allocator_name) override;
 
 
   void AddPinnedRegion(void *addr, size_t size, void *pinned_addr);

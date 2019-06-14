@@ -21,7 +21,7 @@ Globals G;
 
 //The FAODEL uses a plain-text configuration string to set
 //different parameters in the stack. The below string defines what
-//port the webhook sever will listen on, the type of directory management
+//port the whookie sever will listen on, the type of directory management
 //service to employ, and whether internal components should spew their
 //debug information or not. If things don't work, try turning on the debug
 //info to get a better idea of where things are breaking

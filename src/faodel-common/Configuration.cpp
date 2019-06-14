@@ -68,8 +68,8 @@ Configuration::Configuration(const string &configuration_string,
     Append("config.additional_files.env_name.if_defined", env_variable_for_extra_settings);
   }
   if(!configuration_string.empty()) {
-    int rc = Append(configuration_string);
-    kassert(rc == 0, "Configuration string had problems");
+    rc_t rc = Append(configuration_string);
+    if(rc!=0) throw std::runtime_error("Configuration's initialization string had errors");
   }
 }
 
@@ -131,11 +131,11 @@ rc_t Configuration::AppendFromFile(const string &file_name) {
  *
  * - **config.additional_files.env_name ABC;DEF**:
  *   Read file names from environment variables ABC and DEF and append the data
- *   from the files specified by ABC and DEF to Configuration. Exit if these
+ *   from the files specified by ABC and DEF to Configuration. Exception if these
  *   environment variables are not defined.
  *
  * - **config.additional_files.env_name.if_defined ABC;DEF**:
- *   Do the same as config.additional_files.env_name, but do not exit if the
+ *   Do the same as config.additional_files.env_name, but do not throw exception if the
  *   environment variables don't exist.
  *
  * @note The config.additional_files markers are removed from Configuration
@@ -162,10 +162,8 @@ rc_t Configuration::AppendFromReferences() {
   if(env_name1!="") {
     char *config_file = getenv(env_name1.c_str());
     if(config_file== nullptr) {
-      cerr <<"Configuration error: config.additional_files.env set to "<<env_name1
-           <<" but that environment variable is not defined.\n";
-      exit(0);
-      //TODO: exception
+     throw  std::runtime_error("Configuration error: config.additional_files.env set to "+env_name1+
+                               " but that environment variable is not define");
     }
     //Add env setting to back of the list
     if(additional_filenames!="") {
@@ -299,6 +297,17 @@ rc_t Configuration::Unset(const string &name){
 }
 
 /**
+ * @brief Determine if a particular field is set
+ * @param[in[ name Keyword in configuration to look for
+ * @retval TRUE If a setting is specified
+ * @retval FALSE if no setting is specified
+ */
+bool Configuration::Contains(const std::string &name) const {
+  int rc = GetString(nullptr, name);
+  return (rc!=ENOENT);
+}
+
+/**
  * @brief Search configuration data and return string of value, or default if not found
  * @param[out] val Value that was found, or default value
  * @param[in] name Keyword in configuration to look for
@@ -336,7 +345,7 @@ rc_t Configuration::GetString(string *val, const string &name,
     }
   }
   //Pass back to the user
-  *val = it->second;
+  if(val) *val = it->second;
 
   return 0;
 }
@@ -571,8 +580,10 @@ rc_t Configuration::GetPtr(void **val, const string &name,
  * @brief Retrieve a filename from Config (or the environment)
  * @param[out] fname The resulting file name
  * @param[in]  name The item to look up (name+".file")
+ * @param[in]  default_env_var The default environment var to use if none specified
  * @param[in]  default_value The default filename to use if not found
  * @retval 0 If filename was resolved
+ * @throws runtime_error if required env var is missing
  *
  * This function attempts to retrieve a filename from the config or
  * the environment. The name supplied to this function will be appended
@@ -591,23 +602,41 @@ rc_t Configuration::GetPtr(void **val, const string &name,
  * - myfile.file.env_name.if_defined XYZ: The user wants to check
  *   the environment variable XYZ for the filename. If that variable
  *   doesn't exist, use myfile.file from Configuration
+ *
+ * Order of processing:
+ *   1. name.file
+ *   2. name.file.env_name.if_defined
+ *   3. name.file.env_name             (can fail)
+ *   4. default_env_var
+ *   5. default_file
  */
 rc_t Configuration::GetFilename(string *fname, const string &name,
-                                const string &default_value) const {
+                                const string &default_env_var,
+                                const string &default_file) const {
 
+  string tmp_fname;
   string ename;
   char *penv;
 
+  //First choice: See if file is explicitly defined. No default value yet.
+  rc_t rc = GetString(&tmp_fname, name+".file");
+  if(rc==0) {
+    string expanded = ExpandPathSafely(tmp_fname);
+    if(expanded.length() > 0) {
+      if(fname) *fname = expanded;
+      return 0;
+    }
+  }
+
   //Look for an optional env var
-  GetString(&ename, name+".file.env_name.if_defined","");
+  GetString(&ename, name+".file.env_name.if_defined", "");
   if(!ename.empty()) {
-    //They asked to check for an env var and use if exists
     penv = getenv(ename.c_str());
     if(penv) {
       //Env var exists, use it
       string expanded = ExpandPathSafely(string(penv));
       if (expanded.length() > 0) {
-        *fname = expanded;
+        if(fname) *fname = expanded;
         return 0;
       }
     }
@@ -623,19 +652,35 @@ rc_t Configuration::GetFilename(string *fname, const string &name,
       //Env var exists, use it
       string expanded = ExpandPathSafely(string(penv));
       if (expanded.length() > 0) {
-        *fname = expanded;
+        if(fname) *fname = expanded;
         return 0;
       }
-      cerr <<"Configuration requested "
-           <<name<<".file.env_name "<<ename<<" but shell expansion failed.\n";
-      exit(-1);
+      throw  std::runtime_error("Configuration shell expension failed for "+name+".file.env_name "+ename);
     }
-    cerr <<"Configuration requested "
-         <<name<<".file.env_name "<<ename<<" but it was not set.\n";
-    exit(-1);
+    throw std::runtime_error("Configuration required "+name+".file.env_name "+ename+" but it was not set\n");
   }
 
-  return GetString(fname, name+".file", default_value);
+  //See if we should check a default env var
+  if(!default_env_var.empty()) {
+    penv = getenv(default_env_var.c_str());
+    if(penv) {
+      string expanded = ExpandPathSafely(string(penv));
+      if (expanded.length() > 0) {
+        if(fname) *fname = expanded;
+        return 0;
+      }
+    }
+    //Not mandatory, so fall through
+  }
+
+  //Last try: see if default value set
+  if(!default_file.empty()) {
+    string expanded = ExpandPathSafely(default_file);
+    if(fname) *fname = expanded;
+    return 0;
+  }
+
+  return ENOENT;
 }
 
 /**
@@ -714,6 +759,32 @@ map<string,string> Configuration::GetComponentSettings(const string &component_n
   map<string,string> results;
   GetComponentSettings(&results, component_name);
   return results;
+}
+
+/**
+ * @brief Determin if a component's logging settings are enabled.
+ * @param[out] dbg_enabled  either component.debug or component.log.debug is true
+ * @param[out] info_enabled either component.debug or component.log.info is true
+ * @param[out] warn_enabled either component.debug or component.log.warn is true
+ * @param[in] component_name Name of component to look up in Configuration
+ * @retval 0
+ */
+rc_t Configuration::GetComponentLoggingSettings(bool *dbg_enabled, bool *info_enabled, bool *warn_enabled, const string &component_name) const {
+
+
+  //Allow user to do "component.debug" instead of "component.log.debug"
+  GetBool(dbg_enabled, component_name+".debug",     "false");
+
+  string default_setting="false";
+  if((dbg_enabled!=nullptr) && (*dbg_enabled)) {
+    default_setting="true";
+  }
+
+  //But still trust log.debug as an override.
+  GetBool(dbg_enabled, component_name+".log.debug", default_setting);
+  GetBool(info_enabled, component_name+".log.info",  default_setting);
+  GetBool(warn_enabled, component_name+".log.warn",  default_setting);
+  return 0;
 }
 
 /**

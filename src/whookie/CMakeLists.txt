@@ -1,6 +1,6 @@
 
 set(HEADERS
-  WebHook.hh
+        Whookie.hh
   Server.hh
 
   client/Client.hh
@@ -15,7 +15,7 @@ set(HEADERS
   server/boost/server.hpp  
 )
 set(HEADERS_PUBLIC
-  WebHook.hh
+        Whookie.hh
   Server.hh
   client/Client.hh
 )
@@ -32,12 +32,12 @@ set(SOURCES
   server/ServerBoost.cpp      
 )
 
-# Everything now goes in webhook
-add_library( webhook ${HEADERS} ${SOURCES} )
-target_link_libraries( webhook Boost::boost )
+# Everything now goes in whookie
+add_library( whookie ${HEADERS} ${SOURCES} )
+target_link_libraries( whookie Boost::boost )
 
 
-install(TARGETS webhook
+install(TARGETS whookie
   EXPORT        FaodelTargets
   RUNTIME       DESTINATION "${BINARY_INSTALL_DIR}" COMPONENT bin
   ARCHIVE       DESTINATION "${LIBRARY_INSTALL_DIR}" COMPONENT lib

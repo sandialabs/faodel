@@ -48,7 +48,7 @@ public:
   int HandleIncomingMessage(opbox::net::peer_ptr_t peer, message_t *incoming_message) override;
   int UpdateOp(Op *op, OpArgs *args) override;
 
-  void HandleWebhookStatus(const std::map<std::string,std::string> &args, std::stringstream &results);
+  void HandleWhookieStatus(const std::map<std::string,std::string> &args, std::stringstream &results);
 
   std::string GetType() const override { return "standard"; }
 

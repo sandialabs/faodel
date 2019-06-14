@@ -52,10 +52,7 @@ rc_t LocalKVRow::doColOp(const Key &key, bool create_if_missing, bool trigger_de
   } else {
     cell = getCol(key);
     if(cell==nullptr){
-      if(col_info){
-        memset(col_info, 0, sizeof(kv_col_info_t));
-        col_info->availability=Availability::Unavailable;  //just to make sure
-      }
+      if(col_info) col_info->Wipe();
       return KELPIE_ENOENT;
     }
   }
@@ -128,6 +125,13 @@ string LocalKVRow::getFirstColumnName(){
   auto itr = cols.begin();
   return itr->first;
 }
+
+size_t LocalKVRow::getFirstColumnUserSize() {
+  if(col_single) return col_single->getUserSize();
+  auto itr = cols.begin();
+  return itr->second->getUserSize();
+}
+
 /**
  * @brief Search the row for a particular column. If it doesn't exist, create it
  * @param[in] key Key to look for (key.K2 is only part used)
@@ -152,6 +156,47 @@ LocalKVCell * LocalKVRow::getOrCreateCol(const Key &key, bool *previously_existe
   return cell;
 }
 
+
+/**
+ * @brief Perform a search for columns in this row that match a search string
+ * @param[in] search_string The column to search for. Will prefix match if string ends in '*'
+ * @param[out] names The column names that matched the search
+ * @param[out] capacities The LDO user capacities for the matching column(s)
+ * @return The number of matches found
+ */
+int LocalKVRow::getActiveColumnNamesCapacities(const string &search_string, vector<string> *names, vector<size_t> *capacities) {
+
+  bool col_wildcard = StringEndsWith(search_string, "*");
+
+  if(!col_wildcard) {
+    //Find exact match
+    LocalKVCell *cell = getCol(search_string);
+    if(cell==nullptr) return 0;
+    if(names) names->push_back(search_string);
+    if(capacities) capacities->push_back(cell->getUserSize());
+    return 1;
+
+  } else {
+    //Do a wildcard search
+    int num_found=0;
+
+    //Adjust the search name so it doesn't end in *
+    string prefix=search_string;
+    prefix.erase(prefix.size()-1);
+
+    //Walk through all entries and see if we have a hit
+    for(auto name_colptr = cols.lower_bound(prefix); name_colptr!=cols.end(); ++name_colptr) {
+      if(name_colptr->second->getUserSize()) { //Only entries with data
+        if(StringBeginsWith(name_colptr->first, prefix)) {
+          if(names) names->push_back(name_colptr->first);
+          if(capacities) capacities->push_back(name_colptr->second->getUserSize());
+          num_found++;
+        }
+      }
+    }
+    return num_found;
+  }
+}
 
 /**
  * @brief Insert a node into the waiting list for a particular cell.
@@ -296,14 +341,16 @@ void LocalKVRow::getInfo(kv_row_info_t *row_info){
  */
 void LocalKVRow::sstr(stringstream &ss, int depth, int indent) const {
 
-  ss << string(indent,' ')+"[Row] Name='" << rowname << "' Cols: " << cols.size() << endl;
-  if(col_single!=nullptr){
-    ss << string(indent+1,' ') << "Colname=''";
+  int num_cols = cols.size() + (col_single!=nullptr);
+
+  ss << string(indent,' ')+"[Row] '" << rowname;
+  if(col_single!=nullptr) {
+    ss << string(indent,' ') << "[Col] ''";
     if(depth>0)      col_single->sstr(ss, depth-1, indent+1);
     else             ss << endl;
   }
   for(auto &name_cellptr : cols){
-    ss << string(indent+1,' ') << "Colname='" << name_cellptr.first << "'";
+    ss << string(indent,' ') << "[Col] '" << name_cellptr.first << "'";
     if(depth>0)      name_cellptr.second->sstr(ss, depth-1, indent+1);
     else             ss << endl;
   }

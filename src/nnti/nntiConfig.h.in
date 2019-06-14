@@ -34,6 +34,9 @@
 #cmakedefine NNTI_HAVE_IBV_EXP_QP_INIT_ATTR_ATOMICS_ARG  1
 #cmakedefine NNTI_HAVE_IBV_EXP_QP_CREATE_ATOMIC_BE_REPLY 1
 #cmakedefine NNTI_HAVE_IBV_EXP_ATOMIC_HCA_REPLY_BE       1
+#cmakedefine NNTI_HAVE_IBV_EXP_DEVICE_ATTR_ODP           1
+#cmakedefine NNTI_HAVE_IBV_EXP_ACCESS_ON_DEMAND          1
+#cmakedefine NNTI_HAVE_IBV_EXP_ODP_SUPPORT_IMPLICIT      1
 
 #cmakedefine NNTI_HAVE_ENDIAN_H                          1
 #cmakedefine NNTI_HAVE_BE64TOH                           1
@@ -102,15 +105,26 @@
 #cmakedefine NNTI_HAVE_HPCTOOLKIT 1
 
 /* ************************************************
+ * Serialization configuration
+ * ************************************************ */
+#cmakedefine NNTI_USE_XDR    1
+#cmakedefine NNTI_USE_CEREAL 1
+
+/* ************************************************
  * XDR configuration
  * ************************************************ */
+#cmakedefine NNTI_HAVE_XDR_U_INT8_T  1
 #cmakedefine NNTI_HAVE_XDR_U_INT16_T 1
 #cmakedefine NNTI_HAVE_XDR_U_INT32_T 1
 #cmakedefine NNTI_HAVE_XDR_U_INT64_T 1
-#cmakedefine NNTI_HAVE_XDR_SIZEOF 1
+#cmakedefine NNTI_HAVE_XDR_SIZEOF    1
 
 /* ************************************************
  * Logging configuration
  * ************************************************ */
 #cmakedefine NNTI_ENABLE_DEBUG_LOGGING 1
 
+/* ************************************************
+ * Args Checking configuration
+ * ************************************************ */
+#cmakedefine NNTI_ENABLE_ARGS_CHECKING 1

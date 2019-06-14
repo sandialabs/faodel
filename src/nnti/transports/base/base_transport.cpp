@@ -21,7 +21,7 @@
 #include "faodel-common/Configuration.hh"
 #include "faodel-common/NodeID.hh"
 
-#include "webhook/Server.hh"
+#include "whookie/Server.hh"
 
 #include "nnti/nnti_transport.hpp"
 #include "nnti/transports/base/base_transport.hpp"
@@ -82,7 +82,7 @@ base_transport::base_transport(
 
     init_logger(config);
 
-    faodel::nodeid_t nodeid = webhook::Server::GetNodeID();
+    faodel::nodeid_t nodeid = whookie::Server::GetNodeID();
     addr = nodeid.GetIP();
     port = nodeid.GetPort();
 
@@ -183,6 +183,7 @@ base_transport::dt_sizeof(
             *packed_len  = ((nnti::datatype::nnti_peer*)dt)->packed_size();
             break;
         default:
+            log_error("base_transport", "unknown datatype");
             // unsupported datatype
             rc = NNTI_EINVAL;
             break;
@@ -220,6 +221,7 @@ base_transport::dt_pack(
             rc  = ((nnti::datatype::nnti_peer*)dt)->pack(packed_buf, packed_buflen);
             break;
         default:
+            log_error("base_transport", "unknown datatype");
             // unsupported datatype
             rc = NNTI_EINVAL;
             break;
@@ -250,6 +252,7 @@ base_transport::dt_free(
             rc  = ((nnti::datatype::nnti_peer*)dt)->free_packable();
             break;
         default:
+            log_error("base_transport", "unknown datatype");
             // unsupported datatype
             rc = NNTI_EINVAL;
             break;

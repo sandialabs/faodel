@@ -8,8 +8,8 @@
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
 
-#ifndef WEBHOOK_HEADER_HPP
-#define WEBHOOK_HEADER_HPP
+#ifndef WHOOKIE_HEADER_HPP
+#define WHOOKIE_HEADER_HPP
 
 #include <string>
 
@@ -25,4 +25,4 @@ struct header
 } // namespace server
 } // namespace http
 
-#endif // WEBHOOK_HEADER_HPP
+#endif // WHOOKIE_HEADER_HPP

@@ -3,12 +3,13 @@
 // the U.S. Government retains certain rights in this software. 
 
 
+#include <fstream>
 #include "opbox/OpBox.hh"
 #include "opbox/net/net.hh"
 #include "dirman/core/DirManCoreCentralized.hh"
 #include "dirman/ops/OpDirManCentralized.hh"
 
-#include "webhook/Server.hh"
+#include "whookie/Server.hh"
 
 using namespace std;
 using namespace faodel;
@@ -23,27 +24,35 @@ DirManCoreCentralized::DirManCoreCentralized(const faodel::Configuration &config
 
 
   string root_node_hex;
+  string write_root_filename;
   config.GetBool(&am_root,                     "dirman.host_root",            "false");
-  config.GetLowercaseString(&root_node_hex,    "dirman.root_node",            "");
+  config.GetFilename(&write_root_filename,     "dirman.write_root",            "", "");
 
-  my_node = webhook::Server::GetNodeID();
+  my_node = whookie::Server::GetNodeID();
 
-  if (!root_node_hex.empty()){
-    //Query to find the root node
-    root_id = nodeid_t(root_node_hex);
+  if(!am_root) {
+    dbg("Checking for root node");
+    root_id  = parseConfigForRootNode(config); //May throw if no valid root
     am_root = (root_id == my_node);
-    dbg("Setting root node to "+root_id.GetHex());
-
-  } else if(am_root){
-    dbg("Am hosting root");
-    root_id = my_node;
-    //root_id can't be set here because network not up yet
-
-  } else if (root_node_hex.empty()){
-    error("DirManCoreCentralized: no dirman.root_node provided in configuration");
-    KTODO("DMCC handle no root node in config");
+    dbg("Setting root node to " + root_id.GetHex());
   }
 
+  if(am_root) {
+    dbg("Am hosting root");
+    root_id = my_node;
+
+    //See if we've been instructed to write to a file
+    if(!write_root_filename.empty()) {
+      dbg("Root is writing file "+write_root_filename);
+      ofstream f;
+      f.open(write_root_filename);
+      if(!f.is_open()) {
+        throw std::runtime_error("dirman root node failed to write_root_filename "+write_root_filename);
+      }
+      f << my_node.GetHex() <<endl;
+      f.close();
+    }
+  }
 
 
   //The base class may have plugged a bunch of urls from config into dc_others. The root
@@ -102,13 +111,14 @@ bool DirManCoreCentralized::Locate(const ResourceURL &search_url, nodeid_t *refe
  */
 bool DirManCoreCentralized::GetDirectoryInfo(const faodel::ResourceURL &url, bool check_local, bool check_remote, DirectoryInfo *dir_info) {
 
-  dbg("GetDirInfo request to (local="+to_string(check_local)+",remote="+to_string(check_remote)+ ") requesting resource"+url.GetURL());
+  dbg("GetDirInfo request to (local="+to_string(check_local)+",remote="+to_string(check_remote)+ ") requesting resource "+url.GetBucketPathName());
 
   //Fixup the url by filling in the bucket
   faodel::ResourceURL url_mod = localizeURL(url, false);
 
   if(am_root){
     //We're the root node. Just query local structures to find answer
+    if(dir_info) dir_info->url.reference_node = root_id; //Ensure we are listed as root
     bool found = dc_mine.Lookup(url_mod, dir_info);
     dbg("On-Root local query found: "+to_string(found));
     return found;
@@ -128,27 +138,47 @@ bool DirManCoreCentralized::GetDirectoryInfo(const faodel::ResourceURL &url, boo
     }
 
     dbg("Off-Root missed local cache. Issue request to root "+root_id.GetHex()+" for "+url_mod.GetPathName());
-    //Launch a message
-    OpDirManCentralized *op = new OpDirManCentralized(OpDirManCentralized::RequestType::GetInfo, root_id, url_mod);
-    future<DirectoryInfo> fut1 = op->GetFuture();
-    opbox::LaunchOp(op);
 
-    //Block until get a result (could be good or bad)
-    DirectoryInfo di2 = fut1.get();
+    try {
+      //Launch a message
+      OpDirManCentralized *op = new OpDirManCentralized(OpDirManCentralized::RequestType::GetInfo, root_id, url_mod);
+      future<DirectoryInfo> fut1 = op->GetFuture();
+      opbox::LaunchOp(op);
 
-    //Skip out if the dirinfo we got back is empty
-    if(di2.IsEmpty()) {
-      dbg("GetDirInfo did not get a valid result from root node");
+      //Block until get a result (could be good or bad)
+      DirectoryInfo di2 = fut1.get();
+
+      //Skip out if the dirinfo we got back is empty
+      if(di2.IsEmpty()) {
+        dbg("GetDirInfo did not get a valid result from root node");
+        return false;
+      }
+
+
+      //Pass valid result back
+      dbg("GetDirInfo Got remote result back: " + di2.to_string() + " members " + to_string(di2.members.size()));
+      dc_others.CreateAndLinkParents(di2);
+      if(dir_info) *dir_info = di2;
+      return true;
+
+    } catch(const std::exception &e) {
+      //Connect may throw if bad root node
+      error("DirMan Communication error "+string(e.what()));
       return false;
     }
 
-    //Pass valid result back
-    dbg("GetDirInfo Got remote result back: " + di2.to_string() + " children " + to_string(di2.children.size()));
-    dc_others.CreateAndLinkParents(di2);
-    if(dir_info) *dir_info = di2;
-    return true;
-
   }
+}
+
+/**
+ * @brief Define a new directory entry (but don't host it)
+ * @param dir_info Information for new directory entry
+ * @retval TRUE The resource wasn't known and was created ok
+ * @retval FALSE The resource already exists and therefore was NOT modified
+ */
+bool DirManCoreCentralized::DefineNewDir(const DirectoryInfo &dir_info) {
+  dbg("DefineNewDir "+dir_info.to_string());
+  return HostNewDir(dir_info); //Note: Nothing else needed because this sets reference node to root
 }
 
 /**
@@ -231,7 +261,7 @@ bool DirManCoreCentralized::JoinDirWithName(const faodel::ResourceURL &url, stri
 bool DirManCoreCentralized::LeaveDir(const faodel::ResourceURL &url, DirectoryInfo *dir_info) {
   dbg("LeaveDir "+url.GetURL());
 
-  //Fixup the dir_info by filling in the bucket. Note
+  //Fixup the dir_info by filling in the bucket.
   faodel::ResourceURL url_mod = localizeURL(url, false);
 
   if(am_root){
@@ -249,6 +279,37 @@ bool DirManCoreCentralized::LeaveDir(const faodel::ResourceURL &url, DirectoryIn
     dbg("LeaveDir Got result back: "+di2.to_string());
     return dc_others.Update(di2);
   }
+}
+
+/**
+ * @brief Instruct the root node to drop a specific directory
+ * @param url The resource reference to drop
+ * @return true
+ * @note This only removes the entry from the local and dirman nodes. It does not shutdown
+ *       the actual resource or remove references to it at other nodes.
+ */
+bool DirManCoreCentralized::DropDir(const faodel::ResourceURL &url) {
+  dbg("DropDir "+url.GetURL());
+
+  //Fixup the dir_info by filling in the bucket. Note
+  faodel::ResourceURL url_mod = localizeURL(url, false);
+
+  if(am_root) {
+    return dc_mine.Remove(url_mod);
+
+  } else {
+
+    //Launch a message
+    OpDirManCentralized *op = new OpDirManCentralized(OpDirManCentralized::RequestType::DropDir, root_id, url_mod);
+    future<DirectoryInfo> fut1 = op->GetFuture();
+    opbox::LaunchOp(op);
+
+    //Block for a reply, though we don't need it
+    DirectoryInfo di2 = fut1.get();
+
+    return dc_others.Remove(url_mod);
+  }
+
 }
 
 bool DirManCoreCentralized::discoverParent(const ResourceURL &resource_url, nodeid_t *parent_node){
@@ -290,9 +351,9 @@ faodel::ResourceURL DirManCoreCentralized::localizeURL(const faodel::ResourceURL
   return url_mod;
 }
 
-void DirManCoreCentralized::appendWebhookParameterTable(faodel::ReplyStream *rs){
-  rs->tableRow({"Root Node", root_id.GetHtmlLink()});
-  rs->tableRow({"Am Root",  std::to_string(am_root)});
+void DirManCoreCentralized::appendWhookieParameterTable(faodel::ReplyStream *rs){
+  rs->tableRow({"Root Node:", rs->createLink(root_id.GetHex(), root_id.GetHttpLink(), true) });
+  rs->tableRow({"Am Root:",   ((am_root) ?"True":"False")});
 }
 
 void DirManCoreCentralized::sstr(stringstream &ss, int depth, int indent) const {

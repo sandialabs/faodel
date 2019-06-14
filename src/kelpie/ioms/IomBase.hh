@@ -46,12 +46,14 @@ public:
     // Only keep settings that are valid
     for( auto&& s : valid_settings ) {
       auto found = new_settings.find( s );
-      settings[s] = found == new_settings.end() ? "" : found->second;
+      if( found != new_settings.end() ) {
+	settings[s] = found->second;
+      }
     }
   };
     
 
-  ~IomBase() override { }
+  virtual ~IomBase() override { }
 
   std::string Name() const { return name; }
 

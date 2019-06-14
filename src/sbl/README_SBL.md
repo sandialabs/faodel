@@ -213,7 +213,7 @@ Example:
         sbl::stream file_stream("debug.log", sbl::severity_level::debug); // all messages go to this file
         std::stringstream ss;
         sbl::stream buffer_stream(ss, sbl::severity_level::warning); // warning, error and fatal messages go to a stringstream 
-                                                                     // that webhook can put in replies
+                                                                     // that whookie can put in replies
         
         sbl::source debug_source(sbl::severity_level::debug);   // these will only go to the file_stream
         sbl::source fatal_source(sbl::severity_level::fatal);  // these will go to all streams

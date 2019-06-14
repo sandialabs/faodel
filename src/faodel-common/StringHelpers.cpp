@@ -107,6 +107,38 @@ bool IsValidIPString(const string &hostname) {
 }
 
 /**
+ * @brief Convert a numerical string (eg "100" "4K") into an int32 value (eg 100, 4096)
+ * @param[out] val The output variable to set
+ * @param[in] name Input string to parse
+ * @retval 0 If input could be parsed
+ * @retval EINVAL If input string couldn't be parsed
+ */
+int StringToInt32(int32_t *val, const std::string &name) {
+  kassert(val,"Null val ptr handed to StringToInt32");
+  int64_t val64;
+  int rc = StringToInt64(&val64, name);
+  if(rc!=0) return rc;
+  *val = (val64 & 0x0FFFFFFFFL);
+  return 0;
+}
+
+/**
+ * @brief Convert a numerical string (eg "100" "4K") into an uint32 value (eg 100, 4096)
+ * @param[out] val The output variable to set
+ * @param[in] name Input string to parse
+ * @retval 0 If input could be parsed
+ * @retval EINVAL If input string couldn't be parsed
+ */
+int StringToUInt32(uint32_t *val, const std::string &name) {
+  kassert(val,"Null val ptr handed to StringToUInt32");
+  uint64_t val64;
+  int rc = StringToUInt64(&val64, name);
+  if(rc!=0) return rc;
+  *val = (val64 & 0x0FFFFFFFFL);
+  return 0;
+}
+
+/**
  * @brief Convert a numerical string (eg "100" "4K") into an int64 value (eg 100, 4096)
  * @param[out] val The output variable to set
  * @param[in] name Input string to parse

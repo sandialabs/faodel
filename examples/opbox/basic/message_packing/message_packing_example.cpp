@@ -31,8 +31,8 @@ net.transport.name   mpi
 #
 # note: node_role is set by Globals based on rank.
 #
-master.webhook.port   7777
-server.webhook.port   1992
+master.whookie.port   7777
+server.whookie.port   1992
 
 # Select the type of dirman to use. Currently we only have centralized, which
 # just sticks all the directory info on one node (called root). We use roles
@@ -42,7 +42,7 @@ dirman.root_role      master
 
 # Turn these on if you want to see more debug messages
 #bootstrap.debug           true
-#webhook.debug             true
+#whookie.debug             true
 #opbox.debug               true
 #dirman.debug              true
 #dirman.cache.others.debug true

@@ -54,7 +54,7 @@ void example3_remote_create(){
 
   cout <<"Info: '"<<dir.info
        <<"' ReferenceNode: " <<dir.GetReferenceNode().GetHex()
-       <<" NumberChildren: " <<dir.children.size()<<endl;
+       <<" NumberMembers: " <<dir.members.size()<<endl;
 
   MPI_Barrier(MPI_COMM_WORLD);
 
@@ -63,8 +63,8 @@ void example3_remote_create(){
   if(test_id<0) test_id=0;
 
   if(G.mpi_rank==test_id){
-    cout <<"Rank "<<G.mpi_rank<<" sees the following children:\n";
-    for(auto &name_node : dir.children){
+    cout <<"Rank "<<G.mpi_rank<<" sees the following members:\n";
+    for(auto &name_node : dir.members){
       cout <<"     "<<name_node.name
            <<"  "<<name_node.node.GetHex() <<endl;
     }

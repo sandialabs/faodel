@@ -11,7 +11,7 @@ interest are:
     - bucket_t: Hashed value of a string, used for data namespaces
     - ResourceURL: String for referencing different system resources
     - DirectoryInfo: Provides a way to describe info about a FAODEL
-      resource (eg, url and info, plus any children of this resource).
+      resource (eg, url and info, plus any members of this resource).
 
 - **Configuration**: Configuration is a class for defining how to
     configure different components in a runtime. It uses a key/value

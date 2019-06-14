@@ -24,7 +24,7 @@
 #include <boost/lockfree/stack.hpp>
 #include <boost/lockfree/queue.hpp>
 
-#include "nnti/nnti_packable.h"
+#include "nnti/nnti_serialize.hpp"
 #include "nnti/nnti_types.h"
 
 #include "nnti/nnti_datatype.hpp"

@@ -13,7 +13,7 @@
 #include <stdexcept>
 
 
-#include <webhook/Server.hh>
+#include <whookie/Server.hh>
 
 
 #include "faodel-common/BootstrapImplementation.hh"
@@ -150,7 +150,7 @@ void Bootstrap::Init(const Configuration &config) {
     bs.init_function(&configuration);
   }
 
-  //Note: we can't install bootstrap webhook here because of build order issues. Do it in webhook
+  //Note: we can't install bootstrap whookie here because of build order issues. Do it in whookie
 
   dbg("Completed Init'ing services. Moved to 'initialized' state.");
   state = State::INITIALIZED;

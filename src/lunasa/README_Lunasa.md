@@ -79,7 +79,7 @@ Lunasa has a few library dependencies:
 | --------------- | ----------------------------------- |
 | FAODEL:SBL      | Uses logging capabilities for boost |
 | FAODEL:Common   | Uses bootstrap and nodeid_t         |
-| FAODEL:WebHook  | For status info                     |
+| FAODEL:Whookie  | For status info                     |
 
 Compile-Time Options
 --------------------
@@ -92,10 +92,11 @@ Run-Time Options
 When started, Lunasa examines the Configuration passed to it for the
 following variables:
 
-| Property                    | Type        | Default  | Description                                       |
-| --------------------------- | ----------- | -------- | ------------------------------------------------- |
-| lunasa.eager_memory_manager | string      | tcmalloc | Select memory allocator used on eager allocations |
-| lunasa.lazy_memory_manager  | string      | malloc   | Select memory allocator used on lazy allocations  |
+| Property                         | Type        | Default  | Description                                       |
+| -------------------------------- | ----------- | -------- | ------------------------------------------------- |
+| lunasa.eager_memory_manager      | string      | tcmalloc | Select memory allocator used on eager allocations |
+| lunasa.lazy_memory_manager       | string      | malloc   | Select memory allocator used on lazy allocations  |
+| lunasa.tcmalloc.min_system_alloc | size        | -        | Override tcmalloc's minimum allocation size       |
 
 
 Lunasa's eager and lazy memory allocations manage separate pools of memory. 

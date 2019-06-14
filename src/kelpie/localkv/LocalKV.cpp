@@ -26,9 +26,9 @@ LocalKV::~LocalKV(){
 
   //Caution: assumes lkv lives inside something like kelpieCore, which uses bootstrap to preserve shutdown
   //         standalone tests of lkv must perform the same kind of order-preserving shutdown
-  webhook::Server::deregisterHook("/kelpie/lkv/cell");
-  webhook::Server::deregisterHook("/kelpie/lkv/row");
-  webhook::Server::deregisterHook("/kelpie/lkv");
+  whookie::Server::deregisterHook("/kelpie/lkv/cell");
+  whookie::Server::deregisterHook("/kelpie/lkv/row");
+  whookie::Server::deregisterHook("/kelpie/lkv");
 
   if(configured){
     wipeAll(faodel::internal_use_only);
@@ -57,15 +57,15 @@ rc_t LocalKV::Init(const Configuration &config){
   table_mutex = config.GenerateComponentMutex("kelpie.lkv", "rwlock");
   configured=true;
 
-  //Register webhooks
-  webhook::Server::updateHook("/kelpie/lkv", [this] (const map<string,string> &args, stringstream &results) {
-      return HandleWebhookStatus(args, results);
+  //Register whookies
+  whookie::Server::updateHook("/kelpie/lkv", [this] (const map<string,string> &args, stringstream &results) {
+      return HandleWhookieStatus(args, results);
   });
-  webhook::Server::updateHook("/kelpie/lkv/row", [this] (const map<string,string> &args, stringstream &results) {
-      return HandleWebhookRow(args, results);
+  whookie::Server::updateHook("/kelpie/lkv/row", [this] (const map<string,string> &args, stringstream &results) {
+      return HandleWhookieRow(args, results);
   });
-  webhook::Server::updateHook("/kelpie/lkv/cell", [this] (const map<string,string> &args, stringstream &results) {
-      return HandleWebhookCell(args, results);
+  whookie::Server::updateHook("/kelpie/lkv/cell", [this] (const map<string,string> &args, stringstream &results) {
+      return HandleWhookieCell(args, results);
   });
 
   return KELPIE_OK;
@@ -407,6 +407,78 @@ rc_t LocalKV::drop(bucket_t bucket, const Key &key){
 }
 
 /**
+ * @brief Perform a search for keys that match a specific pattern
+ * @param[in] bucket The bucket id we should limit the search to
+ * @param[in] key_prefix The key to search for. Row and/or Key may end in '*' for prefix matching
+ * @param[out] opject_capacities The results in this localkv that matched the key_prefix
+ * @retval KELPIE_OK Found matches
+ * @retval KELPIE_ENOENT Did not find matches
+ */
+rc_t LocalKV::list(bucket_t bucket, const Key &key_prefix,
+                    ObjectCapacities *object_capacities) {
+
+
+  kassert(key_prefix.valid(), "list given an invalid key");
+
+  dbg("List "+key_prefix.str());
+
+  bool row_wildcard = StringEndsWith(key_prefix.K1(), "*");
+  bool found_items=false;
+
+  if(!row_wildcard) {
+    //Exact row known. Search on the columns
+
+    vector<string> col_names;
+
+    //Exact match on K1, partial match on K2
+    /*rc_t rc =*/ doRowOp(bucket, key_prefix,
+                      false,
+                      nullptr,
+                      [&key_prefix, &col_names, &object_capacities] (LocalKVRow &row, bool previously_existed) {
+                          row.getActiveColumnNamesCapacities(key_prefix.K2(), &col_names, &object_capacities->capacities);
+                          return KELPIE_OK;
+                      });
+
+    //Convert row's column names into full keys
+    for(auto &col_name : col_names) {
+        object_capacities->keys.push_back(Key(key_prefix.K1(), col_name));
+    }
+    found_items = (col_names.size()!=0); //Only report what we found in this function
+
+  } else {
+    //Fuzzy Row Name
+
+    //Build the full row name we'll use
+    string prefix = makeRowname(bucket, key_prefix.K1());
+    prefix.erase(prefix.size()-1); //remove the trailing *
+
+
+    //Find all the row names that match and query each one
+    table_mutex->ReaderLock();
+    for(auto name_rowptr = rows.lower_bound(prefix); name_rowptr!=rows.end(); ++name_rowptr) {
+      if(StringBeginsWith(name_rowptr->first, prefix)) {
+        vector<string> col_names;
+
+        LocalKVRow *row = name_rowptr->second;
+        row->lock();
+        /*int num_found =*/ row->getActiveColumnNamesCapacities(key_prefix.K2(), &col_names, &object_capacities->capacities);
+        string row_name = row->rowname;
+        row->unlock();
+
+        //Append all keys for each column to the output
+        for(auto c : col_names) {
+          object_capacities->keys.push_back(Key(row_name, c));
+        }
+        found_items |= (col_names.size()!=0); //Only report what we found in this function
+      }
+    }
+    table_mutex->Unlock();
+  }
+  return (found_items) ? KELPIE_OK : KELPIE_ENOENT;
+}
+
+
+/**
  * @brief Use a lambda to manipulate a column inside the localkv
  * @param[in] bucket The user id that is marked as the bucket of this data
  * @param[in] key The key used to reference this data
@@ -434,8 +506,8 @@ rc_t LocalKV::doColOp(bucket_t bucket, const Key &key,
 
     if(!create_if_missing){
       //done: bail out
-      if(row_info) memset(row_info, 0, sizeof(kv_row_info_t));
-      if(col_info) memset(col_info, 0, sizeof(kv_col_info_t));
+      if(row_info) row_info->Wipe();
+      if(col_info) col_info->Wipe();
       return KELPIE_ENOENT;
     }
 
@@ -487,7 +559,7 @@ rc_t LocalKV::doRowOp(bucket_t bucket, const Key &key,
 
     if(!create_if_missing){
       //done: bail out
-      if(row_info) memset(row_info, 0, sizeof(kv_row_info_t));
+      if(row_info) row_info->Wipe();
       return KELPIE_ENOENT;
     }
 
@@ -552,7 +624,7 @@ rc_t LocalKV::getRowInfo(bucket_t bucket, const Key &key, kv_row_info_t *row_inf
 }
 
 
-string LocalKV::makeRowname(bucket_t bucket, const Key &key){
+string LocalKV::makeRowname(bucket_t bucket, const Key &key) {
   stringstream ss;
   ss << bucket.GetHex();
   ss << key.K1();
@@ -603,12 +675,12 @@ void LocalKV::wipeAll(faodel::internal_use_only_t iuo){
  * @param[in] args Key/Value list of args the user passed us
  * @param[in] results A stringstream for this function to write its results
  */
-void LocalKV::HandleWebhookStatus(const std::map<std::string,std::string> &args, std::stringstream &results){
+void LocalKV::HandleWhookieStatus(const std::map<std::string,std::string> &args, std::stringstream &results){
 
   faodel::ReplyStream rs(args, "Kelpie LocalKV Status", &results);
   auto it = args.find("detail");
   bool detailed = (it != args.end());
-  webhookInfo(rs,detailed);
+  whookieInfo(rs,detailed);
   rs.Finish();
 }
 
@@ -618,7 +690,7 @@ void LocalKV::HandleWebhookStatus(const std::map<std::string,std::string> &args,
  * @param[in] rs The ReplyStream to be written to
  * @param[in] detailed Whether to include detailed information or not
  */
-void LocalKV::webhookInfo(faodel::ReplyStream &rs, bool detailed){
+void LocalKV::whookieInfo(faodel::ReplyStream &rs, bool detailed){
 
   rs.tableBegin("LocalKV");
   rs.tableTop({"Parameter","Setting"});
@@ -707,7 +779,7 @@ void LocalKV::webhookInfo(faodel::ReplyStream &rs, bool detailed){
  * @param[in] args Key/Value list of args the user passed us
  * @param[in] results A stringstream for this function to write its results
  */
-void LocalKV::HandleWebhookRow(const std::map<std::string,std::string> &args, std::stringstream &results){
+void LocalKV::HandleWhookieRow(const std::map<std::string,std::string> &args, std::stringstream &results){
 
   faodel::ReplyStream rs(args, "Kelpie LocalKV Row", &results);
   string rname="";
@@ -767,7 +839,7 @@ void LocalKV::HandleWebhookRow(const std::map<std::string,std::string> &args, st
  * @param[in] args Key/Value list of args the user passed us
  * @param[in] results A stringstream for this function to write its results
  */
-void LocalKV::HandleWebhookCell(const std::map<std::string,std::string> &args, std::stringstream &results){
+void LocalKV::HandleWhookieCell(const std::map<std::string,std::string> &args, std::stringstream &results){
 
   faodel::ReplyStream rs(args, "Kelpie LocalKV Cell", &results);
   string rname="";
@@ -840,8 +912,8 @@ void LocalKV::sstr(stringstream &ss, int depth, int indent) const {
 
   ss << string(indent,' ') << "[LKV] Number of Rows: " << rows.size() <<endl;
   if(depth>0){
-    for(map<string, LocalKVRow *>::const_iterator ii=rows.begin(); ii!=rows.end(); ++ii){
-      ss << string(indent+1,' ') << ii->first << " ";
+    for(map<string, LocalKVRow *>::const_iterator ii=rows.begin(); ii!=rows.end(); ++ii) {
+      //ss << string(indent+1,' ') << ii->first << " " <<" Number Cols: "<<ii->second->getNumCols()<<endl;
       ii->second->sstr(ss, depth-1, indent+1);
     }
   }

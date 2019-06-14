@@ -9,12 +9,12 @@
 #include <string>
 #include <boost/asio.hpp>
 
-#include "webhook/client/Client.hh"
+#include "whookie/client/Client.hh"
 
 using namespace std;
 using boost::asio::ip::tcp;
 
-namespace webhook {
+namespace whookie {
 
 /**
  * @brief Connect to a destination and request data
@@ -141,4 +141,4 @@ int retrieveData(const std::string &server, unsigned int port, const string &pat
 
 
 
-} // namespace webhook
+} // namespace whookie

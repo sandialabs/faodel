@@ -783,7 +783,7 @@ WARN_LOGFILE           =
 INPUT = src/sbl
 INPUT += src/faodel-common
 INPUT += src/dirman
-INPUT += src/webhook
+INPUT += src/whookie
 INPUT += src/nnti
 INPUT += src/lunasa
 INPUT += src/opbox
@@ -797,7 +797,7 @@ INPUT += src/kelpie/README_Kelpie.md
 INPUT += src/opbox/README_OpBox.md
 INPUT += src/lunasa/README_Lunasa.md
 INPUT += src/nnti/README_NNTI.md
-INPUT += src/webhook/README_WebHook.md
+INPUT += src/whookie/README_Whookie.md
 INPUT += src/dirman/README_DirMan.md
 INPUT += src/faodel-services/README_Services.md
 INPUT += src/faodel-common/README_Common.md
@@ -842,7 +842,7 @@ RECURSIVE              = YES
 # Note that relative paths are relative to the directory from which doxygen is
 # run.
 
-EXCLUDE                = src/webhook/server/boost
+EXCLUDE                = src/whookie/server/boost
 
 # The EXCLUDE_SYMLINKS tag can be used to select whether or not files or
 # directories that are symbolic links (a Unix file system feature) are excluded

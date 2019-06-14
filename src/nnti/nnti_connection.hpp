@@ -23,7 +23,7 @@
 #include <sstream>
 #include <string>
 
-#include "nnti/nnti_packable.h"
+#include "nnti/nnti_serialize.hpp"
 #include "nnti/nnti_types.h"
 #include "nnti/nnti_threads.h"
 #include "nnti/nnti_peer.hpp"
@@ -106,7 +106,7 @@ public:
         return ss.str();
     }
     /*
-     * generate a key=value (one per line) string that can be included in a WebHook reply
+     * generate a key=value (one per line) string that can be included in a Whookie reply
      */
     virtual std::string
     reply_string(void)

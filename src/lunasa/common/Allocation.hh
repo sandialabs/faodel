@@ -81,7 +81,11 @@ typedef struct {
 struct Allocation {
   allocation_local_t  local;   //!< Pointers and bookkeeping only available on local node
   allocation_header_t header;  //!< Start of raw data, includes lengths
+
+  #pragma GCC diagnostic push
+  #pragma GCC diagnostic ignored "-Wpedantic"
   uint8_t             user[0]; //!< Start of user's meta/data
+  #pragma GCC diagnostic pop
 
   void setHeader(int initial_ref_count,
                  uint16_t meta_size, uint32_t data_size,
@@ -111,8 +115,7 @@ struct Allocation {
   int  DecrRef() {    //Issues a dealloc of this when reaches zero
     assert(local.ref_count > 0 && "LunasaDataObject refcount decremented to below zero");
 
-    --local.ref_count;
-    int num_left = local.ref_count.load();
+    int num_left = --local.ref_count;
     if(num_left == 0) {
       if( local.user_data_segments != nullptr ) {
 

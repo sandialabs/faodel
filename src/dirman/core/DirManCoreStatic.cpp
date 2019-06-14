@@ -7,7 +7,7 @@
 #include "opbox/net/net.hh"
 #include "dirman/core/DirManCoreStatic.hh"
 
-#include "webhook/Server.hh"
+#include "whookie/Server.hh"
 
 using namespace std;
 using namespace faodel;
@@ -77,8 +77,19 @@ bool DirManCoreStatic::GetDirectoryInfo(const faodel::ResourceURL &url, bool che
 }
 
 /**
+ * @brief Define a new directory entry (but don't host it)
+ * @param dir_info Information for new directory entry
+ * @retval TRUE The resource wasn't known and was created ok
+ * @retval FALSE The resource already exists and therefore was NOT modified
+ */
+bool DirManCoreStatic::DefineNewDir(const DirectoryInfo &dir_info) {
+  dbg("DefineNewDir "+dir_info.to_string());
+  return HostNewDir(dir_info);
+}
+
+/**
  * @brief Create a new directory entry. In this case, push info to root node
- * @param dir_info -  Information for new directory entry
+ * @param dir_info Information for new directory entry
  * @retval TRUE The resource wasn't known and was created ok
  * @retval FALSE The resource already exists and therefore was NOT modified
  */
@@ -129,7 +140,21 @@ bool DirManCoreStatic::LeaveDir(const faodel::ResourceURL &url, DirectoryInfo *d
   faodel::ResourceURL url_mod = localizeURL(url, false);
 
   return dc_mine.Leave(url_mod, dir_info);
+}
 
+/**
+ * @brief Instruct the root node to drop a specific directory
+ * @param url The resource reference to drop
+ * @return true
+ * @note This only removes the entry from the local node. It doesn't remove references elsewhere
+ */
+bool DirManCoreStatic::DropDir(const faodel::ResourceURL &url) {
+  dbg("DropDir "+url.GetURL());
+
+  //Fixup the dir_info by filling in the bucket. Note
+  faodel::ResourceURL url_mod = localizeURL(url, false);
+
+  return dc_mine.Remove(url_mod);
 }
 
 bool DirManCoreStatic::discoverParent(const ResourceURL &resource_url, nodeid_t *parent_node){
@@ -165,7 +190,7 @@ faodel::ResourceURL DirManCoreStatic::localizeURL(const faodel::ResourceURL &url
   return url_mod;
 }
 
-void DirManCoreStatic::appendWebhookParameterTable(faodel::ReplyStream *rs){
+void DirManCoreStatic::appendWhookieParameterTable(faodel::ReplyStream *rs){
 }
 
 void DirManCoreStatic::sstr(stringstream &ss, int depth, int indent) const {

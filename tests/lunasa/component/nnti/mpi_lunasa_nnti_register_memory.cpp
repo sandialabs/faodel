@@ -20,7 +20,7 @@
 #include "nnti/nnti_callback.hpp"
 #include "nnti/nnti_wr.hpp"
 #include "nnti/transport_factory.hpp"
-#include "webhook/Server.hh"
+#include "whookie/Server.hh"
 
 
 using namespace std;
@@ -288,8 +288,8 @@ int main(int argc, char *argv[]) {
 
   lunasa::RegisterPinUnpin(RegisterMemory, UnregisterMemory);
 
-  assert(webhook::Server::IsRunning() && "Webhook not started before NetNnti started");
-  faodel::nodeid_t nodeid = webhook::Server::GetNodeID();
+  assert(whookie::Server::IsRunning() && "Whookie not started before NetNnti started");
+  faodel::nodeid_t nodeid = whookie::Server::GetNodeID();
 
   transport = nnti::transports::factory::get_instance(config);
   transport->start();

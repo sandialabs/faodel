@@ -14,8 +14,8 @@
 
 #include "faodel-common/Common.hh"
 
-#include "webhook/Server.hh"
-#include "webhook/client/Client.hh"
+#include "whookie/Server.hh"
+#include "whookie/client/Client.hh"
 #include "faodel-common/QuickHTML.hh"
 
 using namespace std;
@@ -23,7 +23,7 @@ using namespace faodel;
 
 
 string default_config_string = R"EOF(
-webhook.interfaces    ipogif0,eth,lo
+whookie.interfaces    ipogif0,eth,lo
 )EOF";
 
 
@@ -54,11 +54,11 @@ protected:
 
     if (mpi_rank == 0) {
         desired_port=1990;
-        //port=webhook::start(desired_port);
+        //port=whookie::start(desired_port);
         num_tests++; //Keep track so main can close out this many tests
 
         cerr<<"TODO\n"; exit(-1);
-        //strcpy(server_hostname, webhook::Server::hostname().c_str());
+        //strcpy(server_hostname, whookie::Server::hostname().c_str());
         server_port = port;
     }
     MPI_Bcast(server_hostname, 1024, MPI_BYTE, 0, MPI_COMM_WORLD);
@@ -71,9 +71,9 @@ protected:
 
   void TearDown() override {
     //TODO: ideally we'd put a stop here, but when the count goes to zero, the
-    //      global webhook will stop all threads and close in a way that eats
+    //      global whookie will stop all threads and close in a way that eats
     //      the port. For now, handle
-    //webhook::stop(); //stop kills it for everyone
+    //whookie::stop(); //stop kills it for everyone
   }
   int port;
   int desired_port;
@@ -88,7 +88,7 @@ protected:
 TEST_F(ClientServer, Simple){
 
     if (mpi_rank == 0) {
-      webhook::Server::registerHook("/test_simple", [] (const map<string,string> &args, stringstream &results) {
+      whookie::Server::registerHook("/test_simple", [] (const map<string,string> &args, stringstream &results) {
           //cout <<"Got op\n";
           //Grab the value
 
@@ -109,7 +109,7 @@ TEST_F(ClientServer, Simple){
       for(int i=0; i<10; i++){
         stringstream ss_newval; ss_newval <<i;
         stringstream ss_path;   ss_path << "/test_simple&newval="<<i;
-        rc = webhook::retrieveData(server_hostname, ss_port.str(), ss_path.str(), &result);
+        rc = whookie::retrieveData(server_hostname, ss_port.str(), ss_path.str(), &result);
 
 
         std::map<std::string,std::string> param_map;
@@ -129,7 +129,7 @@ TEST_F(ClientServer, Simple){
       MPI_Barrier(MPI_COMM_WORLD);
 
     if (mpi_rank == 0) {
-      int rc=webhook::Server::deregisterHook("/test_simple"); EXPECT_EQ(0,rc);
+      int rc=whookie::Server::deregisterHook("/test_simple"); EXPECT_EQ(0,rc);
     }
 }
 
@@ -150,13 +150,13 @@ int main(int argc, char **argv){
     }
   }
   conf.Append("node_role", (mpi_rank==0) ? "tester" : "target");
-  bootstrap::Start(conf, webhook::bootstrap);
+  bootstrap::Start(conf, whookie::bootstrap);
 
   int rc = RUN_ALL_TESTS();
   cout <<"Tester completed all tests.\n";
 
   for(int i=0; i<num_tests; i++){
-    //webhook::stop(); //stop kills it for everyone
+    //whookie::stop(); //stop kills it for everyone
   }
 
   MPI_Barrier(MPI_COMM_WORLD);

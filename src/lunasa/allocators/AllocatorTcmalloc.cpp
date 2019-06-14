@@ -54,11 +54,18 @@ AllocatorTcmalloc::AllocatorTcmalloc(const faodel::Configuration &config, bool e
 
   size_t bytes_allocated = 0;
   size_t bytes_managed = 0;
+  string min_system_alloc_string;
+  size_t min_system_alloc;
   SysAllocator *sa;
   AllocatorTcmalloc::TcmallocSysAllocator *tcmalloc_allocator;
 
   MallocExtension::instance()->GetNumericProperty("generic.current_allocated_bytes", &bytes_allocated);
   MallocExtension::instance()->GetNumericProperty("generic.heap_size", &bytes_managed);
+  faodel::rc_t rc = config.GetLowercaseString(&min_system_alloc_string, "lunasa.tcmalloc.min_system_alloc", "");
+  if( rc != ENOENT ) {
+    min_system_alloc = (size_t)std::stol(min_system_alloc_string);
+    MallocExtension::instance()->SetNumericProperty("tcmalloc.min_system_alloc", min_system_alloc);
+  }
 
   sa = MallocExtension::instance()->GetSystemAllocator();
   tcmalloc_allocator = dynamic_cast<AllocatorTcmalloc::TcmallocSysAllocator *>(sa);
@@ -291,7 +298,7 @@ size_t AllocatorTcmalloc::TotalFree() const {
   return (mTotalManaged - mTotalUsed);
 }
 
-void AllocatorTcmalloc::webhookMemoryAllocations(faodel::ReplyStream &rs, const string &allocator_name) {
+void AllocatorTcmalloc::whookieMemoryAllocations(faodel::ReplyStream &rs, const string &allocator_name) {
   rs.tableBegin("Lunasa " + allocator_name + " Memory Allocations");
   rs.tableTop({"Allocated Bytes", "RefCount", "MetaBytes", "DataBytes"});
   mutex->ReaderLock();

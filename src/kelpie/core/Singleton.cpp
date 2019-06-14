@@ -55,7 +55,7 @@ void SingletonImpl::GetBootstrapDependencies(
                        vector<string> &optional) const {
   name = "kelpie";
   requires = {"opbox","dirman"};
-  optional = {"webhook"};
+  optional = {"whookie"};
 }
 
 

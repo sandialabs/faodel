@@ -27,7 +27,7 @@
 #include "faodel-common/Configuration.hh"
 #include "faodel-common/NodeID.hh"
 
-#include "webhook/Server.hh"
+#include "whookie/Server.hh"
 
 #include "lunasa/Lunasa.hh"
 #include "lunasa/DataObject.hh"
@@ -288,7 +288,7 @@ namespace NetNnti
             }
         }
     }
-};
+}
 
 namespace NetNnti
 {
@@ -334,7 +334,7 @@ namespace NetNnti
         t_->register_memory(
             (char*)base_addr,
             length,
-            static_cast<NNTI_buffer_flags_t>(NNTI_BF_LOCAL_READ|NNTI_BF_LOCAL_WRITE|NNTI_BF_REMOTE_READ|NNTI_BF_REMOTE_WRITE),
+            static_cast<NNTI_buffer_flags_t>(NNTI_BF_LOCAL_READ|NNTI_BF_LOCAL_WRITE|NNTI_BF_REMOTE_READ|NNTI_BF_REMOTE_WRITE|NNTI_BF_REMOTE_ATOMIC),
             NNTI_INVALID_HANDLE,
             *cb,
             nullptr,
@@ -431,7 +431,7 @@ namespace NetNnti
             return NNTI_OK;
         }
     };
-};
+}
 
 
 using namespace NetNnti;
@@ -464,9 +464,9 @@ void Start()
 {
     NNTI_result_t rc;
 
-    //Webhook should be started by this point. We can get its info now.
-    assert(webhook::Server::IsRunning() && "Webhook not started before NetNnti started");
-    myid_ = webhook::Server::GetNodeID();
+    //Whookie should be started by this point. We can get its info now.
+    assert(whookie::Server::IsRunning() && "Whookie not started before NetNnti started");
+    myid_ = whookie::Server::GetNodeID();
 
     t_ = nnti::transports::factory::get_instance(config_);
 

@@ -18,7 +18,7 @@ public:
   LunasaCoreSplit();
   ~LunasaCoreSplit() override;
   
-  void init(std::string lmm_name, std::string emm_name, bool use_webhook,
+  void init(std::string lmm_name, std::string emm_name, bool use_whookie,
             const faodel::Configuration &config) override;
   void start() override {}
   void finish() override;
@@ -40,10 +40,10 @@ public:
 
   std::string GetType() const override { return "split"; };
 
-  //WebHook
-  void HandleWebhookStatus(const std::map<std::string,std::string> &args, std::stringstream &results);
-  void HandleWebhookEagerDetails(const std::map<std::string,std::string> &args, std::stringstream &results);
-  void HandleWebhookLazyDetails(const std::map<std::string,std::string> &args, std::stringstream &results);
+  //Whookie
+  void HandleWhookieStatus(const std::map<std::string,std::string> &args, std::stringstream &results);
+  void HandleWhookieEagerDetails(const std::map<std::string,std::string> &args, std::stringstream &results);
+  void HandleWhookieLazyDetails(const std::map<std::string,std::string> &args, std::stringstream &results);
   
   //InfoInterface
   void sstr(std::stringstream &ss, int depth=0, int indent=0) const override;

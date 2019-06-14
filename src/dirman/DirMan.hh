@@ -22,6 +22,8 @@ bool GetDirectoryInfo(const faodel::ResourceURL &url, faodel::DirectoryInfo *dir
 bool GetLocalDirectoryInfo(const faodel::ResourceURL &url, faodel::DirectoryInfo *dir_info);
 bool GetRemoteDirectoryInfo(const faodel::ResourceURL &url, faodel::DirectoryInfo *dir_info);
 
+bool DefineNewDir(const faodel::ResourceURL &url);
+
 bool HostNewDir(const faodel::DirectoryInfo &dir_info);
 bool HostNewDir(const faodel::ResourceURL &url);
 
@@ -29,6 +31,8 @@ bool JoinDirWithoutName(const faodel::ResourceURL &url, faodel::DirectoryInfo *d
 bool JoinDirWithName(const faodel::ResourceURL &url, const std::string &name, faodel::DirectoryInfo *dir_info = nullptr);
 
 bool LeaveDir(const faodel::ResourceURL &url, faodel::DirectoryInfo *dir_info=nullptr);
+
+bool DropDir(const faodel::ResourceURL &url);
 
 faodel::nodeid_t GetAuthorityNode();
 

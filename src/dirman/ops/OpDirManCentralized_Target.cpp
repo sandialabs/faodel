@@ -59,6 +59,9 @@ WaitingType OpDirManCentralized::UpdateTarget(OpArgs *args) {
           case RequestType::LeaveDir:
             dirman::LeaveDir(url, &result_dir_info);
             break;
+          case RequestType::DropDir:
+            dirman::DropDir(url);
+            break;
           default: //Unknown?
             throw std::invalid_argument("Unknown case condition");
         }

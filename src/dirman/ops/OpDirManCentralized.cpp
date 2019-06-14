@@ -52,13 +52,16 @@ OpDirManCentralized::OpDirManCentralized(RequestType req_type, faodel::nodeid_t 
 OpDirManCentralized::OpDirManCentralized(RequestType req_type, faodel::nodeid_t root_id, faodel::ResourceURL url)
         : Op(true), state(State::start), ldo_msg(), request_type(req_type) {
 
-  kassert((req_type == RequestType::GetInfo) ||
-          (req_type == RequestType::JoinDir) ||
+  kassert((req_type == RequestType::GetInfo)  ||
+          (req_type == RequestType::JoinDir)  ||
           (req_type == RequestType::LeaveDir) ||
+          (req_type == RequestType::DropDir)  ||
           (req_type == RequestType::ReturnDirInfo), "Request type not handled");
 
   int rc = opbox::net::Connect(&peer, root_id); //Retrieve the root's peer ptr
-  kassert((rc==0), "Connect failed?");
+  if(rc!=0) {
+    throw std::runtime_error("DirMan could not connect to server "+root_id.GetHex()+" - "+root_id.GetHttpLink());
+  }
 
   msg_dirman::AllocateRequest(ldo_msg,
                               req_type,

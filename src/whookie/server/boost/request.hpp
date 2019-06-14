@@ -8,12 +8,12 @@
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
 
-#ifndef WEBHOOK_REQUEST_HPP
-#define WEBHOOK_REQUEST_HPP
+#ifndef WHOOKIE_REQUEST_HPP
+#define WHOOKIE_REQUEST_HPP
 
 #include <string>
 #include <vector>
-#include "webhook/server/boost/header.hpp"
+#include "whookie/server/boost/header.hpp"
 
 namespace http {
 namespace server {
@@ -31,4 +31,4 @@ struct request
 } // namespace server
 } // namespace http
 
-#endif // WEBHOOK_REQUEST_HPP
+#endif // WHOOKIE_REQUEST_HPP

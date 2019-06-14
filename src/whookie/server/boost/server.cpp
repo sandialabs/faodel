@@ -11,8 +11,8 @@
 #include "faodel-common/NodeID.hh"
 #include "faodel-common/Bootstrap.hh"
 
-#include "webhook/Server.hh"
-#include "webhook/server/boost/server.hpp"
+#include "whookie/Server.hh"
+#include "whookie/server/boost/server.hpp"
 
 #include <sys/types.h>
 #include <ifaddrs.h>
@@ -28,7 +28,7 @@ namespace http {
 namespace server {
 
 server::server()
-  : LoggingInterface("webhook"),
+  : LoggingInterface("whookie"),
     configured_(false),
     port_(0),
     num_starters_(0) {
@@ -53,18 +53,19 @@ void server::Init(const faodel::Configuration &config){
   string address;
   string interface_address("");
 
-  //Extract config info for webhook
+  //Extract config info for whookie
   ConfigureLogging(config); //Grab logging
-  config.GetInt(&port,                   "webhook.port",       "1990");
-  config.GetLowercaseString(&address,    "webhook.address",    "0.0.0.0");
-  config.GetLowercaseString(&interfaces, "webhook.interfaces", "eth,lo");
+  config.GetString(&app_name,            "whookie.app_name",   "Whookie Application");
+  config.GetInt(&port,                   "whookie.port",       "1990");
+  config.GetLowercaseString(&address,    "whookie.address",    "0.0.0.0");
+  config.GetLowercaseString(&interfaces, "whookie.interfaces", "eth,lo");
 
   /*
-   * How webhook finds an address to bind to:
-   *  1) If the application asked for a specific address with webhook.address, then use it.
+   * How whookie finds an address to bind to:
+   *  1) If the application asked for a specific address with whookie.address, then use it.
    *  2) Otherwise, query for all net interfaces and search for an "up" interface that
-   *     matches one of the prefixes in webhook.interfaces
-   *  3) If no match is found, use the webhook.address fallback address.
+   *     matches one of the prefixes in whookie.interfaces
+   *  3) If no match is found, use the whookie.address fallback address.
    */
   if (address == "0.0.0.0") {
       // search for an interface to use
@@ -81,13 +82,15 @@ void server::Init(const faodel::Configuration &config){
   asio_ = new asio_resources();
   do_await_stop();
 
-  webhook::Server::updateHook("/config", [this] (const map<string,string> &args, stringstream &results) {
-      return HandleWebhookConfig(args, results);
+  whookie::Server::updateHook("/config", [this] (const map<string,string> &args, stringstream &results) {
+      return HandleWhookieConfig(args, results);
     });
 
-  webhook::Server::updateHook("/bootstraps", [this] (const map<string,string> &args, stringstream &results) {
-      return HandleWebhookBootstrap(args, results);
+  whookie::Server::updateHook("/bootstraps", [this] (const map<string,string> &args, stringstream &results) {
+      return HandleWhookieBootstrap(args, results);
   });
+
+  whookie::Server::updateAppName(app_name);
 
   //Start the server. This is the only service that should fire up in Init,
   //because we need nodeid to be valid asap.
@@ -101,18 +104,19 @@ void server::Init(const faodel::Configuration &config){
 
 
 
-void server::HandleWebhookConfig(const map<string,string> &args, stringstream &results){
-  faodel::ReplyStream rs(args, "Webhook Configuration Settings", &results);
+void server::HandleWhookieConfig(const map<string,string> &args, stringstream &results){
+  faodel::ReplyStream rs(args, "Whookie Configuration Settings", &results);
 
-  rs.tableBegin("Webhook Node Info",2);
+  rs.tableBegin("Whookie Node Info",2);
   rs.tableTop({"Parameter", "Value"});
-  rs.tableRow({"Webhook Link", my_nodeid.GetHtmlLink("",my_nodeid.GetHttpLink())});
-  rs.tableRow({"NodeID",my_nodeid.GetHtmlLink()});
+  //rs.tableRow({"Whookie Link", my_nodeid.GetHtmlLink("",my_nodeid.GetHttpLink())});
+  rs.tableRow({"Whookie Link", rs.createLink(  my_nodeid.GetHttpLink(), my_nodeid.GetHttpLink(), false)  });
+  rs.tableRow({"NodeID", rs.createLink( my_nodeid.GetHex(), my_nodeid.GetHttpLink(), false) }); // my_nodeid.GetHtmlLink()});
   rs.tableEnd();
   
   rs.mkTable(config_entries, "User-Supplied Configuration");
-  rs.mkText("<b>Note:</b> These are the parameters provided to bootstrap. Some values "
-            "(eg <b>webhook.port</b>) may have been adjusted due to conflicts\n");
+  rs.mkText(rs.createBold("Note:")+"These are the parameters provided to bootstrap. Some values "
+            "(eg whookie.port) may have been adjusted due to conflicts\n");
   
   rs.mkSection("All Application Options");
   rs.mkText("Each component in this application has its own configuration settings."
@@ -131,7 +135,7 @@ void server::HandleWebhookConfig(const map<string,string> &args, stringstream &r
   rs.Finish();
 }
 
-void server::HandleWebhookBootstrap(const map<string,string> &args, stringstream &results) {
+void server::HandleWhookieBootstrap(const map<string,string> &args, stringstream &results) {
   faodel::ReplyStream rs(args, "Bootstrap", &results);
   faodel::bootstrap::dumpInfo(rs);
 
@@ -148,7 +152,7 @@ void server::GetBootstrapDependencies(
                        std::string &name,
                        std::vector<std::string> &requires,
                        std::vector<std::string> &optional) const {
-  name = "webhook";
+  name = "whookie";
   requires = {};
   optional = {};
 }
@@ -303,10 +307,10 @@ int server::stop(){
     num_starters_--;
 
     if(num_starters_==0){
-      //cout << "Stopping webhook on port " << port_ << endl;
+      //cout << "Stopping whookie on port " << port_ << endl;
       do_await_stop(); //Kill all the connections
       asio_->io_service_.stop(); //Must manually stop
-      //cout << "Joining webhook thread " << th_http_server_.get_id() << endl;
+      //cout << "Joining whookie thread " << th_http_server_.get_id() << endl;
       th_http_server_.join();
       delete asio_;
       configured_=false;
@@ -321,7 +325,7 @@ bool server::IsRunning(){
   bool is_running;
   configured_mutex_.lock();
   is_running = configured_;
-  //cout << "webhook running? " << configured_ << endl;
+  //cout << "whookie running? " << configured_ << endl;
   configured_mutex_.unlock();
   return is_running;
 }

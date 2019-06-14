@@ -3,14 +3,14 @@
 // the U.S. Government retains certain rights in this software. 
 
 /*
- * sbl_logger.hpp
+ * sbl_stream.hh
  *
  *  Created on: Jul 13, 2015
  *      Author: thkorde
  */
 
-#ifndef SBL_STREAM_HPP_
-#define SBL_STREAM_HPP_
+#ifndef SBL_STREAM_HH_
+#define SBL_STREAM_HH_
 
 #include "faodelConfig.h"
 #include "sbl/sbl_boost_headers.hh"
@@ -91,4 +91,4 @@ private:
 
 } /* namespace sbl */
 
-#endif /* SBL_STREAM_HPP_ */
+#endif /* SBL_STREAM_HH_ */

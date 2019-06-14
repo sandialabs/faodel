@@ -21,7 +21,7 @@ PoolBase::PoolBase(const faodel::ResourceURL &pool_url)
     behavior_flags(PoolBehavior::DefaultBaseClass) {
 
   //Unconfigure pool is empty
-  if(pool_url.resource_type == "unconfigured") return;
+  if(pool_url.Type() == "unconfigured") return;
 
   kelpie::internal::getLKV(&lkv);
 

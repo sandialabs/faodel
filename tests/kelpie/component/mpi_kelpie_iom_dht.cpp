@@ -39,7 +39,7 @@ lunasa.eager_memory_manager malloc
 # Enable all debug by labeling this node's role as debug_node
 debug_node.mpisyncstart.debug      true
 debug_node.bootstrap.debug         true
-debug_node.webhook.debug           true
+debug_node.whookie.debug           true
 debug_node.opbox.debug             true
 debug_node.dirman.debug            true
 debug_node.dirman.cache.mine.debug true
@@ -154,19 +154,19 @@ dirman.resources[]     dht:<0x1234>[0x5678]/other/thing&num=2&ag0=0x4444&ag1=0x5
   auto pool_particle = kelpie::Connect("ref:/myapp/particle");
   EXPECT_EQ(0xeea6081, faodel::hash32("myiom1"));
   EXPECT_EQ(faodel::hash32("myiom1"), pool_particle.GetIomHash());
-  EXPECT_EQ("dht", pool_particle.GetURL().resource_type);
+  EXPECT_EQ("dht", pool_particle.GetURL().Type());
 
   //The pool should have the myiom2 hash associated with it
   auto pool_fluid = kelpie::Connect("ref:/myapp/fluid");
   EXPECT_EQ(0xeea6082, faodel::hash32("myiom2"));
   EXPECT_EQ(faodel::hash32("myiom2"), pool_fluid.GetIomHash());
-  EXPECT_EQ("local", pool_fluid.GetURL().resource_type);
+  EXPECT_EQ("local", pool_fluid.GetURL().Type());
 
   //The pool should have the myiom2 hash associated with it
   auto pool_stuff = kelpie::Connect("ref:/myapp/stuff");
   EXPECT_EQ(0xeea6083, faodel::hash32("myiom3"));
   EXPECT_EQ(faodel::hash32("myiom3"), pool_stuff.GetIomHash());
-  EXPECT_EQ("local", pool_fluid.GetURL().resource_type);
+  EXPECT_EQ("local", pool_fluid.GetURL().Type());
 
   el_bcastCommand(CMD_DUMP_RESOURCES, "/myapp/fluid");
   el_bcastCommand(CMD_DUMP_RESOURCES, "/myapp/particle");
@@ -207,8 +207,8 @@ dirman.resources[]  local:/EMPIRE/fields&iom=empire_fields
   EXPECT_EQ(0x31d0fd3d, faodel::hash32("empire_fields"));
   EXPECT_EQ(faodel::hash32("empire_particles"), pool_particles.GetIomHash());
   EXPECT_EQ(faodel::hash32("empire_fields"),   pool_fields.GetIomHash());
-  EXPECT_EQ("local", pool_particles.GetURL().resource_type);
-  EXPECT_EQ("local", pool_fields.GetURL().resource_type);
+  EXPECT_EQ("local", pool_particles.GetURL().Type());
+  EXPECT_EQ("local", pool_fields.GetURL().Type());
 
   el_bcastCommand(CMD_DUMP_RESOURCES, "/EMPIRE/particles");
   el_bcastCommand(CMD_DUMP_RESOURCES, "/EMPIRE/fields");

@@ -20,10 +20,10 @@ start-finish
 This minimal program just uses bootstrap to start kelpie and then
 stop it. This is mostly to just verify kelpie built and can start stop.
 
-using-webhook
+using-whookie
 -------------
-This example walks a user through Kelpie's webhook interface. After starting
-up, it prompts the user to look at different parts of webhook in a browser
+This example walks a user through Kelpie's whookie interface. After starting
+up, it prompts the user to look at different parts of whookie in a browser
 as it inserts new objects.
 
 local-pool-basics

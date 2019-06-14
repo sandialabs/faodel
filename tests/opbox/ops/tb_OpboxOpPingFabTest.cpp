@@ -13,11 +13,11 @@
 #include <future>
 
 #include "faodel-common/Common.hh"
-#include "webhook/Server.hh"
+#include "whookie/Server.hh"
 #include "opbox/OpBox.hh"
 
-#include "webhook/Server.hh"
-#include "webhook/client/Client.hh"
+#include "whookie/Server.hh"
+#include "whookie/client/Client.hh"
 #include "faodel-common/QuickHTML.hh"
 
 #include "opbox/ops/OpPing.hh"
@@ -37,11 +37,11 @@ tester.rpc_tester_type                single
 tester.resource_manager.type          tester
 tester.resource_manager.path          /bob
 tester.resource_manager.write_to_file .tester-url
-tester.webhook.interfaces             ipogif0,eth,lo
+tester.whookie.interfaces             ipogif0,eth,lo
 
 # Client: Don't use a tester, just send requests
 client.rpc_tester_type                 none
-client.webhook.interfaces             ipogif0,eth,lo
+client.whookie.interfaces             ipogif0,eth,lo
 client.resource_manager.path           /bob/1
 client.resource_manager.read_from_file .tester-url
 )EOF";
@@ -75,7 +75,7 @@ TEST_F(OpboxOpPingFabTest, start1) {
   faodel::nodeid_t myid = opbox::GetMyID();
   cout << "Our nodeid is " << myid.GetHex() << endl;
   cout << "Our web address is: " << myid.GetHttpLink("/fab/iblookup") << endl;
-  rc = webhook::retrieveData(myid, "/fab/iblookup", &result);
+  rc = whookie::retrieveData(myid, "/fab/iblookup", &result);
 
   opbox::net::Attrs attrs;
   opbox::net::GetAttrs(attrs);

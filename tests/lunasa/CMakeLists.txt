@@ -31,6 +31,7 @@ add_serial_test(  tb_lunasa_performance          component       true  )
 add_serial_test(  tb_lunasa_threaded_performance component       true  )
 add_serial_test(  tb_lunasa_statistics           component       true  )
 add_serial_test(  tb_lunasa_data_type_registry   component       true  )
+add_serial_test(  tb_lunasa_copy_ldo             component       true  )
 
 if( Faodel_ENABLE_MPI_SUPPORT )
 if(Faodel_NETWORK_LIBRARY STREQUAL "nnti")

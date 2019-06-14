@@ -43,9 +43,11 @@ public:
   std::string GetType() const override { return "Static"; }
   bool Locate(const faodel::ResourceURL &search_url, faodel::nodeid_t *reference_node= nullptr) override;
   bool GetDirectoryInfo(const faodel::ResourceURL &url, bool check_local, bool check_remote, faodel::DirectoryInfo *dir_info) override;
+  bool DefineNewDir(const faodel::DirectoryInfo &dir_info) override;
   bool HostNewDir(const faodel::DirectoryInfo &dir_info) override;
   bool JoinDirWithName(const faodel::ResourceURL &url, std::string name, faodel::DirectoryInfo *dir_info= nullptr) override;
   bool LeaveDir(const faodel::ResourceURL &url, faodel::DirectoryInfo *dir_info= nullptr) override;
+  bool DropDir(const faodel::ResourceURL &url) override;
 
   faodel::nodeid_t GetAuthorityNode() const { return my_node; }
 
@@ -55,7 +57,7 @@ public:
   bool lookupRemote(faodel::nodeid_t nodeid, const faodel::ResourceURL &resource_url, faodel::DirectoryInfo *dir_info= nullptr) override;
   bool joinRemote(faodel::nodeid_t parent_node, const faodel::ResourceURL &child_url, bool send_detailed_reply=false) override;
 
-  void appendWebhookParameterTable(faodel::ReplyStream *rs) override;
+  void appendWhookieParameterTable(faodel::ReplyStream *rs) override;
   //InfoInterface
   void sstr(std::stringstream &ss, int depth=0, int indent=0) const override;
 

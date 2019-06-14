@@ -17,7 +17,6 @@ add_library(ctestutils
 )
 set_target_properties(ctestutils PROPERTIES LINKER_LANGUAGE  CXX )
 target_link_libraries( ctestutils PUBLIC nnti )
-add_dependencies(ctestutils generate-nnti_packable)
 #----------------------------------------------------------------------------
 
 set(SERIAL_TEST_LIBS 

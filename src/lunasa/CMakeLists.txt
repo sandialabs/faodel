@@ -46,10 +46,10 @@ if( Faodel_ENABLE_TCMALLOC )
   #add_definitions(-DFaodel_ENABLE_TCMALLOC)
 endif()
 
-# This list has to explicitly contain webhook, common, and sbl
+# This list has to explicitly contain whookie, common, and sbl
 # This is because NETLIB_TARGETS might end up being libfabric and friends,
-# and in that case we don't get webhook et al. through the nnti target.
-LIST( APPEND Lunasa_IMPORTS webhook common sbl ${FaodelNetlib_TARGETS}  )
+# and in that case we don't get whookie et al. through the nnti target.
+LIST( APPEND Lunasa_IMPORTS whookie common sbl ${FaodelNetlib_TARGETS}  )
 if( Faodel_ENABLE_TCMALLOC )
   LIST( APPEND Lunasa_IMPORTS tcmalloc spinlock )
 endif()

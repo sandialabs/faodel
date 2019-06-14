@@ -4,7 +4,11 @@ if ( NOT DEFINED NNTI_BUILD_TYPE )
     string( TOLOWER "${CMAKE_BUILD_TYPE}" lower_type )
     IF ( lower_type STREQUAL "debug" )
         set(NNTI_BUILD_TYPE "DEBUG")
+    ELSEIF ( lower_type STREQUAL "pedantic" )
+        set(NNTI_BUILD_TYPE "DEBUG")
     ELSEIF ( lower_type STREQUAL "release" )
+        set(NNTI_BUILD_TYPE "RELEASE")
+    ELSEIF ( lower_type STREQUAL "relwithdebinfo" )
         set(NNTI_BUILD_TYPE "RELEASE")
     ELSE()
         ## fallback is RELEASE
@@ -16,23 +20,30 @@ string( TOLOWER "${NNTI_BUILD_TYPE}" lower_type )
 if( lower_type STREQUAL "debug" )
    message(STATUS "This is an NNTI debug build.")
    message(STATUS "NNTI is building with debug logging.")
+   message(STATUS "NNTI is building with args checking.")
    message(STATUS "NNTI is building with all stats.")
    set(NNTI_ENABLE_DEBUG_LOGGING TRUE)
+   set(NNTI_ENABLE_ARGS_CHECKING TRUE)
 elseif( lower_type STREQUAL "release" )
    message(STATUS "This is an NNTI release build.")
    message(STATUS "NNTI is building without debug logging.")
+   message(STATUS "NNTI is building without args checking.")
    message(STATUS "NNTI is building with fast stats only.")
    set(NNTI_FAST_STATS_ONLY 1)
    set(NNTI_ENABLE_DEBUG_LOGGING FALSE)
+   set(NNTI_ENABLE_ARGS_CHECKING FALSE)
 elseif( lower_type STREQUAL "performance" )
    message(STATUS "This is an NNTI performance build.")
    message(STATUS "NNTI is building without debug logging.")
+   message(STATUS "NNTI is building without args checking.")
    message(STATUS "NNTI is building with no stats.")
    set(NNTI_NO_STATS 1)
    set(NNTI_ENABLE_DEBUG_LOGGING FALSE)
+   set(NNTI_ENABLE_ARGS_CHECKING FALSE)
 else()
   message(FATAL_ERROR "NNTI_BUILD_TYPE must be defined as one of DEBUG or RELEASE or PERFORMANCE")
 endif()
+
 
 if (NNTI_NO_STATS)
     unset(NNTI_ENABLE_STATS)
@@ -100,13 +111,24 @@ include(nntiProbeNetwork.cmake)
 include(nntiProbeThreads.cmake)
 include(nntiProbeTimers.cmake)
 include(nntiProbeXDR.cmake)
+include(nntiProbeCereal.cmake)
 
+if( Faodel_ENABLE_CEREAL )
+  set( NNTI_USE_XDR 0 CACHE INTERNAL "Use XDR for NNTI serialization" )
+  set( NNTI_USE_CEREAL ${NNTI_HAVE_CEREAL} CACHE INTERNAL "Use Cereal for NNTI serialization" )
+else()
+  set( NNTI_USE_XDR ${NNTI_HAVE_XDR} CACHE INTERNAL "Use XDR for NNTI serialization" )
+  if( NOT NNTI_HAVE_XDR )
+    set( NNTI_USE_CEREAL ${NNTI_HAVE_CEREAL} CACHE INTERNAL "Use Cereal for NNTI serialization" )
+  endif()
+endif()
+
+if( NOT NNTI_USE_XDR  AND  NOT NNTI_USE_CEREAL )
+  message( FATAL_ERROR "Couldn't find a serailization library for NNTI." )
+endif()
 
 
 ## What to build ##############################################################
-
-include(nntiProcessXDR.cmake)
-
 
 
 set(HEADERS
@@ -123,14 +145,13 @@ set(HEADERS
   nnti_threads.h
   nnti_threads_types.h
   nnti_op.hpp
-  nnti_packable.h
   nnti_pid.hpp
+  nnti_serialize.hpp
   nnti_types.h
   nnti_url.hpp
   nnti_util.hpp
   nnti_wid.hpp
   nnti_wr.hpp
-  nnti_xdr.h
   transports/base/base_transport.hpp
   transports/null/null_transport.hpp
 )
@@ -174,28 +195,29 @@ set(HEADERS
   transports/mpi/mpi_transport.hpp
 )
 endif()
+if( NNTI_USE_XDR )
+set(HEADERS
+  ${HEADERS}
+  serializers/xdr/nnti_packable.h
+  serializers/xdr/nnti_xdr.h
+)
+endif()
+if( NNTI_USE_CEREAL )
+set(HEADERS
+  ${HEADERS}
+  serializers/cereal/nnti_packable.hpp
+)
+endif()
 
 set(HEADERS_PUBLIC
   nnti.h
-  nnti_buffer.hpp
-  nnti_transport.hpp
   nnti_logger.h
-  nnti_logger.hpp
-  nnti_packable.h
-  nnti_types.h
+  nnti_transport.hpp
   nnti_datatype.hpp
   nnti_callback.hpp
-  nnti_connection.hpp
-  nnti_peer.hpp
-  nnti_pid.hpp
-  nnti_threads.h
-  nnti_threads_types.h
-  nnti_url.hpp
-  nnti_util.hpp
-  nnti_vector.hpp
-  nnti_wid.hpp
   nnti_wr.hpp
-  nnti_xdr.h
+  nnti_logger.hpp
+  nnti_types.h
   transport_factory.hpp
 )
 
@@ -203,14 +225,17 @@ set(SOURCES
   nnti.cpp
   transport_factory.cpp
   nnti_buffer.cpp
+  nnti_callback.cpp
   nnti_connection.cpp
   nnti_logger.cpp
   nnti_op.cpp
-  nnti_packable.c
   nnti_pid.cpp
+  nnti_serialize.cpp
   nnti_threads.cpp
+  nnti_transport.cpp
   nnti_url.cpp
   nnti_wid.cpp
+  nnti_wr.cpp
   transports/base/base_transport.cpp
 )
 if( NNTI_BUILD_IBVERBS )
@@ -242,6 +267,12 @@ set(SOURCES
   transports/mpi/mpi_transport.cpp
 )
 endif()
+if( NNTI_USE_XDR )
+set(SOURCES
+  ${SOURCES}
+  serializers/xdr/nnti_packable.c
+)
+endif()
 
 #
 # If no transport was selected, this build of NNTI should succeed but will not
@@ -255,19 +286,23 @@ if( NOT NNTI_BUILD_UGNI AND
 endif()
 
 
-LIST( APPEND NNTI_imports webhook common sbl Boost::atomic Boost::log Boost::log_setup )
+LIST( APPEND NNTI_imports whookie common sbl Boost::atomic Boost::log Boost::log_setup )
 if( Faodel_ENABLE_MPI_SUPPORT )
   LIST( APPEND NNTI_imports MPI::MPI_CXX )
 endif()
 LIST( APPEND NNTI_imports ${NNTI_TRANSPORT_TARGETS} )
-
-nntiProcessXDR(${CMAKE_CURRENT_SOURCE_DIR}/nnti_packable.x ${CMAKE_CURRENT_SOURCE_DIR})
+LIST( APPEND NNTI_imports cereal )
 
 set_source_files_properties(transport_factory.cpp PROPERTIES COMPILE_FLAGS "-O0 -g")
 
 add_library(nnti ${HEADERS} ${SOURCES})
 target_link_libraries( nnti ${NNTI_imports} )
-add_dependencies(nnti generate-nnti_packable)
+
+if( NNTI_USE_XDR )
+  include(nntiProcessXDR.cmake)
+  nntiProcessXDR(${CMAKE_CURRENT_SOURCE_DIR}/serializers/xdr/nnti_packable.x ${CMAKE_CURRENT_SOURCE_DIR}/serializers/xdr)
+  add_dependencies(nnti generate-nnti_packable)
+endif()
 
 
 install(TARGETS nnti

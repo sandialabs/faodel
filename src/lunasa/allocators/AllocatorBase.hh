@@ -14,8 +14,8 @@
 
 #include "faodel-common/Common.hh"
 
-#include "webhook/WebHook.hh"
-#include "webhook/Server.hh"
+#include "whookie/Whookie.hh"
+#include "whookie/Server.hh"
 
 #include "lunasa/Lunasa.hh"
 #include "lunasa/DataObject.hh"
@@ -95,10 +95,10 @@ public:
 
   virtual std::string AllocatorType() const = 0;
 
-  //Webhook helpers
-  virtual void webhookStatus(faodel::ReplyStream &rs, const std::string &allocator_name);
+  //Whookie helpers
+  virtual void whookieStatus(faodel::ReplyStream &rs, const std::string &allocator_name);
 
-  virtual void webhookMemoryAllocations(faodel::ReplyStream &rs, const std::string &allocator_name);
+  virtual void whookieMemoryAllocations(faodel::ReplyStream &rs, const std::string &allocator_name);
 
   //InfoInterface
   void sstr(std::stringstream &ss, int depth = 0, int indent = 0) const override;

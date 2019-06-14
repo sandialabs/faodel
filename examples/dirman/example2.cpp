@@ -20,9 +20,9 @@ using namespace opbox;
 extern Globals G;
 
 //The node that creates the directory can also volunteer other nodes to
-//participate as its children. This is handy for quick-and-dirty situations
+//participate as its members. This is handy for quick-and-dirty situations
 //where some configuration engine knows everything and allocates resources.
-void example2_prepopulate_with_children(){
+void example2_prepopulate_with_members(){
 
   string dir_path="/prepopulated/with/stuff";
   string dir_info="Volunteered Nodes";
@@ -32,7 +32,7 @@ void example2_prepopulate_with_children(){
   //Have host create the item
   if(G.mpi_rank==0){
 
-    cout <<"\nExample 2: Prepopulate with children\n";
+    cout <<"\nExample 2: Prepopulate with members\n";
 
 
     DirectoryInfo src_dir(dir_path, dir_info);
@@ -61,13 +61,13 @@ void example2_prepopulate_with_children(){
 
   cout <<"Info: '"<<dir.info
        <<"' ReferenceNode: " <<dir.GetReferenceNode().GetHex()
-       <<" NumberChildren: " <<dir.children.size()<<endl;
+       <<" NumberMembers: " <<dir.members.size()<<endl;
 
   MPI_Barrier(MPI_COMM_WORLD);
 
   if(G.mpi_rank==G.mpi_size-1){
-    cout <<"Rank "<<G.mpi_rank<<" sees the following children:\n";
-    for(auto &name_node : dir.children){
+    cout <<"Rank "<<G.mpi_rank<<" sees the following members:\n";
+    for(auto &name_node : dir.members){
       cout <<"     "<<name_node.name
            <<"  "<<name_node.node.GetHex() <<endl;
     }

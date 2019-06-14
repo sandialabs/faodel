@@ -6,12 +6,36 @@ faodel tools. Releases are named alphabetically and have a
 4-digit ID associated with them that designates the year and month of
 the release.
 
-DIO (1.1811.2)
---------------
-- Summary: Fix build problems discovered during Spack integration
-- Release Improvements:
-  - Common Logging failed to build when SBL was selected for output (thanks to @fbudin69500)
-  - Kelpie failed to build when MPI was disabled (thanks to @fbudin69500)
+Excelsior! (1.1906.1)
+---------------------
+- Summary: Job-to-Job improvements via new cli tool
+- Release Improvements
+  - New faodel-cli tool for manipulating many things
+    - Gets build/configure info (replaces faodel-info)
+    - Start/stop services (dirman, kelpie)
+    - Define/query/remove dirman resources
+    - Put/get/list kelpie objects
+    - New example/kelpie-cli script shows how to use
+  - Support for ARM platform
+  - NNTI adds On-Demand Paging capability
+  - NNTI adds Cereal as alternative for serialization
+  - NNTI has better detection and selection of IB devices
+  - Fixes
+    - SBL could segfault due to Boost if exit without calling finish
+    - FAODEL couldn't be included in a larger project's cmake
+    - LDO had a race condition in destructor
+- Significant User-Visible Changes:
+  - faodel-info and whookie tools replaced by faodel cli tool
+  - Dirman's DirInfo "children" renamed to "members"
+  - Faodel now has a package in the Spack develop branch
+- Known Issues
+  - FAODEL's libfabric transport is still experimental. It does not fully
+    implement Atomics or Long Sends. While Kelpie does not require
+    these operations, other OpBox-based applications may break
+    without this support.
+  - On Cray machines with the Aries interconnect, FAODEL can be overwhelmed
+    by a sustained stream of sends larger than the MTU. To avoid this problem,
+    the sender should limit itself to bursts of 32 long sends at a time.
 
 DIO (1.1811.1)
 --------------
@@ -24,10 +48,10 @@ DIO (1.1811.1)
   - Lunasa has templated containers for storing a bundle of items in an LDO
     - GenericSequentialDataBundle : When data is accessed in order
     - GenericRandomDataBundle     : When data is accessed out of order
-  - Users can now define webhooks for rendering specific DataObject types
+  - Users can now define whookies for rendering specific DataObject types
   - Bootstrap Start/Stops are much more robust
   - General build fixes for use with EMPIRE
-- Significant User Visible Changes:
+- Significant User-Visible Changes:
   - Common and services directories renamed to faodel-common and faodel-services
   - Kelpie pools now have a "behavior" that controls how data is copied
   - Some components/tools changed directories. Check your includes
@@ -42,7 +66,7 @@ DIO (1.1811.1)
     these operations, other OpBox-based applications may break
     without this support.
   - On Cray machines with the Aries interconnect, FAODEL can be overwhelmed
-    by a sustrained stream of sends larger than the MTU. To avoid this problem,
+    by a sustained stream of sends larger than the MTU. To avoid this problem,
     the sender should limit itself to bursts of 32 long sends at a time.
   - This version does not have support for ARM8 or POWER cpus.
 
@@ -98,7 +122,7 @@ Amigo (0.1707.1)
 ----------------
 - Summary: First packaged release, for friendly users
 - Release Improvements:
-  - Stable versions of SBL, Gutties, WebHook, NNTI, Lunasa, and Opbox
+  - Stable versions of SBL, Gutties, Whookie, NNTI, Lunasa, and Opbox
   - Experimental version of Kelpie (nonet)
   - Switched to Graith CMake modules
   - Initial doxygen and readme documentation

@@ -15,7 +15,7 @@
 #include <sstream>
 #include <string>
 
-#include "nnti/nnti_packable.h"
+#include "nnti/nnti_serialize.hpp"
 
 #include "nnti/nnti_peer.hpp"
 #include "nnti/nnti_url.hpp"

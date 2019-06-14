@@ -40,7 +40,7 @@ set(SOURCES
   )
 
 
-LIST( APPEND Dirman_imports opbox lunasa ${FaodelNetlib_TARGETS} services webhook common sbl Boost::serialization )
+LIST( APPEND Dirman_imports opbox lunasa ${FaodelNetlib_TARGETS} services whookie common sbl Boost::serialization )
 
 add_library( dirman ${HEADERS} ${SOURCES} )
 target_link_libraries( dirman PUBLIC ${Dirman_imports} )

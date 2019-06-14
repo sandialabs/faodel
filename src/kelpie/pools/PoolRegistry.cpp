@@ -33,8 +33,8 @@ void PoolRegistry::init(const faodel::Configuration &config) {
   config.GetDefaultSecurityBucket(&default_bucket);
   default_pool_logging_level = LoggingInterface::GetLoggingLevelFromConfiguration(config, "kelpie.pool");
 
-  webhook::Server::updateHook("/kelpie/pool_registry", [this] (const map<string,string> &args, stringstream &results) {
-        return HandleWebhookStatus(args, results);
+  whookie::Server::updateHook("/kelpie/pool_registry", [this] (const map<string,string> &args, stringstream &results) {
+        return HandleWhookieStatus(args, results);
     });
 
 }
@@ -43,7 +43,7 @@ void PoolRegistry::start(){
 }
 
 void PoolRegistry::finish() {
-  webhook::Server::deregisterHook("/kelpie/pool_registry");
+  whookie::Server::deregisterHook("/kelpie/pool_registry");
 
   pool_create_fns.clear();
   mutex->Lock();
@@ -71,9 +71,9 @@ Pool PoolRegistry::Connect(const ResourceURL &pool_url){
     src_url.bucket = default_bucket;
   }
 
-  //cout <<"Input url is '"<<src_url.GetFullURL()<<"'  type='"<<src_url.resource_type <<"' path='"<<src_url.path<<"'\n";
+  //cout <<"Input url is '"<<src_url.GetFullURL()<<"'  type='"<<src_url.Type() <<"' path='"<<src_url.path<<"'\n";
 
-  if(src_url.resource_type=="ref") {
+  if(src_url.IsReference()) {
 
     DirectoryInfo dir_info;
 
@@ -94,7 +94,7 @@ Pool PoolRegistry::Connect(const ResourceURL &pool_url){
 
   string pool_key = makeKnownPoolKey(src_url);
 
-  //cout <<"Input url is '"<<src_url.GetFullURL()<<"'  type='"<<src_url.resource_type <<"' path='"<<src_url.path<<"' PoolKey='"<<pool_key<<"'\n";
+  //cout <<"Input url is '"<<src_url.GetFullURL()<<"'  type='"<<src_url.Type() <<"' path='"<<src_url.path<<"' PoolKey='"<<pool_key<<"'\n";
 
 
   //See if we already know about this pool. Reuse it if we do.
@@ -109,7 +109,7 @@ Pool PoolRegistry::Connect(const ResourceURL &pool_url){
 
   //Allocate a new PoolBase, since this is a new Pool
   //Look up the allocation function in our table of creators
-  auto name_ctor = pool_create_fns.find(src_url.resource_type);
+  auto name_ctor = pool_create_fns.find(src_url.Type());
   if(name_ctor==pool_create_fns.end()) {
     mutex->Unlock();
     throw std::runtime_error("Pool registry could not find ctor for pool "+src_url.GetURL());
@@ -140,7 +140,7 @@ Pool PoolRegistry::Connect(const ResourceURL &pool_url){
 
 
 
-void PoolRegistry::HandleWebhookStatus(const std::map<std::string,std::string> &args, std::stringstream &results) {
+void PoolRegistry::HandleWhookieStatus(const std::map<std::string,std::string> &args, std::stringstream &results) {
     faodel::ReplyStream rs(args, "Kelpie Pool Registry", &results);
 
     vector<pair<string,string>> stats;
@@ -175,7 +175,7 @@ void PoolRegistry::HandleWebhookStatus(const std::map<std::string,std::string> &
 
       row.push_back(to_string(url_bptr.second.use_count()));
       auto di = url_bptr.second->GetDirectoryInfo();
-      row.push_back(std::to_string(di.children.size()));
+      row.push_back(std::to_string(di.members.size()));
       row.push_back(di.info);
       row.push_back(url_bptr.first);
       existing_pools.push_back(row);

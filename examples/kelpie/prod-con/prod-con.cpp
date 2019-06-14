@@ -28,7 +28,7 @@
 #include "dirman/DirMan.hh"
 #include "kelpie/Kelpie.hh"
 
-#include "webhook/Server.hh"
+#include "whookie/Server.hh"
 
 #include "Globals.hh"
 
@@ -57,7 +57,7 @@ target.dirman.host_root
 kelpie.type standard
 
 #bootstrap.debug true
-#webhook.debug true
+#whookie.debug true
 #opbox.debug true
 #dirman.debug true
 #kelpie.debug true
@@ -280,7 +280,23 @@ int main(int argc, char **argv) {
 
       }
       catch( const H5::Exception& xc ) {
+/*
+ H5::Exception::printError() was removed in a maintenance release
+ of both the v1.8.x and v1.10.x series.  We try to cope here.
+*/
+#if (H5_VERS_MAJOR == 1)
+ #if (H5_VERS_MINOR < 8) || \
+     ((H5_VERS_MINOR == 8) && (H5_VERS_RELEASE < 20)) || \
+     ((H5_VERS_MINOR == 10) && (H5_VERS_RELEASE < 2))
+    // this is the old API
     xc.printError();
+ #else
+    // this is the new API
+    xc.printErrorStack();
+ #endif
+#else
+ #warning In HDF5 version 0.x, exception stack dumps are unsupported.  No messages will be printed if an exception occurs.
+#endif
       }
     }
 

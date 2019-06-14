@@ -19,7 +19,7 @@
 #include "nnti/nnti_wr.hpp"
 #include "nnti/nntiConfig.h"
 #include "nnti/transport_factory.hpp"
-#include "webhook/Server.hh"
+#include "whookie/Server.hh"
 
 #include <time.h>
 #include <future>
@@ -142,7 +142,7 @@ protected:
 #endif
       send_promise.set_value(1);
       delete ldo;
-      return NNTI_EIO;
+      return NNTI_OK;
     }
   };
 
@@ -159,7 +159,7 @@ protected:
                 << ") and context(" << (void*)context << ")" << std::endl;
 #endif
       send_promise.set_value(1);
-      return NNTI_EIO;
+      return NNTI_OK;
     }
   };
 
@@ -258,7 +258,7 @@ protected:
         nnti::datatype::nnti_work_request wr(transport, base_wr, put_callback);
         transport->put(&wr, &wid);
       }
-      return NNTI_EIO;
+      return NNTI_OK;
     }
   };
 
@@ -346,7 +346,7 @@ protected:
       transport->put(&wr, &wid);
 
       recv_promise.set_value(1);
-      return NNTI_EIO;
+      return NNTI_OK;
     }
 
   public:
@@ -401,7 +401,7 @@ protected:
       int seed = m->header.seed;
 
       recv_promise.set_value(std::pair<uint32_t, uint32_t>(length, seed));
-      return NNTI_EIO;
+      return NNTI_OK;
     }
 
   public:
@@ -471,8 +471,8 @@ protected:
     bootstrap::Init(config, lunasa::bootstrap);
     bootstrap::Start();
 
-    assert(webhook::Server::IsRunning() && "Webhook not started before NetNnti started");
-    nodeid = webhook::Server::GetNodeID();
+    assert(whookie::Server::IsRunning() && "Whookie not started before NetNnti started");
+    nodeid = whookie::Server::GetNodeID();
 
     transport = nnti::transports::factory::get_instance(config);
     transport->start();

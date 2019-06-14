@@ -50,11 +50,12 @@ OpKelpieMeta::OpKelpieMeta(
                      const iom_hash_t iom_hash,
                      fn_publish_callback_t cb_result)
   :
+    Op(true),
     peer(target_ptr),
-    cb_info_result(cb_result), Op(true) {
+    cb_info_result(cb_result) {
 
-  bool exceeds = msg_direct_buffer_t::Alloc(ldo_msg, op_id, xferdirect_command, target_node, GetAssignedMailbox(),
-                                            opbox::MAILBOX_UNSPECIFIED, bucket, key, iom_hash, PoolBehavior::NoAction, nullptr);
+  msg_direct_buffer_t::Alloc(ldo_msg, op_id, xferdirect_command, target_node, GetAssignedMailbox(),
+                             opbox::MAILBOX_UNSPECIFIED, bucket, key, iom_hash, PoolBehavior::NoAction, nullptr);
 
   state_after_start = State::orig_colinfo_wait_for_ack;
 
@@ -70,7 +71,7 @@ OpKelpieMeta::OpKelpieMeta(
  * @return OpKelpieMeta
  */
 OpKelpieMeta::OpKelpieMeta(Op::op_create_as_target_t t)
-  : state(State::trgt_meta_start), ldo_msg(), Op(t) {
+  : Op(t), state(State::trgt_meta_start), ldo_msg() {
 
   //No work to do - done in target's state machine
   peer = 0;

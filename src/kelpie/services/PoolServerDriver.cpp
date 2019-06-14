@@ -11,8 +11,8 @@
 #include <mpi.h>
 
 #include "faodel-common/Common.hh"
-#include "webhook/WebHook.hh"
-#include "webhook/Server.hh"
+#include "whookie/Whookie.hh"
+#include "whookie/Server.hh"
 #include "lunasa/Lunasa.hh"
 #include "opbox/OpBox.hh"
 #include "dirman/DirMan.hh"
@@ -35,9 +35,9 @@ dirman.root_node_mpi 0
 
 PoolServerDriver::PoolServerDriver(int argc, char **argv)
         : op_desc("options"),
-          argc(argc), argv(argv) {};
+          argc(argc), argv(argv) {}
 
-PoolServerDriver::~PoolServerDriver() {};
+PoolServerDriver::~PoolServerDriver() {}
 
 void PoolServerDriver::command_line_options() {
 
@@ -108,12 +108,12 @@ void PoolServerDriver::start_dirman() {
   faodel::bootstrap::Start(config, kelpie::bootstrap);
 
 
-  webhook_killswitch();
+  whookie_killswitch();
 
 }
 
-void PoolServerDriver::webhook_killswitch() {
-  webhook::Server::registerHook("/killme",
+void PoolServerDriver::whookie_killswitch() {
+  whookie::Server::registerHook("/killme",
                                 [&](const std::map<std::string, std::string> &args, std::stringstream &results) {
                                     keep_going = false;
                                 }
@@ -124,9 +124,9 @@ void PoolServerDriver::stop_dirman() {
   faodel::DirectoryInfo dirinfo(pool_url_string, pool_info);
   if(mpi_rank == dirroot_rank_) {
     dirman::GetRemoteDirectoryInfo(faodel::ResourceURL(pool_url_string), &dirinfo);
-    for(auto &&name_node : dirinfo.children)
+    for(auto &&name_node : dirinfo.members)
       if(name_node.name not_eq "root")
-        webhook::retrieveData(name_node.node, "/killme", nullptr);
+        whookie::retrieveData(name_node.node, "/killme", nullptr);
   }
 
   MPI_Barrier(MPI_COMM_WORLD);

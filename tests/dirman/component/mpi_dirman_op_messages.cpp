@@ -74,7 +74,7 @@ TEST_F(OpDirManCreateTest, SimpleSerializeDirInfo){
   EXPECT_EQ("This is the thing",di->info);
   EXPECT_EQ("/a/b", di->url.path);
   EXPECT_EQ("c", di->url.name);
-  EXPECT_EQ(3, ((int)di->children.size()));
+  EXPECT_EQ(3, ((int)di->members.size()));
 
   ok = di->GetChildReferenceNode("d", &n); EXPECT_TRUE(ok); EXPECT_EQ(nodeid_t(200,iuo), n);
   ok = di->GetChildReferenceNode("e", &n); EXPECT_TRUE(ok); EXPECT_EQ(nodeid_t(201,iuo), n);
@@ -117,7 +117,7 @@ TEST_F(OpDirManCreateTest, SimpleSerializeDirInfo){
   EXPECT_EQ("This is the thing",di2.info);
   EXPECT_EQ("/a/b", di2.url.path);
   EXPECT_EQ("c", di2.url.name);
-  EXPECT_EQ(3, ((int)di2.children.size()));
+  EXPECT_EQ(3, ((int)di2.members.size()));
 
   ok = di2.GetChildReferenceNode("d", &n); EXPECT_TRUE(ok); EXPECT_EQ(nodeid_t(200,iuo), n);
   ok = di2.GetChildReferenceNode("e", &n); EXPECT_TRUE(ok); EXPECT_EQ(nodeid_t(201,iuo), n);
@@ -131,7 +131,7 @@ TEST_F(OpDirManCreateTest, SimpleSerializeResourceURL){
 
   //Create a url we can ship
   ResourceURL url1("dht:[0x2112]<0x1234>/a/b/c&info=nacho_cheese");
-  EXPECT_EQ("dht",                 url1.resource_type);
+  EXPECT_EQ("dht",                 url1.Type());
   EXPECT_EQ(nodeid_t(0x1234,iuo),  url1.reference_node);
   EXPECT_EQ(bucket_t(0x2112,iuo),  url1.bucket);
   EXPECT_EQ("/a/b",                url1.path);
@@ -172,7 +172,7 @@ TEST_F(OpDirManCreateTest, SimpleSerializeResourceURL){
   EXPECT_EQ(url1, url2); //Should look like the original
 
 
-  EXPECT_EQ("dht",                 url2.resource_type);
+  EXPECT_EQ("dht",                 url2.Type());
   EXPECT_EQ(nodeid_t(0x1234,iuo),  url2.reference_node);
   EXPECT_EQ(bucket_t(0x2112,iuo),  url2.bucket);
   EXPECT_EQ("/a/b",                url2.path);

@@ -2,7 +2,7 @@
 // LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
 // the U.S. Government retains certain rights in this software. 
 
-// Purpose: Verify webhook works properly when sender/receiver shut down
+// Purpose: Verify whookie works properly when sender/receiver shut down
 //
 // This test creates a client (rank 0) and multiple servers. It starts/stops
 // the client/servers at different times to verify that requests complete
@@ -20,8 +20,8 @@
 
 #include "faodel-common/Common.hh"
 
-#include "webhook/client/Client.hh"
-#include "webhook/Server.hh"
+#include "whookie/client/Client.hh"
+#include "whookie/Server.hh"
 
 #include <stdio.h>
 using namespace std;
@@ -41,13 +41,13 @@ const int CMD_START=1;
 const int CMD_FINI=2;
 const int CMD_KILL=3;
 
-string data_value="unset"; //The state variable that gets set by the "/getset_data" webhook
+string data_value="unset"; //The state variable that gets set by the "/getset_data" whookie
 
 //Launch command to have servers start. We need to collect their ids
 void startOthers(nodeid_t *nodes) {
   int cmd = CMD_START;
   MPI_Bcast(&cmd, sizeof(cmd), MPI_CHAR, 0, MPI_COMM_WORLD);
-  nodeid_t my_id = webhook::Server::GetNodeID();
+  nodeid_t my_id = whookie::Server::GetNodeID();
 
   MPI_Allgather(&my_id, sizeof(faodel::nodeid_t), MPI_CHAR,
                 nodes,  sizeof(faodel::nodeid_t), MPI_CHAR,
@@ -59,11 +59,11 @@ void startOthers(nodeid_t *nodes) {
 //Actual command to start server
 void startSelf(nodeid_t *nodes){
 
-  bootstrap::Start(faodel::Configuration(default_config_string), webhook::bootstrap);
-  nodeid_t my_id = webhook::Server::GetNodeID();
+  bootstrap::Start(faodel::Configuration(default_config_string), whookie::bootstrap);
+  nodeid_t my_id = whookie::Server::GetNodeID();
 
-  //Webhook: record value if passed. Return  new value
-  webhook::Server::registerHook("/getset_data",
+  //Whookie: record value if passed. Return  new value
+  whookie::Server::registerHook("/getset_data",
                                 [] (const map<string,string> &args,
                                 stringstream &results){
     auto new_val = args.find("newval");
@@ -107,7 +107,7 @@ void ServerNodeLoop(int mpi_size) {
 
 
 
-class WebhookRestartTest : public testing::Test {
+class WhookieRestartTest : public testing::Test {
 protected:
   virtual void SetUp() {
     MPI_Comm_size(MPI_COMM_WORLD, &mpi_size);
@@ -122,8 +122,8 @@ protected:
     delete[] nodes;
   }
   nodeid_t startHead() {
-    bootstrap::Start(faodel::Configuration(default_config_string), webhook::bootstrap);
-    return my_id = webhook::Server::GetNodeID();
+    bootstrap::Start(faodel::Configuration(default_config_string), whookie::bootstrap);
+    return my_id = whookie::Server::GetNodeID();
   }
   void stopHead() {
     bootstrap::Finish();
@@ -131,10 +131,10 @@ protected:
 
 
   int setRemoteValue(nodeid_t node, string val, string *result){
-    return webhook::retrieveData(node, "/getset_data&newval="+val, result);
+    return whookie::retrieveData(node, "/getset_data&newval="+val, result);
   }
   int getRemoteValue(nodeid_t node, string *result){
-    return webhook::retrieveData(node, "/getset_data", result);
+    return whookie::retrieveData(node, "/getset_data", result);
   }
   internal_use_only_t iuo; //Shortcut to getting at node_t ctor
   int rc;
@@ -149,7 +149,7 @@ protected:
 
 
 
-TEST_F(WebhookRestartTest, NormalStartStop) {
+TEST_F(WhookieRestartTest, NormalStartStop) {
   string val;
 
   startHead();
@@ -189,7 +189,7 @@ TEST_F(WebhookRestartTest, NormalStartStop) {
 }
 
 //Write and read everything now that everyone has done a restart
-TEST_F(WebhookRestartTest, AllRestart) {
+TEST_F(WhookieRestartTest, AllRestart) {
   string val;
 
   startHead();
@@ -220,7 +220,7 @@ TEST_F(WebhookRestartTest, AllRestart) {
 }
 
 //Restart ourselves. Verify we can still reach servers
-TEST_F(WebhookRestartTest, SelfRestart) {
+TEST_F(WhookieRestartTest, SelfRestart) {
   string val;
 
   startHead();
@@ -253,7 +253,7 @@ TEST_F(WebhookRestartTest, SelfRestart) {
 }
 
 //Restart ourselves. Verify we can still reach servers
-TEST_F(WebhookRestartTest, OthersRestart) {
+TEST_F(WhookieRestartTest, OthersRestart) {
   string val;
 
   startHead();

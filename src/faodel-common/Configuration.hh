@@ -111,6 +111,8 @@ public:
 
   rc_t Unset(const std::string &name);
 
+  bool Contains(const std::string &name) const;
+
   //Get values out of the config. Returns 0 if ok, -1 if not found
   rc_t GetString(std::string *val, const std::string &name, const std::string &default_value="") const;
   rc_t GetLowercaseString(std::string *val, const std::string &name, const std::string &default_value="") const;
@@ -118,7 +120,7 @@ public:
   rc_t GetUInt(uint64_t *uval, const std::string &name, const std::string &default_value="0") const;
   rc_t GetBool(bool *val, const std::string &name, const std::string &default_value="") const;
   rc_t GetPtr(void **val, const std::string &name, void *default_value=nullptr) const;
-  rc_t GetFilename(std::string *fname, const std::string &name, const std::string &default_value) const;
+  rc_t GetFilename(std::string *fname, const std::string &name, const std::string &default_env_var, const std::string &default_value) const;
 
   //Get multiple items
   int GetStringVector(std::vector<std::string> *vals, const std::string &name) const;
@@ -126,6 +128,9 @@ public:
   //Get subset of configuration info for a particular component
   rc_t GetComponentSettings(std::map<std::string,std::string> *results, const std::string &component_name) const;
   std::map<std::string,std::string> GetComponentSettings(const std::string &component_name) const;
+
+  //Get logging info for a component. either mything.debug or mything.log.debug,mything.log.info, mything.log.warn
+  rc_t GetComponentLoggingSettings(bool *debug, bool *info, bool *warn, const std::string &component_name) const;
 
   //Get all entries
   rc_t GetAllSettings(std::vector<std::pair<std::string,std::string>> *results) const;

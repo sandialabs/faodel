@@ -187,6 +187,18 @@ rc_t Pool::RowInfo(const Key &key, kv_row_info_t *row_info){
 rc_t Pool::Drop(const Key &key) {
   return impl->Drop(key);
 }
+
+/**
+ * @brief Perform a search for keys in this pool that match a specific pattern
+ * @param[in] search_key The key to search for. Row and/or Key may end in '*' for prefix matching
+ * @param[out] object_capacities Info about the objects that match this key search
+ * @retval KELPIE_OK Found matches
+ * @retval KELPIE_ENOENT Did not find matches
+ */
+rc_t Pool::List(const Key &search_key, ObjectCapacities *object_capacities) {
+  return impl->List(search_key, object_capacities);
+}
+
 /**
  * @brief Locate info about the node in the pool that is responsible for hosting this key
  * @param key The key of the item that needs to be found

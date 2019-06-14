@@ -55,12 +55,14 @@ namespace kelpie {
  */
 struct DirectFlags {
   static constexpr uint16_t CMD_MASK          = 0x00F0;
+
   static constexpr uint16_t CMD_PUBLISH       = 0x0090;
   static constexpr uint16_t CMD_GET_BOUNDED   = 0x00A0;
   static constexpr uint16_t CMD_GET_UNBOUNDED = 0x00B0;
 
   static constexpr uint16_t CMD_GET_COLINFO   = 0x00C0;
   static constexpr uint16_t CMD_DELETE        = 0x00D0;
+  static constexpr uint16_t CMD_LIST          = 0x00E0;
 
   static constexpr uint16_t CMD_STATUS_ACK    = 0x0011;
   static constexpr uint16_t CMD_STATUS_NACK   = 0x0010;
@@ -79,6 +81,9 @@ struct DirectFlags {
 };
 
 
+//We use array[0] notation in structs, so we have to tell compiler it's ok
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
 
 /**
  * @brief Message format for sending commands in Direct messages involving keys or rdma pointers
@@ -132,7 +137,6 @@ struct msg_direct_buffer_t {
 
 };
 
-
 /**
  * @brief Provide a short status message back to a sender with row/col info
  * @note Call an Alloc function to create an appropriately-sized LDO and
@@ -173,6 +177,25 @@ struct msg_direct_status_t {
 
 
 };
+
+
+
+struct msg_direct_list_result_t {
+  opbox::message_t   hdr; //!< Standard header field
+  int                remote_rc;
+  int                num_entries;
+  char              *packed_data;
+
+  static msg_direct_list_result_t * Alloc(
+          lunasa::DataObject &new_ldo_ptr,
+          message_t *origin_msg_hdr,
+          std::vector<kelpie::Key> &keys,
+          std::vector<size_t> *capacities);
+
+};
+
+
+#pragma GCC diagnostic pop //For ignoring array[0] kinds of allocation
 
 }  // namespace kelpie
 

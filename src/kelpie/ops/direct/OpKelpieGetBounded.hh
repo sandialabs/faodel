@@ -35,14 +35,14 @@ public:
 
   //Get item with a known size
   OpKelpieGetBounded(
-                    const faodel::nodeid_t target_node,
-                    const net::peer_ptr_t target_ptr,
-                    const faodel::bucket_t bucket,
-                    const Key &key,
-                    const size_t expected_ldo_user_size,
-                    const iom_hash_t iom_hash,
-                    const pool_behavior_t behavior_flags,
-                    fn_opget_result_t cb_result);
+          const faodel::nodeid_t target_node,
+          const net::peer_ptr_t target_ptr,
+          const faodel::bucket_t bucket,
+          const Key &key,
+          const size_t expected_ldo_user_size,
+          const iom_hash_t iom_hash,
+          const pool_behavior_t behavior_flags,
+          fn_opget_result_t cb_result);
 
   //A target starts off the same way no matter what command
   OpKelpieGetBounded(Op::op_create_as_target_t t);

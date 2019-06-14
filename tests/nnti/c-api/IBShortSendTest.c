@@ -17,7 +17,7 @@
 
 #include "test_utils.h"
 
-int success=TRUE;
+int success=1;
 
 int main(int argc, char *argv[])
 {
@@ -93,8 +93,8 @@ int main(int argc, char *argv[])
         }
 
         for (i=0;i<10;i++) {
-            if (verify_buffer((char*)event.start, i*(buf_size/10), event.length) == FALSE) {
-                success = FALSE;
+            if (verify_buffer((char*)event.start, i*(buf_size/10), event.length) == 0) {
+                success = 0;
             }
         }
 
@@ -127,7 +127,7 @@ int main(int argc, char *argv[])
         rc = NNTI_connect(transport, server_url, 1000, &peer_hdl);
         log_debug("IBShortSendTest", "NNTI_connect() rc=%d", rc);
         if (rc != NNTI_OK) {
-            success = FALSE;
+            success = 0;
         }
         rc = NNTI_eq_create(transport, 128, NNTI_EQF_UNEXPECTED, NULL, NULL, &eq);
         rc = NNTI_alloc(transport, buf_size, NNTI_BF_LOCAL_READ, eq, cb_func, NULL, &buf_base, &buf_hdl);
@@ -158,22 +158,22 @@ int main(int argc, char *argv[])
         }
 
         for (i=0;i<10;i++) {
-            if (verify_buffer((char*)event.start, i*(buf_size/10), event.length) == FALSE) {
-                success = FALSE;
+            if (verify_buffer((char*)event.start, i*(buf_size/10), event.length) == 0) {
+                success = 0;
             }
         }
 
         rc = NNTI_disconnect(transport, peer_hdl);
         log_debug("IBShortSendTest", "NNTI_disconnect() rc=%d", rc);
         if (rc != NNTI_OK) {
-            success = FALSE;
+            success = 0;
         }
     }
 
     if (is_init) {
         NNTI_fini(transport);
     } else {
-        success = FALSE;
+        success = 0;
     }
 
     if (success)

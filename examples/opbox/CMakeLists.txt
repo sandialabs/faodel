@@ -10,8 +10,10 @@ add_library(mpi_support
             support/SimpleDataStore.hh
             support/SimpleDataStore.cpp
 )
-set_target_properties(mpi_support PROPERTIES LINKER_LANGUAGE CXX )
-target_link_libraries( mpi_support Faodel::common )
+set_target_properties( mpi_support PROPERTIES LINKER_LANGUAGE CXX )
+target_link_libraries( mpi_support
+                       MPI::MPI_CXX
+                       Faodel::common )
 
 set(EXAMPLES_LIBS
   mpi_support

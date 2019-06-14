@@ -32,7 +32,7 @@ namespace kelpie {
  *
  * @note Kelpie allows users to pass binary data in as key values. However,
  *       users should be aware that keys with binary data will likely break
- *       printing functions in various places (eg webhook)
+ *       printing functions in various places (eg whookie)
  */
 class Key {
 public:

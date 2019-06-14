@@ -60,6 +60,9 @@ ibverbs_cmd_buffer::post_recv(
     rq_wr.num_sge = 1;
     rq_wr.wr_id = (uint64_t)cmd_msg;
 
+    log_debug("ibverbs_cmd_buffer", "post_recv() - cmd_msg=%p - sge.addr=%lx ; sge.length=%lu ; sge.lkey=%x",
+        cmd_msg, sge.addr, sge.length, sge.lkey);
+
     ibv_rc=ibv_post_srq_recv(transport_->cmd_srq_, &rq_wr, &bad_wr);
     if (ibv_rc) {
         log_error("ibverbs_cmd_buffer", "failed to post SRQ recv (rq_wr=%p ; bad_wr=%p): %s",
@@ -75,12 +78,17 @@ ibverbs_cmd_buffer::setup_command_buffer(void)
     log_debug("ibverbs_cmd_buffer", "setup_command_buffer: enter");
 
     cmd_buf_ = new char[cmd_size_ * cmd_count_];
-    log_debug("ibverbs_cmd_buffer", "registering ibverbs_cmd_buffer (cmd_buf_=%x)", cmd_buf_);
-    cmd_mr_  = ibv_reg_mr(transport_->pd_, cmd_buf_, cmd_size_ * cmd_count_, ibv_flags);
+
+//    if (transport_->use_odp_) {
+//        cmd_mr_ = transport_->odp_mr_;
+//    } else {
+        log_debug("ibverbs_cmd_buffer", "registering ibverbs_cmd_buffer (cmd_buf_=%x)", cmd_buf_);
+        cmd_mr_  = ibv_reg_mr(transport_->pd_, cmd_buf_, cmd_size_ * cmd_count_, ibv_flags);
+//    }
 
     for (int i=0;i<cmd_count_;i++) {
-        char *cmd_addr = (char*)cmd_mr_->addr+(cmd_size_ * i);
-        log_debug("ibverbs_cmd_buffer", "cmd_addr = %p = %lx + (%u * %d)", cmd_addr, cmd_mr_->addr, cmd_size_, i);
+        char *cmd_addr = (char*)cmd_buf_+(cmd_size_ * i);
+        log_debug("ibverbs_cmd_buffer", "cmd_addr = %p = %lx + (%u * %d)", cmd_addr, cmd_buf_, cmd_size_, i);
         nnti::core::ibverbs_cmd_msg *cm = new nnti::core::ibverbs_cmd_msg(transport_, this, cmd_addr, cmd_size_);
         msgs_.push_back(cm);
         post_recv(cm);
@@ -96,8 +104,12 @@ ibverbs_cmd_buffer::teardown_command_buffer(void)
     for (int i=0;i<cmd_count_;i++) {
         delete msgs_[i];
     }
-    log_debug("ibverbs_cmd_buffer", "deregistering ibverbs_cmd_buffer (cmd_buf_=%x)", cmd_mr_->addr);
-    int ibv_rc=ibv_dereg_mr(cmd_mr_);
+    if (transport_->use_odp_) {
+        log_debug("ibverbs_buffer", "using ODP - unregister is a no-op");
+    } else {
+        log_debug("ibverbs_cmd_buffer", "deregistering ibverbs_cmd_buffer (cmd_buf_=%x)", cmd_buf_);
+        int ibv_rc=ibv_dereg_mr(cmd_mr_);
+    }
     delete[] cmd_buf_;
 
     log_debug("ibverbs_cmd_buffer", "teardown_command_buffer: exit");

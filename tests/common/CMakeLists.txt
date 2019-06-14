@@ -10,7 +10,7 @@ set( SERIAL_TEST_LIBS
   GTest::Main
   )
 
-set(webhook
+set(whookie
     ${SERIAL_TEST_LIBS}
     )
 # Wire in all the source directories so testing can run as if

@@ -8,16 +8,16 @@
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
 
-#ifndef WEBHOOK_CONNECTION_HPP
-#define WEBHOOK_CONNECTION_HPP
+#ifndef WHOOKIE_CONNECTION_HPP
+#define WHOOKIE_CONNECTION_HPP
 
 #include <array>
 #include <memory>
 #include <boost/asio.hpp>
-#include "webhook/server/boost/reply.hpp"
-#include "webhook/server/boost/request.hpp"
-#include "webhook/server/boost/request_handler.hpp"
-#include "webhook/server/boost/request_parser.hpp"
+#include "whookie/server/boost/reply.hpp"
+#include "whookie/server/boost/request.hpp"
+#include "whookie/server/boost/request_handler.hpp"
+#include "whookie/server/boost/request_parser.hpp"
 
 namespace http {
 namespace server {
@@ -76,4 +76,4 @@ typedef std::shared_ptr<connection> connection_ptr;
 } // namespace server
 } // namespace http
 
-#endif // WEBHOOK_CONNECTION_HPP
+#endif // WHOOKIE_CONNECTION_HPP

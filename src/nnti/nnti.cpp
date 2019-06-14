@@ -23,7 +23,7 @@
 #include "nnti/nnti.h"
 
 #include "nnti/nnti_datatype.hpp"
-#include "nnti/nnti_packable.h"
+#include "nnti/nnti_serialize.hpp"
 #include "nnti/nnti_transport.hpp"
 #include "nnti/transport_factory.hpp"
 #include "nnti/nnti_wr.hpp"

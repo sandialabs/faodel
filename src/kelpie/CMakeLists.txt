@@ -15,7 +15,6 @@ set( HEADERS_PUBLIC
      localkv/LocalKVCell.hh
      localkv/LocalKVRow.hh
      pools/Pool.hh
-        services/PoolServerDriver.hh
 )
 
 set( HEADERS
@@ -28,6 +27,7 @@ set( HEADERS
      ops/direct/msg_direct.hh
      ops/direct/OpKelpieGetBounded.hh
      ops/direct/OpKelpieGetUnbounded.hh
+     ops/direct/OpKelpieList.hh
      ops/direct/OpKelpieMeta.hh
      ops/direct/OpKelpiePublish.hh
      ioms/IomPosixIndividualObjects.hh
@@ -35,8 +35,7 @@ set( HEADERS
      pools/LocalPool/LocalPool.hh
      pools/DHTPool/DHTPool.hh
      pools/PoolRegistry.hh
-     pools/UnconfiguredPool/UnconfiguredPool.hh
-
+     pools/UnconfiguredPool/UnconfiguredPool.hh     
 )
 
 set( SOURCES
@@ -59,6 +58,7 @@ set( SOURCES
      ops/direct/msg_direct.cpp
      ops/direct/OpKelpieGetBounded.cpp
      ops/direct/OpKelpieGetUnbounded.cpp
+     ops/direct/OpKelpieList.cpp
      ops/direct/OpKelpieMeta.cpp
      ops/direct/OpKelpiePublish.cpp
      pools/LocalPool/LocalPool.cpp
@@ -67,24 +67,21 @@ set( SOURCES
      pools/PoolBase.cpp
      pools/PoolRegistry.cpp
      pools/UnconfiguredPool/UnconfiguredPool.cpp
+        
 )
 
 if( Faodel_ENABLE_MPI_SUPPORT )
-  LIST( APPEND HEADERS
-        pools/RFTPool/RFTPool.hh
-        services/PoolServerDriver.hh
-  )
-  LIST( APPEND SOURCES
-        pools/RFTPool/RFTPool.cpp
-        services/PoolServerDriver.cpp
-  )
-endif( Faodel_ENABLE_MPI_SUPPORT )
+  LIST( APPEND HEADERS pools/RFTPool/RFTPool.hh)
+  LIST( APPEND SOURCES pools/RFTPool/RFTPool.cpp)
+  LIST( APPEND HEADERS services/PoolServerDriver.hh)
+  LIST( APPEND SOURCES services/PoolServerDriver.cpp)
+endif()
 
 
 LIST( APPEND Kelpie_imports
   dirman
   opbox ${NETLIB_TARGETS}
-  webhook common sbl  
+  whookie common sbl
   Boost::program_options
   )
 
@@ -103,6 +100,13 @@ if( FAODEL_HAVE_HDF5 AND Faodel_ENABLE_IOM_HDF5 )
   LIST( APPEND Kelpie_extra_compile_defs "FAODEL_HAVE_HDF5" )
   LIST( APPEND HEADERS ioms/IomHDF5.hh )
   LIST( APPEND SOURCES ioms/IomHDF5.cpp )
+endif()
+
+if( FAODEL_HAVE_CASSANDRA AND Faodel_ENABLE_IOM_CASSANDRA )
+  LIST( APPEND Kelpie_imports Faodel::Cassandra )
+  LIST( APPEND Kelpie_extra_compile_defs "FAODEL_HAVE_CASSANDRA" )
+  LIST( APPEND HEADERS ioms/IomCassandra.hh )
+  LIST( APPEND SOURCES ioms/IomCassandra.cpp )
 endif()
 
 # All things go in kelpie lib now

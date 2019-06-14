@@ -8,8 +8,8 @@
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
 
-#include "webhook/server/boost/request_parser.hpp"
-#include "webhook/server/boost/request.hpp"
+#include "whookie/server/boost/request_parser.hpp"
+#include "whookie/server/boost/request.hpp"
 
 namespace http {
 namespace server {

@@ -129,7 +129,7 @@ bool AllocatorBase::UsingLazyRegistration() {
 }
 
 
-void AllocatorBase::webhookStatus(faodel::ReplyStream &rs, const std::string &allocator_name) {
+void AllocatorBase::whookieStatus(faodel::ReplyStream &rs, const std::string &allocator_name) {
   rs.tableBegin("Lunasa " + allocator_name + " Allocator");
   rs.tableTop({"Parameter", "Setting"});
   rs.tableRow({"Allocator Type", AllocatorType()});
@@ -140,7 +140,7 @@ void AllocatorBase::webhookStatus(faodel::ReplyStream &rs, const std::string &al
   rs.tableEnd();
 }
 
-void AllocatorBase::webhookMemoryAllocations(faodel::ReplyStream &rs, const string &allocator_name) {
+void AllocatorBase::whookieMemoryAllocations(faodel::ReplyStream &rs, const string &allocator_name) {
   rs.mkSection("Lunasa " + allocator_name + " Memory Allocations");
   rs.mkText("Allocator does not provide listing support");
 }

@@ -88,14 +88,7 @@ void LoggingInterface::ConfigureLogging(const Configuration &config) {
   //However, we also want to be able to be lazy and just tag a
   //component as being in debug mode.
 
-  //Allow user to do "component.debug" instead of "component.log.debug"
-  config.GetBool(&debug_enabled, component_name+".debug",     "false");
-  string default_setting=(debug_enabled) ? "true" : "false";
-
-  //But still trust log.debug as an override.
-  config.GetBool(&debug_enabled, component_name+".log.debug", default_setting);
-  config.GetBool(&info_enabled,  component_name+".log.info",  default_setting);
-  config.GetBool(&warn_enabled,  component_name+".log.warn",  default_setting);
+  config.GetComponentLoggingSettings(&debug_enabled, &info_enabled, &warn_enabled, component_name);
 
 #if Faodel_LOGGINGINTERFACE_DISABLED==0 && Faodel_LOGGINGINTERFACE_USE_SBL==1
   string logfile;
@@ -118,14 +111,7 @@ int LoggingInterface::GetLoggingLevelFromConfiguration(const Configuration &conf
   //However, we also want to be able to be lazy and just tag a
   //component as being in debug mode.
   bool dbg_enabled, nfo_enabled, wrn_enabled;
-  //Allow user to do "component.debug" instead of "component.log.debug"
-  config.GetBool(&dbg_enabled, component_name+".debug",     "false");
-  string default_setting=(dbg_enabled) ? "true" : "false";
-
-  //But still trust log.debug as an override.
-  config.GetBool(&dbg_enabled, component_name+".log.debug", default_setting);
-  config.GetBool(&nfo_enabled, component_name+".log.info",  default_setting);
-  config.GetBool(&wrn_enabled, component_name+".log.warn",  default_setting);
+  config.GetComponentLoggingSettings(&dbg_enabled, &nfo_enabled, &wrn_enabled, component_name);
 
   int loglevel = 0;
   if(dbg_enabled) loglevel  = 0x01;

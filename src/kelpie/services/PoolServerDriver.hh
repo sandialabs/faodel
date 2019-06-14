@@ -34,7 +34,7 @@ protected:
 
   void stop_dirman();
 
-  void webhook_killswitch();
+  void whookie_killswitch();
 
   opts::options_description op_desc;
   opts::variables_map op_map;

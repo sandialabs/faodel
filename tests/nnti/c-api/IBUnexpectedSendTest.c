@@ -16,7 +16,7 @@
 #include "nnti/nnti_logger.h"
 
 
-int success=TRUE;
+int success=1;
 
 
 int main(int argc, char *argv[])
@@ -104,7 +104,7 @@ int main(int argc, char *argv[])
 
             if (*(uint32_t*)payload != crc) {
                 log_error("IBUnexpectedSendTest", "crc mismatch (expected=%08x  actual=%08x)", *(uint32_t*)payload, (uint32_t)crc);
-                success = FALSE;
+                success = 0;
             }
         }
 
@@ -153,7 +153,7 @@ int main(int argc, char *argv[])
         rc = NNTI_connect(transport, server_url, 1000, &peer_hdl);
         log_debug("IBUnexpectedSendTest", "NNTI_connect() rc=%d", rc);
         if (rc != NNTI_OK) {
-            success = FALSE;
+            success = 0;
         }
         rc = NNTI_eq_create(transport, 128, NNTI_EQF_UNEXPECTED, NULL, NULL, &eq);
         rc = NNTI_alloc(transport, reg_size, NNTI_BF_LOCAL_READ, eq, NULL, NULL, &reg_base, &reg_buf);
@@ -229,7 +229,7 @@ int main(int argc, char *argv[])
 
             if (*(uint32_t*)payload != crc) {
                 log_error("IBUnexpectedSendTest", "crc mismatch (expected=%08x  actual=%08x)", *(uint32_t*)payload, (uint32_t)crc);
-                success = FALSE;
+                success = 0;
             }
         }
 
@@ -238,14 +238,14 @@ int main(int argc, char *argv[])
         rc = NNTI_disconnect(transport, peer_hdl);
         log_debug("IBUnexpectedSendTest", "NNTI_disconnect() rc=%d", rc);
         if (rc != NNTI_OK) {
-            success = FALSE;
+            success = 0;
         }
     }
 
     if (is_init) {
         NNTI_fini(transport);
     } else {
-        success = FALSE;
+        success = 0;
     }
 
     if (success)

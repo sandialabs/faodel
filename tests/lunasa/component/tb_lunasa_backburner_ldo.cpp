@@ -23,7 +23,7 @@ using namespace lunasa;
 string default_config_string = R"EOF(
 
 #bootstrap.debug true
-#webhook.debug true
+#whookie.debug true
 #lunasa.debug true
 
 # Must use simple malloc for multiple start/stop tests

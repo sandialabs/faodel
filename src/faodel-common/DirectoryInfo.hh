@@ -23,12 +23,13 @@ class DirectoryInfo
 
 public:
 
-  faodel::ResourceURL              url;      //!< URL for entry. Should include refnode and bucket
-  std::string                      info;     //!< Human text about what this is
-  std::vector<faodel::NameAndNode> children; //!< A list of all the nodes that are part of resource (name and nodeid)
+  faodel::ResourceURL              url;          //!< URL for entry. Should include refnode and bucket
+  std::string                      info;         //!< Human text about what this is
+  uint32_t                         min_members;  //!< Minimum number of members for this to be viable
+  std::vector<faodel::NameAndNode> members;      //!< A list of all the nodes that are part of resource (name and nodeid)
 
 
-  DirectoryInfo() : url(), info(), children()  {}
+  DirectoryInfo() : url(), info(), min_members(0), members()  {}
 
   explicit DirectoryInfo(faodel::ResourceURL new_url);
   explicit DirectoryInfo(std::string s_url)
@@ -36,7 +37,7 @@ public:
   }
 
   DirectoryInfo(std::string s_url, std::string s_info)
-    : url(faodel::ResourceURL(s_url)), info(s_info), children() {
+    : url(faodel::ResourceURL(s_url)), info(s_info), min_members(0), members() {
     url.RemoveOption("info");
   }
 
@@ -48,7 +49,8 @@ public:
 
   faodel::nodeid_t GetReferenceNode() { return url.reference_node; }
   bool Valid() const                  { return url.Valid(); }
-  bool IsEmpty() const; //True when no url, info, or children. Sometimes used to pass back "no info"
+  bool IsEmpty() const; //True when no url, info, or members. Sometimes used to pass back "no info"
+  bool MeetsMinimumSize() const { return members.size() >= min_members; }
 
 
   bool GetChildReferenceNode(const std::string &child_name, faodel::nodeid_t *reference_node= nullptr) const;
@@ -61,14 +63,15 @@ public:
 
   bool ContainsNode(faodel::nodeid_t node) const;
 
-  void webhookInfo(faodel::ReplyStream &rs);
+  void whookieInfo(faodel::ReplyStream &rs);
 
   //Serialization hook
   template <typename Archive>
   void serialize(Archive &ar, const unsigned int version){
     ar & url;
     ar & info;
-    ar & children;
+    ar & min_members;
+    ar & members;
   }
 
   std::string to_string() const;

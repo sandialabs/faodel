@@ -34,6 +34,7 @@ TEST_F(UrlTest, SimpleByHand) {
     ResourceURL l7("local:[bucket]&myoption=foo");
     ResourceURL l8("/local/thing");
     ResourceURL l9("/local");
+    ResourceURL l10("/"); //Root reference
     //All ok
     EXPECT_TRUE(true);
   } catch(std::invalid_argument e) {
@@ -49,7 +50,7 @@ TEST_F(UrlTest, SimpleByHand) {
   EXPECT_TRUE(x2.IsEmpty());
 
   bucket_t b("this_is_my_bucket");
-  EXPECT_EQ("dht",         x.resource_type);
+  EXPECT_EQ("dht",         x.Type());
   EXPECT_EQ(0x2,           x.reference_node.nid);
   EXPECT_EQ(b,             x.bucket);
   EXPECT_EQ("/a/b",        x.path);
@@ -60,7 +61,7 @@ TEST_F(UrlTest, SimpleByHand) {
 
   //Make sure a copy copies all fields, and the fields aren't aliased
   x2=x;
-  EXPECT_EQ("dht",         x2.resource_type);
+  EXPECT_EQ("dht",         x2.Type());
   EXPECT_EQ(0x2,           x2.reference_node.nid);
   EXPECT_EQ(b,             x2.bucket);
   EXPECT_EQ("/a/b",        x2.path);
@@ -110,21 +111,21 @@ TEST_F(UrlTest, SimpleByHand) {
 TEST_F(UrlTest, LocalReference) {
 
   //Make sure references are preserved
-  ResourceURL r1("<0x0>[bucket]/my/thing&op1=yes");       EXPECT_EQ("", r1.resource_type);
-  ResourceURL r2("/my/thing");                            EXPECT_EQ("", r2.resource_type);
-  ResourceURL r3(":/bob");                                EXPECT_EQ("", r3.resource_type);
-  ResourceURL r4("/localstuff");                          EXPECT_EQ("", r4.resource_type);
-  ResourceURL r5("/localstuff/bob");                      EXPECT_EQ("", r5.resource_type);
+  ResourceURL r1("<0x0>[bucket]/my/thing&op1=yes");       EXPECT_EQ("ref", r1.Type());
+  ResourceURL r2("/my/thing");                            EXPECT_EQ("ref", r2.Type());
+  ResourceURL r3(":/bob");                                EXPECT_EQ("ref", r3.Type());
+  ResourceURL r4("/localstuff");                          EXPECT_EQ("ref", r4.Type());
+  ResourceURL r5("/localstuff/bob");                      EXPECT_EQ("ref", r5.Type());
 
 
   //User-provided type overrides everything
-  ResourceURL nl1("dht:/local/item");                     EXPECT_EQ("dht", nl1.resource_type);
+  ResourceURL nl1("dht:/local/item");                     EXPECT_EQ("dht", nl1.Type());
 
   //Legit locals. These should all get assigned a local resource type
-  ResourceURL l1("local:<0x0>[bucket]/my/thing&op1=yes"); EXPECT_EQ("local",l1.resource_type);
-  ResourceURL l2("/local/iom1");                          EXPECT_EQ("local",l2.resource_type);
-  ResourceURL l3("/local");                               EXPECT_EQ("local",l3.resource_type);
-  ResourceURL l4("/local/stuff/bob");                     EXPECT_EQ("local",l4.resource_type);
+  ResourceURL l1("local:<0x0>[bucket]/my/thing&op1=yes"); EXPECT_EQ("local",l1.Type());
+  ResourceURL l2("/local/iom1");                          EXPECT_EQ("local",l2.Type());
+  ResourceURL l3("/local");                               EXPECT_EQ("local",l3.Type());
+  ResourceURL l4("/local/stuff/bob");                     EXPECT_EQ("local",l4.Type());
 
 }
 
@@ -180,7 +181,7 @@ TEST_F(UrlTest, LocalOptions) {
   EXPECT_EQ("option1=foo&option2=bar", sorted_s2);
 
   ResourceURL dash1("local:/empire/mesh-thing");
-  EXPECT_EQ("local", dash1.resource_type);
+  EXPECT_EQ("local", dash1.Type());
   EXPECT_EQ("/empire", dash1.path);
   EXPECT_EQ("mesh-thing", dash1.name);
 
@@ -207,23 +208,14 @@ TEST_F(UrlTest, SimpleAutomated) {
   check_t items[] = {
     { "xyz", nodeid_t(12,iuo),  bucket_t(36,iuo), "/a/b/c", "thing","op1=1&op2=2", "[0x24]/a/b/c/thing", "xyz:<0xc>[0x24]/a/b/c/thing&op1=1&op2=2" },
     { "dht", nodeid_t(128,iuo), bucket_t(10,iuo), "/x/y",   "bob",  "",            "[0xa]/x/y/bob",      "dht:<0x80>[0xa]/x/y/bob" },
+    { "ref", nodeid_t(128,iuo), bucket_t(10,iuo), "/",      "",     "",            "[0xa]/",             "ref:<0x80>[0xa]/"},
     { "end", nodeid_t(),   bucket_t(),"","","","","" }
   };
 
   vector< pair<int,ResourceURL> > entries;
   for(int i=0; items[i].rtype != "end"; i++) {
-    ResourceURL u;
-    u.resource_type  = items[i].rtype;
-    u.reference_node = items[i].node;
-    u.bucket = items[i].bucket;
-    u.path = items[i].path;
-    u.name = items[i].name;
-    u.options = items[i].options;
+    ResourceURL u(items[i].rtype, items[i].node, items[i].bucket, items[i].path, items[i].name, items[i].options);
     entries.push_back( pair<int,ResourceURL>(i, u) );
-
-
-    ResourceURL u2(items[i].rtype, items[i].node, items[i].bucket, items[i].path, items[i].name, items[i].options);
-    entries.push_back( pair<int,ResourceURL>(i, u2) );
   }
 
   for( vector< pair<int,ResourceURL> >::iterator it=entries.begin(); it!=entries.end(); ++it) {
@@ -321,27 +313,49 @@ TEST_F(UrlTest, Parent) {
   xp=x.GetLineageReference(4);  EXPECT_EQ("[0x1]/this",             xp.GetBucketPathName()); EXPECT_TRUE(xp.IsRootLevel());
 }
 TEST_F(UrlTest, IsRoot) {
-   ResourceURL x("[0x1]/myroot");                              EXPECT_TRUE(x.IsRootLevel());
-   ResourceURL x2("ref", NODE_LOCALHOST, bucket_t(90210,iuo), "/", "myroot", ""); EXPECT_TRUE(x.IsRootLevel());
+   ResourceURL x("[0x1]/myroot");
+   EXPECT_TRUE( x.IsRootLevel());
+   EXPECT_FALSE(x.IsRoot());
+   EXPECT_TRUE(x.Valid());
+
+   ResourceURL x2("ref", NODE_LOCALHOST, bucket_t(90210,iuo), "/", "myroot", "");
+   EXPECT_TRUE( x2.IsRootLevel());
+   EXPECT_FALSE(x2.IsRoot());
+   EXPECT_TRUE(x2.Valid());
+
+   ResourceURL x3("/");
+   EXPECT_TRUE(x3.IsRootLevel());
+   EXPECT_TRUE(x3.IsRoot());
+   EXPECT_TRUE(x3.Valid());
+
+   ResourceURL x4("ref:/");
+   EXPECT_TRUE(x4.IsRootLevel());
+   EXPECT_TRUE(x4.IsRoot());
+   EXPECT_TRUE(x4.Valid());
+
 
 }
 
 TEST_F(UrlTest, Local) {
 
   ResourceURL x("local:[0x1]");
-  EXPECT_EQ("local",x.resource_type);
+  EXPECT_EQ("local",x.Type());
   EXPECT_EQ(0x1,    x.bucket.bid);
 
 }
 
 TEST_F(UrlTest, NoRef) {
-  //Sometimes we want to ask for a resource, but we don't know exactly what the
-  //thing is yet. Thus, we want to make sure the reference is prepended with
-  //an empty ref (ie just ":")
+  //previous: Sometimes we want to ask for a resource, but we don't know exactly what the
+  //previous: thing is yet. Thus, we want to make sure the reference is prepended with
+  //previous: an empty ref (ie just ":")
+  //In Feb 2019, this changed. If no type is defined, GetFullURL will return ref.
 
   ResourceURL x("/a/b/c&op1=100&op2=200");
   string s = x.GetFullURL();
-  EXPECT_EQ(":<0x0>[0x0]/a/b/c&op1=100&op2=200", s);
+  EXPECT_EQ("ref:<0x0>[0x0]/a/b/c&op1=100&op2=200", s);
+
+  s = x.GetBucketPathName();
+  EXPECT_EQ("[0x0]/a/b/c", s);
 
 }
 

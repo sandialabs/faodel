@@ -8,11 +8,11 @@
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
 
-#ifndef WEBHOOK_CONNECTION_MANAGER_HPP
-#define WEBHOOK_CONNECTION_MANAGER_HPP
+#ifndef WHOOKIE_CONNECTION_MANAGER_HPP
+#define WHOOKIE_CONNECTION_MANAGER_HPP
 
 #include <set>
-#include "webhook/server/boost/connection.hpp"
+#include "whookie/server/boost/connection.hpp"
 
 namespace http {
 namespace server {
@@ -45,4 +45,4 @@ private:
 } // namespace server
 } // namespace http
 
-#endif // WEBHOOK_CONNECTION_MANAGER_HPP
+#endif // WHOOKIE_CONNECTION_MANAGER_HPP

@@ -8,7 +8,7 @@
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
 
-#include "webhook/server/boost/mime_types.hpp"
+#include "whookie/server/boost/mime_types.hpp"
 
 namespace http {
 namespace server {

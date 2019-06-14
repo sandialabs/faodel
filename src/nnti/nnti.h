@@ -15,8 +15,7 @@
 #define NNTI_H_
 
 
-#include <nnti/nnti_packable.h>
-#include <nnti/nnti_types.h>
+#include "nnti/nnti_types.h"
 
 
 #ifdef __cplusplus

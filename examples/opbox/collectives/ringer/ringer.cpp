@@ -24,7 +24,7 @@ dirman.root_role      master
 #target.dirman.write_to_file ./dirman.txt
 
 #bootstrap.debug true
-#webhook.debug   true
+#whookie.debug   true
 #opbox.debug     true
 #dirman.debug    true
 

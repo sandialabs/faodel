@@ -20,7 +20,7 @@
 #include "faodel-common/BootstrapInterface.hh"
 #include "faodel-common/DirectoryInfo.hh"
 #include "faodel-services/MPISyncStart.hh"
-#include "webhook/Server.hh"
+#include "whookie/Server.hh"
 
 
 using namespace std;
@@ -29,8 +29,8 @@ using namespace faodel;
 
 
 
-const int CMD_NEW_WEBHOOK_START =  1; //Here's a config, launch with plain webhook
-const int CMD_NEW_MPISYNC_START =  2; //Here's a config, launch with webhook+mpisync
+const int CMD_NEW_WHOOKIE_START =  1; //Here's a config, launch with plain whookie
+const int CMD_NEW_MPISYNC_START =  2; //Here's a config, launch with whookie+mpisync
 const int CMD_TEARDOWN          =  3;
 const int CMD_KILL              = -1;
 
@@ -111,11 +111,11 @@ TEST_F(BootstrapMPITest, NoConfig){
   string c1 = R"EOF(
 dirman.type centralized
 #bootstrap.debug true
-#webhook.debug true
+#whookie.debug true
 )EOF";
 
-  test_bcastConfig(CMD_NEW_WEBHOOK_START,c1);
-  bootstrap::Start(Configuration(c1), webhook::bootstrap);
+  test_bcastConfig(CMD_NEW_WHOOKIE_START,c1);
+  bootstrap::Start(Configuration(c1), whookie::bootstrap);
 
 }
 TEST_F(BootstrapMPITest, Config1){
@@ -124,11 +124,11 @@ TEST_F(BootstrapMPITest, Config1){
 dirman_root_mpi 0
 dirman.type centralized
 #bootstrap.debug true
-#webhook.debug true
+#whookie.debug true
 )EOF";
 
-  test_bcastConfig(CMD_NEW_WEBHOOK_START, c1);
-  bootstrap::Start(Configuration(c1), webhook::bootstrap);
+  test_bcastConfig(CMD_NEW_WHOOKIE_START, c1);
+  bootstrap::Start(Configuration(c1), whookie::bootstrap);
 
 }
 
@@ -138,7 +138,7 @@ TEST_F(BootstrapMPITest, MPISyncStart) {
 mpisyncstart.enable  true
 
 #bootstrap.debug      true
-#webhook.debug        true
+#whookie.debug        true
 #mpisyncstart.debug   true
 )EOF";
 
@@ -178,7 +178,7 @@ dirman.resources_mpi[] dht:/my/double&info="single" 0-middle
     for (int i = 0; i < 3; i++) {
       urls[i] = ResourceURL(urls_mod[i]);
       dir_info[i] = DirectoryInfo(urls[i]);
-      EXPECT_EQ("dht", urls[i].resource_type);
+      EXPECT_EQ("dht", urls[i].Type());
       EXPECT_EQ("/my", urls[i].path);
     }
     EXPECT_EQ("all", urls[0].name);
@@ -191,7 +191,7 @@ dirman.resources_mpi[] dht:/my/double&info="single" 0-middle
 // All non-zero ranks just run in this loop, waiting for orders
 // that tell them what to do new next. The commands are:
 //
-//   NEW_WEBHOOK_START: Here's a config, start without mpisync
+//   NEW_WHOOKIE_START: Here's a config, start without mpisync
 //   NEW_MPISYNC_START: Here's a config, start with mpisync
 //   TEARDOWN: End of the config,  finish the bootstrap
 //   KILL: all tests are done, exit out of targetloop
@@ -202,9 +202,9 @@ void targetLoop(){
   do {
     MPI_Bcast( &msg, sizeof(msg), MPI_CHAR, 0, MPI_COMM_WORLD);
     switch(msg.command) {
-      case CMD_NEW_WEBHOOK_START: {
+      case CMD_NEW_WHOOKIE_START: {
         string cstr = string(msg.message, msg.message_length);
-        bootstrap::Start(Configuration(cstr), webhook::bootstrap);
+        bootstrap::Start(Configuration(cstr), whookie::bootstrap);
         break;
       }
       case CMD_NEW_MPISYNC_START: {

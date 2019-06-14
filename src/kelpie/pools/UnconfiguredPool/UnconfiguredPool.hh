@@ -49,6 +49,7 @@ public:
   rc_t Info(const Key &key, kv_col_info_t *col_info) override;
   rc_t RowInfo(const Key &key, kv_row_info_t *row_info) override;
   rc_t Drop(const Key &key) override;
+  rc_t List(const Key &search_key, ObjectCapacities *object_capacities=nullptr) override;
 
   int FindTargetNode(const Key &key, faodel::nodeid_t *node_id=nullptr, net::peer_ptr_t *peer_ptr=nullptr) override;
   std::string TypeName() const override { return "unconfigured"; }

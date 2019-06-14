@@ -16,9 +16,7 @@
 
 #include <string.h>
 
-#include <nnti/nnti_packable.h>
-#include <nnti/nnti_pid.hpp>
-#include <nnti/nnti_types.h>
+#include "nnti/nnti_types.h"
 
 
 namespace nnti  {
@@ -347,14 +345,7 @@ public:
     static NNTI_result_t
     dt_url_to_pid(
         const char        *url,
-        NNTI_process_id_t *pid)
-    {
-        NNTI_result_t rc=NNTI_OK;
-
-        *pid = nnti::datatype::nnti_pid::to_pid(std::string(url));
-
-        return(rc);
-    }
+        NNTI_process_id_t *pid);
 
     /**
      * @brief Convert an NNTI_process_id_t to an NNTI URL.
@@ -368,17 +359,7 @@ public:
     dt_pid_to_url(
         const NNTI_process_id_t  pid,
         char                    *url,
-        const uint64_t           maxlen)
-    {
-        NNTI_result_t rc=NNTI_OK;
-
-        std::string s = nnti::datatype::nnti_pid::to_url(pid);
-
-        strncpy(url, s.c_str(), maxlen);
-        url[maxlen-1] = '\0';
-
-        return(rc);
-    }
+        const uint64_t           maxlen);
 
     /**
      * @brief Convert an NNTI peer to an NNTI_process_id_t.
@@ -545,19 +526,12 @@ public:
         const int64_t   timeout,
         NNTI_status_t  *status) = 0;
 
-    static inline transport*
+    static transport*
     to_obj(
-        NNTI_transport_t trans_hdl)
-    {
-        return (transport *)trans_hdl;
-    }
-
-    static inline NNTI_transport_t
+        NNTI_transport_t trans_hdl);
+    static NNTI_transport_t
     to_hdl(
-        transport *transport)
-    {
-        return (NNTI_transport_t)transport;
-    }
+        transport *transport);
 };
 
 } /* namespace transports */

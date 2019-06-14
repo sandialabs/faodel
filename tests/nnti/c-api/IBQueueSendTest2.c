@@ -17,7 +17,7 @@
 
 #include "test_utils.h"
 
-int success=TRUE;
+int success=1;
 
 int main(int argc, char *argv[])
 {
@@ -107,8 +107,8 @@ int main(int argc, char *argv[])
         int i=0;
         for (i=0;i<200;i++) {
             rc = recv_data(transport, eq, &event);
-            if (verify_buffer((char*)event.start, event.offset, event.length) == FALSE) {
-                success = FALSE;
+            if (verify_buffer((char*)event.start, event.offset, event.length) == 0) {
+                success = 0;
             }
             rc = NNTI_event_complete(&event);
         }
@@ -142,7 +142,7 @@ int main(int argc, char *argv[])
         rc = NNTI_connect(transport, server_url, 1000, &peer_hdl);
         log_debug("IBQueueSendTest2", "NNTI_connect() rc=%d", rc);
         if (rc != NNTI_OK) {
-            success = FALSE;
+            success = 0;
         }
         rc = NNTI_eq_create(transport, 128, NNTI_EQF_UNEXPECTED, NULL, NULL, &eq);
         rc = NNTI_alloc(transport,
@@ -183,8 +183,8 @@ int main(int argc, char *argv[])
 
         for (i=0;i<200;i++) {
             rc = recv_data(transport, eq, &event);
-            if (verify_buffer((char*)event.start, event.offset, event.length) == FALSE) {
-                success = FALSE;
+            if (verify_buffer((char*)event.start, event.offset, event.length) == 0) {
+                success = 0;
             }
             rc = NNTI_event_complete(&event);
         }
@@ -192,14 +192,14 @@ int main(int argc, char *argv[])
         rc = NNTI_disconnect(transport, peer_hdl);
         log_debug("IBQueueSendTest2", "NNTI_disconnect() rc=%d", rc);
         if (rc != NNTI_OK) {
-            success = FALSE;
+            success = 0;
         }
     }
 
     if (is_init) {
         NNTI_fini(transport);
     } else {
-        success = FALSE;
+        success = 0;
     }
 
     if (success)

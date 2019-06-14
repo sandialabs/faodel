@@ -17,7 +17,7 @@
 #include <infiniband/verbs.h>
 
 #include "nnti/nnti_logger.hpp"
-#include "nnti/nnti_packable.h"
+#include "nnti/nnti_serialize.hpp"
 #include "nnti/nnti_types.h"
 
 #include "nnti/nnti_callback.hpp"
@@ -167,27 +167,32 @@ ibverbs_buffer::register_buffer(void)
 
     access = nnti_to_ib_flags(flags_);
 
-    log_debug("ibverbs_buffer", "registering ibverbs_buffer (payload_=%x)", payload_);
-    mr = ibv_reg_mr(ibv_transport->pd_, payload_, payload_size_, access);
-    if (!mr) {
-        if (errno == EFAULT) {
-            log_debug("ibverbs_buffer", "ibv_reg_mr failed with EFAULT.  trying to register with IBV_ACCESS_REMOTE_READ.");
-            mr = ibv_reg_mr(ibv_transport->pd_, payload_, payload_size_, IBV_ACCESS_REMOTE_READ);
-            if (!mr) {
-                log_error("ibverbs_buffer", "failed to register memory region with IBV_ACCESS_REMOTE_READ: %s", strerror(errno));
+    if ((ibv_transport->use_odp_) &&
+        (!(flags_ & NNTI_BF_REMOTE_ATOMIC))) {
+        mr = ibv_transport->odp_mr_;
+    } else {
+        log_debug("ibverbs_buffer", "registering ibverbs_buffer (payload_=%x)", payload_);
+        mr = ibv_reg_mr(ibv_transport->pd_, payload_, payload_size_, access);
+        if (!mr) {
+            if (errno == EFAULT) {
+                log_debug("ibverbs_buffer", "ibv_reg_mr failed with EFAULT.  trying to register with IBV_ACCESS_REMOTE_READ.");
+                mr = ibv_reg_mr(ibv_transport->pd_, payload_, payload_size_, IBV_ACCESS_REMOTE_READ);
+                if (!mr) {
+                    log_error("ibverbs_buffer", "failed to register memory region with IBV_ACCESS_REMOTE_READ: %s", strerror(errno));
+                    rc = NNTI_EPERM;
+                    goto cleanup;
+                }
+            } else {
+                log_error("ibverbs_buffer", "failed to register memory region: %s", strerror(errno));
                 rc = NNTI_EPERM;
                 goto cleanup;
             }
-        } else {
-            log_error("ibverbs_buffer", "failed to register memory region: %s", strerror(errno));
-            rc = NNTI_EPERM;
-            goto cleanup;
         }
     }
 
     packable_.buffer.transport_id                   = NNTI_TRANSPORT_IBVERBS;
-    packable_.buffer.NNTI_remote_addr_p_t_u.ib.size = mr->length;
-    packable_.buffer.NNTI_remote_addr_p_t_u.ib.buf  = (uint64_t)mr->addr;
+    packable_.buffer.NNTI_remote_addr_p_t_u.ib.size = payload_size_;
+    packable_.buffer.NNTI_remote_addr_p_t_u.ib.buf  = (uint64_t)payload_;
     packable_.buffer.NNTI_remote_addr_p_t_u.ib.key  = mr->rkey;
 
     registered_ = true;
@@ -201,14 +206,20 @@ cleanup:
 NNTI_result_t
 ibverbs_buffer::unregister_buffer(void)
 {
-    log_debug("ibverbs_buffer", "deregistering ibverbs_buffer (payload_=%x)", mr->addr);
-    int ibv_rc=ibv_dereg_mr(mr);
-    if (ibv_rc != 0) {
-        log_error("ibverbs_buffer", "deregistering the memory buffer failed");
-        return NNTI_EINVAL;
-    }
+    transports::ibverbs_transport *ibv_transport = (transports::ibverbs_transport*)transport_;
 
-    registered_ = false;
+    if (ibv_transport->use_odp_) {
+        log_debug("ibverbs_buffer", "using ODP - unregister is a no-op");
+    } else {
+        log_debug("ibverbs_buffer", "deregistering ibverbs_buffer (payload_=%x)", mr->addr);
+        int ibv_rc=ibv_dereg_mr(mr);
+        if (ibv_rc != 0) {
+            log_error("ibverbs_buffer", "deregistering the memory buffer failed");
+            return NNTI_EINVAL;
+        }
+        registered_ = false;
+    }
+    mr = NULL;
 
     return NNTI_OK;
 }
@@ -234,8 +245,8 @@ ibverbs_buffer::post_receive(void)
     rq_wr.sg_list = &sge;
     rq_wr.num_sge = 1;
 
-    sge.addr   = (uint64_t)mr->addr;
-    sge.length = mr->length;
+    sge.addr   = (uint64_t)payload_;
+    sge.length = payload_size_;
     sge.lkey   = mr->lkey;
 
     ibv_rc=ibv_post_srq_recv(ibv_transport->rdma_srq_, &rq_wr, &bad_wr);
@@ -262,10 +273,13 @@ ibverbs_buffer::nnti_to_ib_flags(NNTI_buffer_flags_t nnti_flags)
         ibv_flags = static_cast<enum ibv_access_flags>(ibv_flags | IBV_ACCESS_LOCAL_WRITE);
     }
     if (nnti_flags & NNTI_BF_REMOTE_READ) {
-        ibv_flags = static_cast<enum ibv_access_flags>(ibv_flags | IBV_ACCESS_REMOTE_READ | IBV_ACCESS_REMOTE_ATOMIC);
+        ibv_flags = static_cast<enum ibv_access_flags>(ibv_flags | IBV_ACCESS_REMOTE_READ);
     }
     if (nnti_flags & NNTI_BF_REMOTE_WRITE) {
-        ibv_flags = static_cast<enum ibv_access_flags>(ibv_flags | IBV_ACCESS_REMOTE_WRITE | IBV_ACCESS_REMOTE_ATOMIC);
+        ibv_flags = static_cast<enum ibv_access_flags>(ibv_flags | IBV_ACCESS_REMOTE_WRITE);
+    }
+    if (nnti_flags & NNTI_BF_REMOTE_ATOMIC) {
+        ibv_flags = static_cast<enum ibv_access_flags>(ibv_flags | IBV_ACCESS_REMOTE_ATOMIC);
     }
 
     return ibv_flags;

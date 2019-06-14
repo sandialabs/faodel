@@ -124,7 +124,7 @@ bool DirectoryOwnerCache::Lookup(const vector<faodel::ResourceURL> &search_urls,
 //   return found;
 // }
 
-void DirectoryOwnerCache::webhookInfo(faodel::ReplyStream &rs){
+void DirectoryOwnerCache::whookieInfo(faodel::ReplyStream &rs){
 
   rs.tableBegin("DirectoryOwnerCache");
   rs.tableTop({"Name","ReferenceNode"});

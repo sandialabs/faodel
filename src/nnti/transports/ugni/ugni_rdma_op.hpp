@@ -18,7 +18,7 @@
 
 #include "faodel-common/MutexWrapper.hh"
 
-#include "nnti/nnti_packable.h"
+#include "nnti/nnti_serialize.hpp"
 #include "nnti/nnti_types.h"
 #include "nnti/nnti_threads.h"
 #include "nnti/nnti_util.hpp"
@@ -50,7 +50,8 @@ public:
         nnti::transports::ugni_transport *transport)
     : nnti_op(),
       transport_(transport),
-      state_(op_state::INIT)
+      state_(op_state::INIT),
+      result_(NNTI_OK)
     {
         sm_lock_ = faodel::GenerateMutex("pthreads");
 
@@ -61,7 +62,8 @@ public:
         nnti::datatype::nnti_work_id        *wid)
     : nnti_op(wid),
       transport_(transport),
-      state_(op_state::INIT)
+      state_(op_state::INIT),
+      result_(NNTI_OK)
     {
         sm_lock_ = faodel::GenerateMutex("pthreads");
 
@@ -77,13 +79,19 @@ public:
     void
     set(nnti::datatype::nnti_work_id *wid)
     {
-        id_  = next_id_.fetch_add(1);
-        wid_ = wid;
-        state_ = op_state::INIT;
+        id_     = next_id_.fetch_add(1);
+        wid_    = wid;
+        state_  = op_state::INIT;
+        result_ = NNTI_OK;
 
         populate_post_desc(wid);
 
         return;
+    }
+    NNTI_result_t
+    result()
+    {
+        return result_;
     }
 
     virtual std::string
@@ -151,12 +159,15 @@ private:
         WAIT_RDMA_COMPLETE,
         ISSUE_RDMA_EVENT,
 
+        ERROR,
+
         CLEANUP,
         DONE
     };
 
-    op_state               state_;
+    op_state              state_;
     faodel::MutexWrapper *sm_lock_;
+    NNTI_result_t         result_;
 
     op_state
     execute_rdma(void)
@@ -170,7 +181,7 @@ private:
         nnti::datatype::nnti_peer   *peer = (nnti::datatype::nnti_peer *)wid_->wr().peer();
         nnti::core::ugni_connection *conn = (nnti::core::ugni_connection *)peer->conn();
 
-        log_debug("ugni_rdma_op", "calling PostFma(fma get ; ep_hdl(%llu) transport_global_data.ep_cq_hdl(%llu) local_mem_hdl(%llu, %llu) remote_mem_hdl(%llu, %llu))",
+        log_debug("ugni_rdma_op", "calling PostRdma(ep_hdl(%llu) transport_global_data.ep_cq_hdl(%llu) local_mem_hdl(%llu, %llu) remote_mem_hdl(%llu, %llu))",
                 conn->unexpected_ep_hdl(), conn->unexpected_cq_hdl(),
                 post_desc_.local_mem_hndl.qword1, post_desc_.local_mem_hndl.qword2,
                 post_desc_.remote_mem_hndl.qword1, post_desc_.remote_mem_hndl.qword2);
@@ -182,21 +193,26 @@ private:
                 0);
         if (gni_rc != GNI_RC_SUCCESS) {
             log_error("ugni_rdma_op", "EpSetEventData(rdma_ep_hdl_) failed: %d", gni_rc);
-            abort();
+            goto error;
         }
         gni_rc=GNI_PostRdma(
                 conn->rdma_ep_hdl(),
                 &post_desc_);
-        nthread_unlock(&transport_->ugni_lock_);
         if (gni_rc != GNI_RC_SUCCESS) {
-            log_error("ugni_cmd_tgt", "failed to post BTE (gni_rc=%d): %s", gni_rc, strerror(errno));
-            abort();
+            log_error("ugni_rdma_op", "failed to post BTE (gni_rc=%d): %s", gni_rc, strerror(errno));
+            result_ = NNTI_EMSGSIZE;
+            goto error;
         }
-        log_debug("ugni_cmd_tgt", "called PostRdma(rdma get)");
+        nthread_unlock(&transport_->ugni_lock_);
+        log_debug("ugni_rdma_op", "called PostRdma()");
 
-        log_debug("ugni_rdma_op", "exit");
-
+        log_debug("ugni_rdma_op", "exit - success");
         return op_state::WAIT_RDMA_COMPLETE;
+
+error:
+        nthread_unlock(&transport_->ugni_lock_);
+        log_debug("ugni_rdma_op", "exit - failure");
+        return op_state::ERROR;
     }
     NNTI_event_t *
     create_event(void)
@@ -211,7 +227,7 @@ private:
         }
 
         e->trans_hdl  = nnti::transports::transport::to_hdl(transport_);
-        e->result     = NNTI_OK;
+        e->result     = result_;
         e->op         = wr.op();
         e->peer       = wr.peer();
         e->length     = wr.length();
@@ -304,6 +320,9 @@ public:
                     break;
                 case op_state::ISSUE_RDMA_EVENT:
                     state_ = issue_rdma_event();
+                    break;
+                case op_state::ERROR:
+                    state_ = op_state::CLEANUP;
                     break;
                 case op_state::CLEANUP:
                     update_stats();

@@ -12,7 +12,7 @@
 #include "faodel-common/Configuration.hh"
 #include "faodel-common/NodeID.hh"
 
-#include "webhook/Server.hh"
+#include "whookie/Server.hh"
 
 #include "nnti/nnti.h"
 #include "nnti/nnti_logger.hpp"
@@ -56,7 +56,7 @@ protected:
                 << ") and context(" << (void*)context << ")" << std::endl;
 #endif
       send_promise.set_value(1);
-      return NNTI_EIO;
+      return NNTI_OK;
     }
   };
 
@@ -105,7 +105,7 @@ protected:
       }
 
       recv_promise.set_value(1);
-      return NNTI_EIO;
+      return NNTI_OK;
     }
 
   public:
@@ -169,8 +169,8 @@ protected:
     bootstrap::Init(config, lunasa::bootstrap);
     bootstrap::Start();
 
-    assert(webhook::Server::IsRunning() && "Webhook not started before NetNnti started");
-    nodeid = webhook::Server::GetNodeID();
+    assert(whookie::Server::IsRunning() && "Whookie not started before NetNnti started");
+    nodeid = whookie::Server::GetNodeID();
 
     transport = nnti::transports::factory::get_instance(config);
     transport->start();

@@ -3,14 +3,14 @@
 // the U.S. Government retains certain rights in this software. 
 
 /*
- * sbl_logger.hpp
+ * sbl_types.hh
  *
  *  Created on: Jul 13, 2015
  *      Author: thkorde
  */
 
-#ifndef SBL_TYPES_HPP_
-#define SBL_TYPES_HPP_
+#ifndef SBL_TYPES_HH_
+#define SBL_TYPES_HH_
 
 namespace sbl  {
 
@@ -25,4 +25,4 @@ enum severity_level
 
 } /* namespace sbl */
 
-#endif /* SBL_TYPES_HPP_ */
+#endif /* SBL_TYPES_HH_ */

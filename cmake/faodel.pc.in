@@ -27,7 +27,7 @@ Name: Faodel
 Description: Collection of libraries for managing data in distributed memory/storage
 Version: @PROJECT_VERSION@
 Requires: @PKGCONFIG_REQUIRES@
-Libs: -L${libdir} -lkelpie -ldirman -lopbox -llunasa @PKGCONFIG_NNTI@ -lfaodel-services -lwebhook -lfaodel-common -lsbl @PKGCONFIG_TCMALLOC@ 
+Libs: -L${libdir} -lkelpie -ldirman -lopbox -llunasa @PKGCONFIG_NNTI@ -lfaodel-services -lwhookie -lfaodel-common -lsbl @PKGCONFIG_TCMALLOC@
 Libs.private: @PKGCONFIG_LIBS_PRIVATE@
 Cflags: @PKGCONFIG_CFLAGS@ -I${includedir} -I${includedir}/faodel @PKGCONFIG_CFLAGS@
 

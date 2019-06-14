@@ -9,7 +9,6 @@
 
 #include <sys/stat.h>
 #include <unistd.h>
-#include <string.h> //memset
 #include <dirent.h>
 
 #include "faodel-common/StringHelpers.hh"
@@ -79,8 +78,8 @@ rc_t IomPosixIndividualObjects::GetInfo(faodel::bucket_t bucket, const Key &key,
   rc_t rc;
   dbg("GetInfo for "+key.str());
   if(col_info)
-    memset(col_info, 0, sizeof(*col_info));
-  
+    col_info->Wipe();
+
   string fname = genBucketPathFile(bucket, key);
   struct stat sb;
   if((stat(fname.c_str(), &sb)==0) && (S_ISREG(sb.st_mode))){

@@ -63,7 +63,7 @@ public:
 
   size_t NumberOfResources() const { mutex->ReaderLock(); size_t num = known_resources.size(); mutex->Unlock();return num; }
 
-  void webhookInfo(faodel::ReplyStream &rs);
+  void whookieInfo(faodel::ReplyStream &rs);
   void sstr(std::stringstream &ss, int depth=0, int indent=0) const override;
 
 private:
@@ -73,7 +73,8 @@ private:
 
   bool _write(const faodel::DirectoryInfo &resource_info, bool overwrite_existing);
   bool _lookup(const faodel::ResourceURL &url, faodel::DirectoryInfo **resource_info, faodel::nodeid_t *reference_node);
-  bool _removeSingleDir(const faodel::ResourceURL &url, std::vector<faodel::ResourceURL> *children=nullptr);
+  bool _lookupRootDir(faodel::bucket_t, faodel::DirectoryInfo *resource_info);
+  bool _removeSingleDir(const faodel::ResourceURL &url, std::vector<faodel::ResourceURL> *members=nullptr);
 
   std::map<std::string, faodel::DirectoryInfo *> known_resources;
   faodel::MutexWrapper *mutex;

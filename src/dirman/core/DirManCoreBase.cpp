@@ -39,7 +39,6 @@ DirManCoreBase::DirManCoreBase(const faodel::Configuration &config, const string
     dc_mine("dirman.cache.mine"),
     doc("dirman.cache.owners"),
     my_node(NODE_UNSPECIFIED), 
-    debug(false), 
     strict_checking(false)  {
 
   ConfigureLogging(config);
@@ -49,10 +48,10 @@ DirManCoreBase::DirManCoreBase(const faodel::Configuration &config, const string
   bool am_root;
   vector<string> predefined_resources;
 
+  //Note:                                       dirman.root_node  may be set by parseRootNode() in derived classes
   config.GetLowercaseString(&threading_model,  "threading_model",        "pthreads");
-  config.GetBool(&debug,                       "dirman.debug",           "false");
   config.GetBool(&am_root,                     "dirman.host_root",       "false");
-  config.GetBool(&strict_checking,             "dirman.strict",          "strict");
+  config.GetBool(&strict_checking,             "dirman.strict",          "true");
   config.GetLowercaseString(&threading_model,  "dirman.threading_model", threading_model);
   config.GetLowercaseString(&mutex_type,       "dirman.mutex_type",      "rwlock");
   config.GetStringVector(&predefined_resources,"dirman.resources");
@@ -62,14 +61,6 @@ DirManCoreBase::DirManCoreBase(const faodel::Configuration &config, const string
   dc_others.Init(config, threading_model, mutex_type);
   dc_mine.Init(config, threading_model, mutex_type);
   doc.Init(config, threading_model, mutex_type);
-
-  string fname, ename;
-  config.GetString(&ename, "dirman.root_node.file.env_name","");
-  if(!ename.empty()){
-    char *penv = getenv(ename.c_str());
-    fname = string(penv);
-  }
-  config.GetString(&fname, "dirman.root_node.file",fname);
 
 
   //Load any references into our database
@@ -82,7 +73,7 @@ DirManCoreBase::DirManCoreBase(const faodel::Configuration &config, const string
     for(int i=predefined_resources.size()-1; i>=0; i--){
       dbg("Considering "+predefined_resources[i]);
       ResourceURL url(predefined_resources[i]);
-      if(url.resource_type=="ref") continue; //Never add pure references
+      if(url.IsReference()) continue; //Never add pure references
       if(url.bucket == BUCKET_UNSPECIFIED) url.bucket = default_bucket;
       string path_name = url.GetPathName();
       if( urls.find(path_name) == urls.end() ){
@@ -93,21 +84,20 @@ DirManCoreBase::DirManCoreBase(const faodel::Configuration &config, const string
     for(auto &key_url : urls) {
       DirectoryInfo di(key_url.second);
 
-
       //Any non-local resource defined here that doesn't have nodes in it
       //should be removed because it doesn't provide any actionable info.
       //If you don't do this, non-root nodes get stale info at init don't
       //bother to update from root.
       // Example: if we use mpisyncstart to create a dht, the root node
-      //          gets a url with all the children, but the non-root nodes
-      //          get zero children because mpisyncstart doesn't globally
+      //          gets a url with all the members, but the non-root nodes
+      //          get zero members because mpisyncstart doesn't globally
       //          sync everything.
-      if((di.url.resource_type!="local") && (di.children.size()==0)) {
+      if((di.url.Type()!="local") && (di.members.size()==0)) {
         dbg("Not adding predefined resource "+key_url.first+" because it is not local and does not have any members");
         throw runtime_error("Abort on adding "+key_url.first);
         continue;
       }
-      dbg("adding predefined resource "+key_url.first+" --> "+di.url.GetFullURL()+" Num Children="+std::to_string(di.children.size()));
+      dbg("adding predefined resource "+key_url.first+" --> "+di.url.GetFullURL()+" Num Members="+std::to_string(di.members.size()));
       dc_others.Create(di); //Note: this does not link parents
 
     }
@@ -115,7 +105,6 @@ DirManCoreBase::DirManCoreBase(const faodel::Configuration &config, const string
 
 
 #if 0
-
   vector<string> surls_to_host; //urls encoded in config that need hosting
   vector<ResourceURL> urls_to_host;
   vector<ResourceURL> urls_to_check;
@@ -132,7 +121,7 @@ DirManCoreBase::DirManCoreBase(const faodel::Configuration &config, const string
         faodel::ResourceURL new_url(new_path);
         new_url.reference_node = my_node;
         if(new_url.bucket==BUCKET_UNSPECIFIED) new_url.bucket = default_bucket;
-        if(new_url.resource_type == "") new_url.resource_type = "ref";
+        if(new_url.resource_type == "") new_url.resource_type = "ref"; //Do not use! reference detection should be IsReference()
         urls_to_host.push_back(new_url);
         dbg("This node now hosts: "+s+" which has url "+new_path);
       }
@@ -198,6 +187,146 @@ DirManCoreBase::DirManCoreBase(const faodel::Configuration &config, const string
 DirManCoreBase::~DirManCoreBase() = default;
 
 /**
+ * @brief Determine which node is the reference node for a particular resource
+ * @param search_url A reference to a resource
+ * @param reference_node The node that is the designated owner of the resource
+ * @retval TRUE Was able to locate resource
+ * @retval FALSE Did not find the reference
+ * @note The base implementation currently only looks locally. Derived classes should implement this for remote use
+ */
+bool DirManCoreBase::Locate(const faodel::ResourceURL &search_url, nodeid_t *reference_node) {
+
+  bool ok = lookupLocal(search_url, nullptr, reference_node);
+  KWARN("Locate should be global, not just local");
+  return ok;
+}
+
+
+/**
+ * @brief Retrieve info about a particular resource directory entry
+ * @param url -  Resource URL to look up
+ * @param check_local - Check our local cache for answer first
+ * @param check_remote - Check the remote node responsible for dir (if local not successful)
+ * @param dir_info -  The resulting directory info (set to empty value if no entry)
+ * @retval TRUE The entry was found
+ * @retval FALSE The entry was no found
+ * @note The base implementation currently only looks locally. Derived classes should implement this for remote use
+ */
+bool DirManCoreBase::GetDirectoryInfo(const faodel::ResourceURL &search_url, bool check_local, bool check_remote, DirectoryInfo *dir_info){
+
+  if(check_local){
+    bool ok = lookupLocal(search_url, dir_info, nullptr);
+    if(ok || !check_remote) return ok;
+  }
+  if(check_remote){
+    KWARN("GetDirectoryInfo should be global, not just local");
+    return false;
+  }
+  return false;
+}
+
+
+
+/**
+ * @brief Define a new resource (when no nodes have been allocated yet)
+ * @param dir_info Information about the resource
+ * @retval TRUE If success
+ * @retval FALSE This did not complete because url wasn't valid or the reference wasn't defined
+ */
+bool DirManCoreBase::DefineNewDir(const DirectoryInfo &dir_info) {
+
+  dbg("DefineNewDir "+dir_info.url.GetFullURL());
+
+  //Can't host it if it isn't valid
+  if(!dir_info.url.Valid()){
+    error("Attempted to host new resource with invalid url "+dir_info.url.GetFullURL());
+    return false;
+  }
+
+  //If user did mark us as the reference, it's the same as HostNewDir
+  if(dir_info.url.reference_node == my_node) {
+    return HostNewDir(dir_info);
+  }
+
+  // Fail: This default DefineNewDir doesn't know what to do with an undefined reference node.
+  //       A core should define this and do the right thing instead.
+
+  KTODO("Default DefineNewDir does not handle unspecified reference node case. Derived class should implement.");
+  return false;
+
+}
+
+/**
+ * @brief Define a new resource (when no nodes have been allocated yet)
+ * @param url Information about the resource
+ * @retval TRUE If success
+ * @retval FALSE This did not complete because url wasn't valid
+ */
+bool DirManCoreBase::DefineNewDir(const faodel::ResourceURL &url) {
+  dbg("DefineNewDir "+url.GetFullURL());
+  if(!url.Valid()){
+    error("Attempted to define new resource with invalid url "+url.GetFullURL());
+    return false;
+  }
+  return DefineNewDir( DirectoryInfo(url));
+
+}
+/**
+ * @brief Create a new local resource and update parent
+ * @param dir_info -  All of the info needed to describe this resource
+ * @retval TRUE This was added and is a new item
+ * @retval FALSE The dir's url was invalid, the reference node was not this node, or dir already existed
+ */
+bool DirManCoreBase::HostNewDir(const DirectoryInfo &dir_info){
+
+  dbg("HostNewDir "+dir_info.url.GetFullURL());
+
+  //Can't host it if it isn't valid
+  if(!dir_info.url.Valid()){
+    error("Attempted to host new resource with invalid url "+dir_info.url.GetFullURL());
+    return false;
+  }
+
+  //Make sure url points to us
+  if(dir_info.url.reference_node != my_node){
+    error("Attempted to host resource that didn't have our node's id. Had "+
+          dir_info.url.reference_node.GetHex() +
+          " instead of "+my_node.GetHex());
+    return false;
+  }
+
+  //Create the actual resource (if it doesn't exist) and update doc
+  bool new_resource = dc_mine.Create(dir_info);
+  if(!new_resource) {
+    dbg("Attempted to create resource that's already registered?");
+    return false; //It's already been registered
+  }
+  doc.Register(dir_info.url); //Just to make sure its known locally
+
+  //Bail out here if this is a root: no parent to notify
+  if(dir_info.url.IsRootLevel()) return true;
+
+
+  //See if our parent is hosted here. Is so, join locally.
+  nodeid_t parent_node;
+  bool ok = discoverParent(dir_info.url, &parent_node);
+  dbg("hostresource discovered ok="+to_string(ok)+" parent was "+parent_node.GetHex());
+
+  kassert(ok,"couldn't discover parent for "+dir_info.url.GetFullURL());
+  if((parent_node == my_node)||(parent_node==NODE_LOCALHOST)){
+    dbg("hosted resource's parent available here. Joining.");
+    return dc_mine.Join(dir_info.url);
+  }
+
+  //Not local, we must join a resource
+  dbg("hosted resource's parent not available here. remote joining.");
+  ok = joinRemote(parent_node, dir_info.url);
+  kassert(ok,"Couldn't host resource, because couldn't join parent?");
+
+  return true;
+}
+
+/**
  * @brief Create a new local resource and update parent
  * @param url -  The bucket, path, and name of the resource
  * @retval TRUE This was added and is a new item
@@ -214,12 +343,6 @@ bool DirManCoreBase::HostNewDir(const faodel::ResourceURL &url){
   }
 
   tmp_url.reference_node = my_node;
-
-  //Plug in a default reference in none provided
-  if(tmp_url.resource_type.empty()){
-    kassert(!strict_checking, "HostNewDir url did not specify resource_type");
-    tmp_url.resource_type="ref";
-  }
 
   return HostNewDir(DirectoryInfo(tmp_url));
 }
@@ -241,7 +364,6 @@ void DirManCoreBase::GetCachedNames(std::vector<std::string> *resource_names) {
   dc_others.GetAllNames(resource_names);
   dc_mine.GetAllNames(resource_names);
 }
-
 
 /**
  * @brief Query local resources to see if info exists about a particular resource
@@ -305,6 +427,104 @@ bool DirManCoreBase::joinLocal(const faodel::ResourceURL &child_url, DirectoryIn
 
 
 
+
+
+void DirManCoreBase::HandleWhookieStatus(const std::map<std::string,std::string> &args, std::stringstream &results){
+
+  faodel::ReplyStream rs(args, "Directory Manager", &results);
+  rs.tableBegin("Directory Manager");
+  rs.tableTop({"Parameter","Setting"});
+  rs.tableRow({"Type:", GetType()});
+  rs.tableRow({"Default Bucket:", default_bucket.GetHex()});
+  appendWhookieParameterTable(&rs);
+  rs.tableEnd();
+
+  dc_mine.whookieInfo(rs);
+  dc_others.whookieInfo(rs);
+  doc.whookieInfo(rs);
+
+  rs.Finish();
+}
+void DirManCoreBase::HandleWhookieEntry(const std::map<std::string,std::string> &args, std::stringstream &results){
+  faodel::ReplyStream rs(args, "Directory Manager", &results);
+  auto it = args.find("name");
+  if(it==args.end()){
+    //Error
+  } else {
+    string s = it->second;
+    DirectoryInfo dir_info;
+    bool found = lookupLocal(s, &dir_info);
+    if(found){
+      dir_info.whookieInfo(rs);
+    }
+  }
+  rs.Finish();
+}
+
+/**
+ * @brief Parse a configuration and figure out what it's root node is (via definition, env var, or file load)
+ * @param config Configuration file to examine
+ * @return root_nodeid The root node's id
+ * @throws runtime_error if parse fails or the parsed root_node is not valid
+ */
+nodeid_t DirManCoreBase::parseConfigForRootNode(const Configuration &config) const {
+
+  rc_t rc;
+  string fname, root_node_hex;
+
+  dbg("Parsing condfig for root node info");
+  rc = config.GetString(&root_node_hex, "dirman.root_node");
+  dbg("Searching for dirman.root_node gave '"+root_node_hex+"'");
+  if(rc==ENOENT) {
+
+    //See if we can find a root_node file. Check in this order:
+    //  dirman.root_node.file
+    //  dirman.root_node.file.env_name.if_defined
+    //  dirman.root_node.file.env_name = FAODEL_DIRMAN_ROOT_NODE_FILE
+    //  FAODEL_DIRMAN_ROOT_NODE
+    rc = config.GetFilename(&fname, "dirman.root_node", "FAODEL_DIRMAN_ROOT_NODE_FILE", "");
+    dbg("GetFilename: '"+fname+"'");
+    if(rc == 0) {
+      ifstream f;
+      f.open(fname);
+      if(!f.is_open()) {
+        throw std::runtime_error("dirman root node failed to read from file '"+fname+"'");
+      }
+      getline(f, root_node_hex);
+      f.close();
+
+    } else {
+
+      dbg("Searching for env var FAODEL_DIRMAN_ROOT_NODE");
+      //Last chance: look for an env var.
+      const string ename = "FAODEL_DIRMAN_ROOT_NODE";
+      char *penv = getenv(ename.c_str());
+      if(penv) {
+        root_node_hex = string(penv);
+      }
+      if(root_node_hex.empty()) {
+        throw std::runtime_error(
+                "Dirman could not locate a root_node. The following were checked in this order:\n"
+                "  configuration  dirman.root_node\n"
+                "  configuration  dirman.root_node.file\n"
+                "  configuration  dirman.root_node.file.env_name.if_defined\n"
+                "  env var FAODEL_DIRMAN_ROOT_NODE_FILE\n"
+                "  env var FAODEL_DIRMAN_ROOT_NODE\n");
+      }
+    }
+  }
+
+  dbg("Root node is set to be "+root_node_hex);
+
+  nodeid_t node(root_node_hex);
+  if(!node.Valid()) {
+    throw std::runtime_error("Dirman had parse problem with root_node '"+root_node_hex+"'");
+  }
+
+  return node;
+
+}
+
 /**
  * @brief Reads in urls from one or more files
  * @param file_names - list of files to read, separated by semicolon
@@ -362,6 +582,17 @@ bool DirManCoreBase::writeURLsToFileOrDie(const string file_name, const vector<f
 
 }
 
+/**
+ * @brief Function for caching directory info for something hosted on a different node
+ * @param dir_info The info to store
+ * @retval TRUE Stored correctly
+ * @retval FALSE Problems storing the item
+ * @note This base class is for reference use only. It should be implemented in remote operations
+ * @deprecated This is legacy code and will likely be deprecated in new releases
+ *
+ * This was originally a method that an op could call to push dir info into a remote
+ * node. It is currently unused because the centralized version does not need it.
+ */
 bool DirManCoreBase::cacheForeignDir(const DirectoryInfo &dir_info){
 
   dbg("cacheForeignDir "+dir_info.url.GetFullURL());
@@ -379,148 +610,18 @@ bool DirManCoreBase::cacheForeignDir(const DirectoryInfo &dir_info){
   }
   return true;
 }
-bool DirManCoreBase::Locate(const faodel::ResourceURL &search_url, nodeid_t *reference_node) {
-
-  bool ok = lookupLocal(search_url, nullptr, reference_node);
-  KWARN("Locate should be global, not just local");
-  return ok;
-
-}
-
-#if 0
-//REMOVING: This used to be an example of how to join, but derived classes all do their own thing
-bool DirManCoreBase::JoinDir(const faodel::ResourceURL &my_url, DirectoryInfo *dir_info){
-
-  //Can't join something if we're the root!
-  if(my_url.IsRootLevel()) return false;
-
-  nodeid_t parent_node;
-  bool ok = discoverParent(my_url, &parent_node);
-  kassert(ok,"couldn't discover parent for "+my_url.str());
-
-  //If Local, no need to do rpc
-  if((parent_node == my_node)||(parent_node==NODE_LOCALHOST)){
-    return joinLocal(my_url, dir_info);
-  }
-  KWARN("Join resource should be global, not just local");
-  return joinRemote(parent_node, my_url); //todo
-}
-#endif
 
 
 /**
- * @brief Create a new local resource and update parent
- * @param dir_info -  All of the info needed to describe this resource
- * @retval TRUE This was added and is a new item
- * @retval FALSE This was not added because the url wasn't valid
- */
-bool DirManCoreBase::HostNewDir(const DirectoryInfo &dir_info){
-
-  dbg("HostNewDir "+dir_info.url.GetFullURL());
-
-  //Can't host it if it isn't valid
-  if(!dir_info.url.Valid()){
-    error("Attempted to host new resource with invalid url "+dir_info.url.GetFullURL());
-    return false;
-  }
-
-  //Make sure url points to us
-  if(dir_info.url.reference_node != my_node){
-    error("Attempted to host resource that didn't have our node's id. Had "+
-             dir_info.url.reference_node.GetHex() +
-             " instead of "+my_node.GetHex());
-    return false;
-  }
-
-  //Create the actual resource (if it doesn't exist) and update doc
-  bool new_resource = dc_mine.Create(dir_info);
-  if(!new_resource) {
-    dbg("Attempted to create resource that's already registered?");
-    return false; //It's already been registered
-  }
-  doc.Register(dir_info.url); //Just to make sure its known locally
-
-  //Bail out here if this is a root: no parent to notify
-  if(dir_info.url.IsRootLevel()) return true;
-
-
-  //See if our parent is hosted here. Is so, join locally.
-  nodeid_t parent_node;
-  bool ok = discoverParent(dir_info.url, &parent_node);
-  dbg("hostresource discovered ok="+to_string(ok)+" parent was "+parent_node.GetHex());
-
-  kassert(ok,"couldn't discover parent for "+dir_info.url.GetFullURL());
-  if((parent_node == my_node)||(parent_node==NODE_LOCALHOST)){
-    dbg("hosted resource's parent available here. Joining.");
-    return dc_mine.Join(dir_info.url);
-  }
-
-  //Not local, we must join a resource
-  dbg("hosted resource's parent not available here. remote joining.");
-  ok = joinRemote(parent_node, dir_info.url);
-  kassert(ok,"Couldn't host resource, because couldn't join parent?");
-
-  return true;
-}
-
-
-bool DirManCoreBase::GetDirectoryInfo(const faodel::ResourceURL &search_url, bool check_local, bool check_remote, DirectoryInfo *dir_info){
-
-  if(check_local){
-    bool ok = lookupLocal(search_url, dir_info, nullptr);
-    if(ok || !check_remote) return ok;
-  }
-  if(check_remote){
-    KWARN("GetDirectoryInfo should be global, not just local");
-    return false;
-  }
-  return false;
-}
-
-
-
-void DirManCoreBase::HandleWebhookStatus(const std::map<std::string,std::string> &args, std::stringstream &results){
-
-  faodel::ReplyStream rs(args, "Directory Manager", &results);
-  rs.tableBegin("Directory Manager");
-  rs.tableTop({"Parameter","Setting"});
-  rs.tableRow({"Type:", GetType()});
-  rs.tableRow({"Default Bucket:", default_bucket.GetHex()});
-  appendWebhookParameterTable(&rs);
-  rs.tableEnd();
-
-  dc_mine.webhookInfo(rs);
-  dc_others.webhookInfo(rs);
-  doc.webhookInfo(rs);
-
-  rs.Finish();
-}
-void DirManCoreBase::HandleWebhookEntry(const std::map<std::string,std::string> &args, std::stringstream &results){
-  faodel::ReplyStream rs(args, "Directory Manager", &results);
-  auto it = args.find("name");
-  if(it==args.end()){
-    //Error
-  } else {
-    string s = it->second;
-    DirectoryInfo dir_info;
-    bool found = lookupLocal(s, &dir_info);
-    if(found){
-      dir_info.webhookInfo(rs);
-    }
-  }
-  rs.Finish();
-}
-
-/**
- * @brief Generate any derived-class info to put into parameter list for DirMan webhook
+ * @brief Generate any derived-class info to put into parameter list for DirMan whookie
  * @param rs The reply stream to update. This is already in the middle of a table
  */
-void DirManCoreBase::appendWebhookParameterTable(faodel::ReplyStream *rs){
+void DirManCoreBase::appendWhookieParameterTable(faodel::ReplyStream *rs){
   // ex.. rs->tableRow({"My Param", "My Value"});
 }
 
 void DirManCoreBase::sstr(std::stringstream &ss, int depth, int indent) const {
-  ss<<string(indent,' ') <<"[DirMan] MyNode: "<<my_node.GetHex()<<" DefBucket: "<<default_bucket.GetHex()<<" Debug: "<<debug<<endl;
+  ss<<string(indent,' ') <<"[DirMan] MyNode: "<<my_node.GetHex()<<" DefBucket: "<<default_bucket.GetHex()<<endl;
   if(depth>0){
     dc_mine.sstr(ss, depth-1, indent+2);
     dc_others.sstr(ss, depth-1, indent+2);

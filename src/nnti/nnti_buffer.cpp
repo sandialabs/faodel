@@ -22,4 +22,6 @@
 
 
 std::atomic<uint32_t> nnti::datatype::nnti_buffer::next_id_ = {1};
-const uint64_t nnti::datatype::nnti_buffer::packed_size_;
+#if NNTI_USE_XDR == 1
+const uint64_t nnti::datatype::nnti_buffer::max_packed_size_;
+#endif

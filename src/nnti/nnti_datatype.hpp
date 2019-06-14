@@ -22,6 +22,7 @@
 #include <sstream>
 #include <string>
 
+#include "nnti/nnti_types.h"
 #include "nnti/nnti_transport.hpp"
 
 
@@ -45,7 +46,7 @@ public:
     }
     nnti_datatype(
         nnti::transports::transport *transport,
-        NNTI_datatype_t              datatype)
+        NNTI_datatype_t        datatype)
         : transport_(transport),
           datatype_(datatype)
     {

@@ -9,7 +9,7 @@
 
 
 
-#include "webhook/Server.hh"
+#include "whookie/Server.hh"
 
 using namespace std;
 using namespace faodel;
@@ -32,10 +32,11 @@ void DirManCoreUnconfigured::finish()                                           
 
 bool DirManCoreUnconfigured::Locate(const ResourceURL &u, nodeid_t *r)                                { return Panic("Locate"); }
 bool DirManCoreUnconfigured::GetDirectoryInfo(const ResourceURL &u, bool l, bool r, DirectoryInfo *d) { return Panic("GetDirectoryInfo"); }
+bool DirManCoreUnconfigured::DefineNewDir(const DirectoryInfo &d)                                     { return Panic("DefineNewDir"); }
 bool DirManCoreUnconfigured::HostNewDir(const DirectoryInfo &d)                                       { return Panic("HostNewDir"); }
 bool DirManCoreUnconfigured::JoinDirWithName(const ResourceURL &u, string name, DirectoryInfo *d)     { return Panic("JoinDirWithName"); }
 bool DirManCoreUnconfigured::LeaveDir(const ResourceURL &u, DirectoryInfo *d)                         { return Panic("LeaveDir"); }
-
+bool DirManCoreUnconfigured::DropDir(const ResourceURL &u)                                            { return Panic("DropDir");}
 //Internal API for implementing Exposed API. Most of these call Panic() to catch unconfigured system
 bool DirManCoreUnconfigured::discoverParent(const ResourceURL &u, nodeid_t *r)                        { return Panic("discoverParent"); }
 bool DirManCoreUnconfigured::cacheForeignDir(const DirectoryInfo &d)                                  { return Panic("cacheForeignDir"); }

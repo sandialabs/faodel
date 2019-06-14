@@ -110,7 +110,7 @@ Kelpie has a few library dependencies:
 | --------------- | ----------------------------------- |
 | FAODEL:SBL      | Uses logging capabilities for boost |
 | FAODEL:Common   | Uses bootstrap and nodeid_t         |
-| FAODEL:WebHook  | For status info and new connections |
+| FAODEL:Whookie  | For status info and new connections |
 | FAODEL:Lunasa   | For network memory management       |
 | FAODEL:OpBox    | For communication state machines    |
 | Network Lib     | Either FAODEL:NNTI or libfabric     |

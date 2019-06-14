@@ -8,7 +8,7 @@
 #include "gtest/gtest.h"
 
 #include "faodel-common/Common.hh"
-#include "webhook/Server.hh"
+#include "whookie/Server.hh"
 #include "opbox/OpBox.hh"
 
 using namespace std;
@@ -26,10 +26,10 @@ tester.rpc_tester_type                single
 tester.resource_manager.type          tester
 tester.resource_manager.path          /bob
 tester.resource_manager.write_to_file .tester-url
-tester.webhook.interfaces             ipogif0,eth,lo
+tester.whookie.interfaces             ipogif0,eth,lo
 
 # Client: Don't use a tester, just send requests
-target.webhook.interfaces              ipogif0,eth,lo
+target.whookie.interfaces              ipogif0,eth,lo
 target.rpc_tester_type                 none
 target.resource_manager.path           /bob/1
 target.resource_manager.read_from_file .tester-url
@@ -55,8 +55,8 @@ protected:
 TEST_F(OpboxConnectTest, start1) {
   std::cout << "Our MPI rank is " << mpi_rank << std::endl;
 
-  nodeid myid = webhook::Server::GetMyNodeID();
-  std::cout << "Our webhook server is: " << myid.GetHttpLink() << endl;
+  nodeid myid = whookie::Server::GetMyNodeID();
+  std::cout << "Our whookie server is: " << myid.GetHttpLink() << endl;
 
   opbox::net::Attrs attrs;
   opbox::net::GetAttrs(attrs);

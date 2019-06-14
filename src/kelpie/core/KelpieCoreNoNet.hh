@@ -48,7 +48,7 @@ public:
   IomBase * FindIOM(iom_hash_t iom_hash) override { return iom_registry.Find(iom_hash); }
 
 
-  void HandleWebhookStatus(const std::map<std::string,std::string> &args, std::stringstream &results);
+  void HandleWhookieStatus(const std::map<std::string,std::string> &args, std::stringstream &results);
 
 
   //InfoInterface function

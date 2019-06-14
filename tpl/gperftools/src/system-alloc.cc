@@ -55,14 +55,19 @@
 #include "base/spinlock.h"              // for SpinLockHolder, SpinLock, etc
 #include "common.h"
 #include "internal_logging.h"
-#include "assert.h"
-
-#include <iostream>
 
 // On systems (like freebsd) that don't define MAP_ANONYMOUS, use the old
 // form of the name instead.
 #ifndef MAP_ANONYMOUS
 # define MAP_ANONYMOUS MAP_ANON
+#endif
+
+// Linux added support for MADV_FREE in 4.5 but we aren't ready to use it
+// yet. Among other things, using compile-time detection leads to poor
+// results when compiling on a system with MADV_FREE and running on a
+// system without it. See https://github.com/gperftools/gperftools/issues/780.
+#if defined(__linux__) && defined(MADV_FREE) && !defined(TCMALLOC_USE_MADV_FREE)
+# undef MADV_FREE
 #endif
 
 // MADV_FREE is specifically designed for use by malloc(), but only
@@ -91,20 +96,14 @@ static const bool kDebugMode = true;
 using tcmalloc::kLog;
 using tcmalloc::Log;
 
-// Anonymous namespace to avoid name conflicts on "CheckAddressBits".
-namespace {
-
 // Check that no bit is set at position ADDRESS_BITS or higher.
-template <int ADDRESS_BITS> bool CheckAddressBits(uintptr_t ptr) {
-  return (ptr >> ADDRESS_BITS) == 0;
+static bool CheckAddressBits(uintptr_t ptr) {
+  bool always_ok = (kAddressBits == 8 * sizeof(void*));
+  // this is a bit insane but otherwise we get compiler warning about
+  // shifting right by word size even if this code is dead :(
+  int shift_bits = always_ok ? 0 : kAddressBits;
+  return always_ok || ((ptr >> shift_bits) == 0);
 }
-
-// Specialize for the bit width of a pointer to avoid undefined shift.
-template <> bool CheckAddressBits<8 * sizeof(void*)>(uintptr_t ptr) {
-  return true;
-}
-
-}  // Anonymous namespace to avoid name conflicts on "CheckAddressBits".
 
 COMPILE_ASSERT(kAddressBits <= 8 * sizeof(void*),
                address_bits_larger_than_pointer_size);
@@ -117,7 +116,7 @@ static size_t pagesize = 0;
 #endif
 
 // The current system allocator
-SysAllocator* sys_alloc = NULL;
+SysAllocator* tcmalloc_sys_alloc = NULL;
 
 // Number of bytes taken from system.
 size_t TCMalloc_SystemTaken = 0;
@@ -149,13 +148,16 @@ public:
   }
   void* Alloc(size_t size, size_t *actual_size, size_t alignment);
 };
-static char sbrk_space[sizeof(SbrkSysAllocator)];
+static union {
+  char buf[sizeof(SbrkSysAllocator)];
+  void *ptr;
+} sbrk_space;
 
 class MemalignSysAllocator : public SysAllocator {
 public:
   MemalignSysAllocator() : SysAllocator() {
   }
-  void* Alloc(size_t size, size_t *actual_size, size_t alignment) override;
+  void* Alloc(size_t size, size_t *actual_size, size_t alignment);
 };
 static char memalign_space[sizeof(MemalignSysAllocator)];
 
@@ -163,15 +165,18 @@ class MmapSysAllocator : public SysAllocator {
 public:
   MmapSysAllocator() : SysAllocator() {
   }
-  void* Alloc(size_t size, size_t *actual_size, size_t alignment) override;
+  void* Alloc(size_t size, size_t *actual_size, size_t alignment);
 };
-static char mmap_space[sizeof(MmapSysAllocator)];
+static union {
+  char buf[sizeof(MmapSysAllocator)];
+  void *ptr;
+} mmap_space;
 
 class DevMemSysAllocator : public SysAllocator {
 public:
   DevMemSysAllocator() : SysAllocator() {
   }
-  void* Alloc(size_t size, size_t *actual_size, size_t alignment) override;
+  void* Alloc(size_t size, size_t *actual_size, size_t alignment);
 };
 
 class DefaultSysAllocator : public SysAllocator {
@@ -191,7 +196,7 @@ class DefaultSysAllocator : public SysAllocator {
       names_[index] = name;
     }
   }
-  void* Alloc(size_t size, size_t *actual_size, size_t alignment) override;
+  void* Alloc(size_t size, size_t *actual_size, size_t alignment);
 
  private:
   static const int kMaxAllocators = 2;
@@ -199,10 +204,13 @@ class DefaultSysAllocator : public SysAllocator {
   SysAllocator* allocs_[kMaxAllocators];
   const char* names_[kMaxAllocators];
 };
-static char default_space[sizeof(DefaultSysAllocator)];
+static union {
+  char buf[sizeof(DefaultSysAllocator)];
+  void *ptr;
+} default_space;
 static const char sbrk_name[] = "SbrkSysAllocator";
 static const char mmap_name[] = "MmapSysAllocator";
-static const char memalign_name[] = "MemalignSysAllocator";
+static const char memalign_name[] = "MemalignAllocator";
 
 
 void* SbrkSysAllocator::Alloc(size_t size, size_t *actual_size,
@@ -284,6 +292,12 @@ void* MemalignSysAllocator::Alloc(size_t size, size_t *actual_size,
   // [LUNASA] We don't currently support a mechanism for disabling this allocator.
   //          Co-existing with other memory allocators means that we need to be sure
   //          not to change the size of the heap directly (e.g., by using sbrk)
+  //
+#if 0
+  // !!!!! DEBUG !!!!
+  printf("MemalignSysAllocator::Alloc(%d, %p, %d)\n", size, actual_size, alignment);
+  fflush(stdout);
+#endif
 
   void *ptr;
   int rc = posix_memalign(&ptr, alignment, size);
@@ -291,7 +305,7 @@ void* MemalignSysAllocator::Alloc(size_t size, size_t *actual_size,
     return NULL;
   }
   *actual_size = size;
-
+  
   return ptr;
 #endif  // HAVE_MEMALIGN
 }
@@ -481,10 +495,11 @@ SysAllocator *tc_get_sysalloc_override(SysAllocator *def)
 static bool system_alloc_inited = false;
 void InitSystemAllocators(void) {
 #if 0
-  MmapSysAllocator *mmap = new (mmap_space) MmapSysAllocator();
-  SbrkSysAllocator *sbrk = new (sbrk_space) SbrkSysAllocator();
+  MmapSysAllocator *mmap = new (mmap_space.buf) MmapSysAllocator();
+  SbrkSysAllocator *sbrk = new (sbrk_space.buf) SbrkSysAllocator();
 #endif
   MemalignSysAllocator *memalign = new (memalign_space) MemalignSysAllocator();
+
 
   // In 64-bit debug mode, place the mmap allocator first since it
   // allocates pointers that do not fit in 32 bits and therefore gives
@@ -493,14 +508,13 @@ void InitSystemAllocators(void) {
   // likely to look like pointers and therefore the conservative gc in
   // the heap-checker is less likely to misinterpret a number as a
   // pointer).
-  DefaultSysAllocator *sdef = new (default_space) DefaultSysAllocator();
-
+  DefaultSysAllocator *sdef = new (default_space.buf) DefaultSysAllocator();
   // [LUNASA] Because we're operating in the presence of other memory allocators 
   //          (e.g., malloc/free), we should not use sbrk() directly.  Also,
   //          we're not currently using the heap-checking features of gperftools
   //          so reducing false negatives is not necessary.
   sdef->SetChildAllocator(memalign, 0, memalign_name);
-
+  
 #if 0
   if (kDebugMode && sizeof(void*) > 4) {
     sdef->SetChildAllocator(mmap, 0, mmap_name);
@@ -511,11 +525,7 @@ void InitSystemAllocators(void) {
   }
 #endif
 
-  sys_alloc = tc_get_sysalloc_override(sdef);
-}
-
-void TCMalloc_ResetSystemAlloc () {
-  system_alloc_inited = false;
+  tcmalloc_sys_alloc = tc_get_sysalloc_override(sdef);
 }
 
 void* TCMalloc_SystemAlloc(size_t size, size_t *actual_size,
@@ -526,9 +536,6 @@ void* TCMalloc_SystemAlloc(size_t size, size_t *actual_size,
   SpinLockHolder lock_holder(&spinlock);
 
   if (!system_alloc_inited) {
-#ifdef DEBUG 
-    std::cerr << "Initializing system allocator\n";
-#endif
     InitSystemAllocators();
     system_alloc_inited = true;
   }
@@ -541,12 +548,10 @@ void* TCMalloc_SystemAlloc(size_t size, size_t *actual_size,
     actual_size = &actual_size_storage;
   }
 
-  // std::cerr << "calling system alloc " << sys_alloc << " with size " << size << std::endl;
-  void* result = sys_alloc->Alloc(size, actual_size, alignment);
+  void* result = tcmalloc_sys_alloc->Alloc(size, actual_size, alignment);
   if (result != NULL) {
     CHECK_CONDITION(
-      CheckAddressBits<kAddressBits>(
-        reinterpret_cast<uintptr_t>(result) + *actual_size - 1));
+      CheckAddressBits(reinterpret_cast<uintptr_t>(result) + *actual_size - 1));
     TCMalloc_SystemTaken += *actual_size;
   }
   return result;
@@ -578,15 +583,13 @@ bool TCMalloc_SystemRelease(void* start, size_t length) {
   ASSERT(new_end <= end);
 
   if (new_end > new_start) {
-    //int result;
     int result = 0;
-    do {
 #if 0
-      printf("MADVISE %p %d\n", (void *)new_start, new_end-new_start);
+    do {
       result = madvise(reinterpret_cast<char*>(new_start),
           new_end - new_start, MADV_FREE);
-#endif
     } while (result == -1 && errno == EAGAIN);
+#endif
 
     return result != -1;
   }

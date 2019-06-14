@@ -139,8 +139,8 @@ what happened in the test. Common problems include:
 
      export OMPI_MCA_rmaps_base_oversubscribe=1
 
-- Check your webhook.interfaces list: Compute nodes often have several
-  network interfaces and webhook often guesses wrong. Log into a compute
+- Check your whookie.interfaces list: Compute nodes often have several
+  network interfaces and whookie often guesses wrong. Log into a compute
   node, do "ifconfig" or "ip addr" to find a live network interface,
   and set it in your config.
 
@@ -155,15 +155,15 @@ what happened in the test. Common problems include:
   Given that Atomics are not currently used in FAODEL's current libs, it
   may not be essential for these tests to work in order to use FAODEL.
 
-FAODEL provides the faodel_info tool as a sanity check for your build. This
+FAODEL provides the faodel tool as a sanity check for your build. This
 tools prints out build information and performs basic checks to determine
 if the libraries will work. You should run this test on your platform's
 login node, as well as a compute node (some platforms have different
 hardware).
 
-     build/tools/faodel-info/faodel_info
+     build/tools/faodel-cli/faodel build-info
      salloc -N 1
-     srun build/tools/faodel-info/faodel_info
+     srun build/tools/faodel-cli/faodel build-info
      exit 
 
 
@@ -211,7 +211,7 @@ can be found on the FAODEL wiki. Common settings that a
 user may wish to change include:
 
 ```
-webhook.interfaces  ib0,eth0  # Change the nic used for webhook
+whookie.interfaces  ib0,eth0  # Change the nic used for whookie
 
 net.transport.name  ibverbs   # Select net driver when using nnti or libfabric
 
@@ -311,7 +311,20 @@ configure and build on any node and run on any node.
 
 
 
+Selecting An Infiniband Network Device
+--------------------------------------
+When FAODEL bootstraps the network, it searches for an Infiniband device 
+with an active port.  By default, FAODEL queries the verbs library for a 
+list of devices and chooses the first one with an active port.  If there 
+are multiple devices or multiple active ports, FAODEL may not choose the 
+correct device.  
 
+In this case, add the following to the configuration file:
+```
+net.transport.interfaces ib1,ib0  # Prefer ib1 over ib0
+```
+When `net.transport.interfaces` is defined, FAODEL will search for these 
+devices (and only these devices) in the order given.
 
 
 Building Third-Party Libraries (TPLs)
@@ -379,6 +392,32 @@ libfabric's package configuration info to `PKG_CONFIG_PATH`. eg,
 
 You will also need to set your `LD_LIBRARY_PATH` to include a path to
 the libfabric library in order to run applications.
+
+
+
+
+Data Structure Serialization
+============================
+
+NNTI data structures can to sent to peers both implicitly (command 
+messages) and explicitly (buffer references).  To support 
+heterogeneous platforms, these data structures are serialized to a 
+portable format, sent to the peer and deserialized at the recipient.  
+
+NNTI has historically used XDR for serialization because it is 
+fast, tight and ubiquitous.  In recent releases (eg. Mojave) of 
+MacOS, XDR is not fully implemented.  NNTI detects this condition 
+during configuration and uses the bundled Cereal library as an 
+alternative.
+
+If you prefer Cereal over XDR, you can force the use of Cereal 
+using the `Faodel_ENABLE_CEREAL` option.
+
+Note 1: Cereal is a header-only implementation and is only used 
+internally by NNTI.  It does not get installed as part of Faodel.
+
+Note 2: There is no way to reference an external installation of 
+Cereal.
 
 
 
@@ -520,7 +559,7 @@ defined as ipogif0). Thus, you should add the following info to the
 configuration file specified by `FAODEL_CONFIG`:
 
 ```
-webhook.interfaces  ipogif0
+whookie.interfaces  ipogif0
 net.transport.name  ugni
 ```
 
@@ -552,6 +591,27 @@ find . -name CTestTestfile.cmake | xargs sed -i 's@/opt/cray/elogin/eproxy/2.0.2
    gethostbyname in a statically linked application requiring a runtime with
    the shared libraries from glibc. This is normal and does not affect
    FAODEL.
+
+
+Installing on Astra (ARM-based Mellanox InfiniBand Cluster)
+===========================================================
+
+Astra is an ARM-based cluster with a Mellanox InfiniBand interconnect.  
+In general, Faodel operates the same on Astra as on any other 
+InfiniBand platform.  One extra feature of Astra is that it 
+has full support for Mellanox's On-Demand Paging feature that 
+allows a process' entire virtual address space to be registered 
+without pinning (locking) pages in memory.  The availability of
+ODP is detected during configuration, but it is disable by 
+default because it is still experimental.  To enable it, add the 
+following to your configuration file.
+
+```
+net.transport.use_odp true
+```
+
+This feature is still experimental with no guarantees of 
+performance or correctness.
 
 
 Installing on Kahuna (Generic InfiniBand Cluster)
@@ -591,7 +651,7 @@ ports for sockets. Thus, you should add the following info to the
 configuration file specified by `FAODEL_CONFIG`:
 
 ```
-webhook.interfaces  eth0,ib0
+whookie.interfaces  eth0,ib0
 net.transport.name  ibverbs
 ```
 
@@ -625,6 +685,7 @@ Advanced Options
 | ------------------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------- |
 | HDF5_DIR                  | Path             | Location of HDF5 libs. Only used when FAODEL_ENABLE_IOM_HDF5 used                                                         |
 | leveldb_DIR               | Path             | Location of leveldb libs. Only used when FAODEL_ENABLE_IOM_LEVELDB used                                                   |
+| Faodel_ENABLE_CEREAL      | Boolean          | If XDR is not fully implemented (eg. MacOS Mojave), Cereal is used.  CMake should autodetect, but this forces Cereal.     |
 | Faodel_NO_ISYSTEM_FLAG    | Boolean          | Some compilers use "-isystem" to identify system libs instead of "-I". CMake should autodetect, but this can override     |
 | Faodel_OPBOX_NET_NNTI     | Boolean          | Set to true if Faodel_NETWORK_LIBRARY is nnti                                                                             |
 | Faodel_PERFTOOLS_*        | -                | These variables are used by the tpl/gperftools library. See their documentation for more info                             |

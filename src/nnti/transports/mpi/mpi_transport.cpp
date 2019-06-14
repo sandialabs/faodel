@@ -43,8 +43,8 @@
 
 #include "nnti/transports/mpi/mpi_transport.hpp"
 
-#include "webhook/WebHook.hh"
-#include "webhook/Server.hh"
+#include "whookie/Whookie.hh"
+#include "whookie/Server.hh"
 
 
 namespace nnti  {
@@ -118,7 +118,7 @@ mpi_transport::start(void)
     MPI_Comm_size(nnti_comm_, &nnti_comm_size_);
     MPI_Comm_rank(nnti_comm_, &nnti_comm_rank_);
 
-    faodel::nodeid_t nodeid = webhook::Server::GetNodeID();
+    faodel::nodeid_t nodeid = whookie::Server::GetNodeID();
     std::string addr = nodeid.GetIP();
     std::string port = nodeid.GetPort();
     url_ = nnti::core::nnti_url(addr, port);
@@ -149,11 +149,11 @@ mpi_transport::start(void)
         return NNTI_EIO;
     }
 
-    stats_ = new struct webhook_stats;
+    stats_ = new struct whookie_stats;
 
-    assert(webhook::Server::IsRunning() && "webhook is not running.  Confirm Bootstrap configuration and try again.");
+    assert(whookie::Server::IsRunning() && "whookie is not running.  Confirm Bootstrap configuration and try again.");
 
-    register_webhook_cb();
+    register_whookie_cb();
 
     log_debug("mpi_transport", "url_=%s", url_.url().c_str());
 
@@ -193,7 +193,7 @@ mpi_transport::stop(void)
     }
     nthread_unlock(&new_connection_lock_);
 
-    unregister_webhook_cb();
+    unregister_whookie_cb();
 
     stop_progress_thread();
 
@@ -324,13 +324,13 @@ mpi_transport::connect(
     nthread_unlock(&new_connection_lock_);
 
     std::string reply;
-    std::string wh_path = build_webhook_connect_path();
+    std::string wh_path = build_whookie_connect_path();
     int wh_rc = 0;
     int retries = 5;
-    wh_rc = webhook::retrieveData(peer_url.hostname(), peer_url.port(), wh_path, &reply);
+    wh_rc = whookie::retrieveData(peer_url.hostname(), peer_url.port(), wh_path, &reply);
     while (wh_rc != 0 && --retries) {
         sleep(1);
-        wh_rc = webhook::retrieveData(peer_url.hostname(), peer_url.port(), wh_path, &reply);
+        wh_rc = whookie::retrieveData(peer_url.hostname(), peer_url.port(), wh_path, &reply);
         log_debug("mpi_transport", "retrieveData() rc=%d", wh_rc);
     }
     if (wh_rc != 0) {
@@ -382,14 +382,14 @@ mpi_transport::disconnect(
     nthread_unlock(&new_connection_lock_);
 
     if (*peer != me_) {
-        std::string wh_path = build_webhook_disconnect_path();
-        int wh_rc = webhook::retrieveData(peer_url.hostname(), peer_url.port(), wh_path, &reply);
+        std::string wh_path = build_whookie_disconnect_path();
+        int wh_rc = whookie::retrieveData(peer_url.hostname(), peer_url.port(), wh_path, &reply);
         if (wh_rc != 0) {
             return(NNTI_ETIMEDOUT);
         }
     }
 
-    log_debug("mpi_transport", "disconnect from %s (pid=%x) succeeded", peer->url(), peer->pid());
+    log_debug("mpi_transport", "disconnect from %s (pid=%x) succeeded", peer->url().url().c_str(), peer->pid());
 
     delete conn;
     delete peer;
@@ -711,7 +711,8 @@ mpi_transport::dt_unpack(
     nnti::datatype::mpi_buffer  *b  = nullptr;
     nnti::datatype::nnti_peer   *p  = nullptr;
 
-    switch (*(NNTI_datatype_t*)packed_buf) {
+    NNTI_datatype_t t = nnti::serialize::get_datatype(packed_buf, packed_len);
+    switch (t) {
         case NNTI_dt_buffer:
             log_debug("base_transport", "dt is a buffer");
             b = new nnti::datatype::mpi_buffer(this, packed_buf, packed_len);
@@ -909,11 +910,20 @@ mpi_transport::send(
     log_debug("mpi_transport", "send - wr.local_offset=%lu", wr->local_offset());
 
     rc = create_send_op(work_id, &cmd_op);
+    if (rc != NNTI_OK) {
+        log_error("mpi_transport", "create_send_op() failed");
+        goto done;
+    }
     rc = execute_cmd_op(work_id, cmd_op);
+    if (rc != NNTI_OK) {
+        log_error("mpi_transport", "execute_cmd_op() failed");
+        goto done;
+    }
 
     *wid = (NNTI_work_id_t)work_id;
 
-    return NNTI_OK;
+done:
+    return rc;
 }
 
 /**
@@ -933,12 +943,35 @@ mpi_transport::put(
     nnti::datatype::nnti_work_id *work_id = new nnti::datatype::nnti_work_id(*wr);
     nnti::core::mpi_cmd_op       *put_op  = nullptr;
 
+#ifdef NNTI_ENABLE_ARGS_CHECKING
+    nnti::datatype::mpi_buffer *local_buffer = (nnti::datatype::mpi_buffer *)work_id->wr().local_hdl();
+    if (work_id->wr().local_offset() + work_id->wr().length() > local_buffer->length()) {
+        log_error("mpi_transport", "PUT length extends beyond the end of local buffer");
+        return NNTI_EMSGSIZE;
+    }
+
+    nnti::datatype::mpi_buffer *remote_buffer = (nnti::datatype::mpi_buffer *)work_id->wr().remote_hdl();
+    if (work_id->wr().remote_offset() + work_id->wr().length() > remote_buffer->length()) {
+        log_error("mpi_transport", "PUT length extends beyond the end of remote buffer");
+        return NNTI_EMSGSIZE;
+    }
+#endif
+
     rc = create_put_op(work_id, &put_op);
+    if (rc != NNTI_OK) {
+        log_error("mpi_transport", "create_put_op() failed");
+        goto done;
+    }
     rc = execute_rdma_op(work_id, put_op);
+    if (rc != NNTI_OK) {
+        log_error("mpi_transport", "execute_rdma_op() failed");
+        goto done;
+    }
 
     *wid = (NNTI_work_id_t)work_id;
 
-    return NNTI_OK;
+done:
+    return rc;
 }
 
 /**
@@ -958,12 +991,35 @@ mpi_transport::get(
     nnti::datatype::nnti_work_id *work_id = new nnti::datatype::nnti_work_id(*wr);
     nnti::core::mpi_cmd_op       *get_op  = nullptr;
 
+#ifdef NNTI_ENABLE_ARGS_CHECKING
+    nnti::datatype::mpi_buffer *local_buffer = (nnti::datatype::mpi_buffer *)work_id->wr().local_hdl();
+    if (work_id->wr().local_offset() + work_id->wr().length() > local_buffer->length()) {
+        log_error("mpi_transport", "GET length extends beyond the end of local buffer");
+        return NNTI_EMSGSIZE;
+    }
+
+    nnti::datatype::mpi_buffer *remote_buffer = (nnti::datatype::mpi_buffer *)work_id->wr().remote_hdl();
+    if (work_id->wr().remote_offset() + work_id->wr().length() > remote_buffer->length()) {
+        log_error("mpi_transport", "GET length extends beyond the end of remote buffer");
+        return NNTI_EMSGSIZE;
+    }
+#endif
+
     rc = create_get_op(work_id, &get_op);
+    if (rc != NNTI_OK) {
+        log_error("mpi_transport", "create_get_op() failed");
+        goto done;
+    }
     rc = execute_rdma_op(work_id, get_op);
+    if (rc != NNTI_OK) {
+        log_error("mpi_transport", "execute_rdma_op() failed");
+        goto done;
+    }
 
     *wid = (NNTI_work_id_t)work_id;
 
-    return NNTI_OK;
+done:
+    return rc;
 }
 
 /**
@@ -984,11 +1040,20 @@ mpi_transport::atomic_fop(
     nnti::core::mpi_cmd_op       *atomic_op = nullptr;
 
     rc = create_fadd_op(work_id, &atomic_op);
+    if (rc != NNTI_OK) {
+        log_error("mpi_transport", "create_fadd_op() failed");
+        goto done;
+    }
     rc = execute_atomic_op(work_id, atomic_op);
+    if (rc != NNTI_OK) {
+        log_error("mpi_transport", "execute_atomic_op() failed");
+        goto done;
+    }
 
     *wid = (NNTI_work_id_t)work_id;
 
-    return NNTI_OK;
+done:
+    return rc;
 }
 
 /**
@@ -1009,11 +1074,20 @@ mpi_transport::atomic_cswap(
     nnti::core::mpi_cmd_op       *atomic_op = nullptr;
 
     rc = create_cswap_op(work_id, &atomic_op);
+    if (rc != NNTI_OK) {
+        log_error("mpi_transport", "create_cswap_op() failed");
+        goto done;
+    }
     rc = execute_atomic_op(work_id, atomic_op);
+    if (rc != NNTI_OK) {
+        log_error("mpi_transport", "execute_atomic_op() failed");
+        goto done;
+    }
 
     *wid = (NNTI_work_id_t)work_id;
 
-    return NNTI_OK;
+done:
+    return rc;
 }
 
 /**
@@ -1350,23 +1424,21 @@ mpi_transport::stats_cb(
     const std::map<std::string,std::string> &args,
     std::stringstream                       &results)
 {
-    html::mkHeader(results, "Transfer Statistics");
-    html::mkText(results,"Transfer Statistics",1);
+    faodel::ReplyStream rs(args, "Transfer Statistics", &results);
 
-    std::vector<std::string> stats;
-    stats.push_back("pinned_bytes     = " + std::to_string(stats_->pinned_bytes.load()));
-    stats.push_back("pinned_buffers   = " + std::to_string(stats_->pinned_buffers.load()));
-    stats.push_back("unexpected_sends = " + std::to_string(stats_->unexpected_sends.load()));
-    stats.push_back("unexpected_recvs = " + std::to_string(stats_->unexpected_recvs.load()));
-    stats.push_back("short_sends      = " + std::to_string(stats_->short_sends.load()));
-    stats.push_back("short_recvs      = " + std::to_string(stats_->short_recvs.load()));
-    stats.push_back("long_sends       = " + std::to_string(stats_->long_sends.load()));
-    stats.push_back("long_recvs       = " + std::to_string(stats_->long_recvs.load()));
-    stats.push_back("gets             = " + std::to_string(stats_->gets.load()));
-    stats.push_back("puts             = " + std::to_string(stats_->puts.load()));
-    html::mkList(results, stats);
-
-    html::mkFooter(results);
+    rs.tableBegin("Transport Statistics");
+    rs.tableRow({"pinned_bytes",      std::to_string(stats_->pinned_bytes.load())});
+    rs.tableRow({"pinned_buffers",    std::to_string(stats_->pinned_buffers.load())});
+    rs.tableRow({"unexpected_sends",  std::to_string(stats_->unexpected_sends.load())});
+    rs.tableRow({"unexpected_recvs",  std::to_string(stats_->unexpected_recvs.load())});
+    rs.tableRow({"short_sends",       std::to_string(stats_->short_sends.load())});
+    rs.tableRow({"short_recvs",       std::to_string(stats_->short_recvs.load())});
+    rs.tableRow({"long_sends",        std::to_string(stats_->long_sends.load())});
+    rs.tableRow({"long_recvs",        std::to_string(stats_->long_recvs.load())});
+    rs.tableRow({"gets",              std::to_string(stats_->gets.load())});
+    rs.tableRow({"puts",              std::to_string(stats_->puts.load())});
+    rs.tableEnd();
+    rs.Finish();
 }
 
 void
@@ -1389,7 +1461,7 @@ mpi_transport::peers_cb(
 }
 
 std::string
-mpi_transport::build_webhook_path(
+mpi_transport::build_whookie_path(
     const char *service)
 {
     std::stringstream wh_url;
@@ -1403,40 +1475,40 @@ mpi_transport::build_webhook_path(
     return wh_url.str();
 }
 std::string
-mpi_transport::build_webhook_connect_path(void)
+mpi_transport::build_whookie_connect_path(void)
 {
-    return build_webhook_path("connect");
+    return build_whookie_path("connect");
 }
 std::string
-mpi_transport::build_webhook_disconnect_path(void)
+mpi_transport::build_whookie_disconnect_path(void)
 {
-    return build_webhook_path("disconnect");
+    return build_whookie_path("disconnect");
 }
 
 void
-mpi_transport::register_webhook_cb(void)
+mpi_transport::register_whookie_cb(void)
 {
-    webhook::Server::registerHook("/nnti/mpi/connect", [this] (const std::map<std::string,std::string> &args, std::stringstream &results){
+    whookie::Server::registerHook("/nnti/mpi/connect", [this] (const std::map<std::string,std::string> &args, std::stringstream &results){
         connect_cb(args, results);
     });
-    webhook::Server::registerHook("/nnti/mpi/disconnect", [this] (const std::map<std::string,std::string> &args, std::stringstream &results){
+    whookie::Server::registerHook("/nnti/mpi/disconnect", [this] (const std::map<std::string,std::string> &args, std::stringstream &results){
         disconnect_cb(args, results);
     });
-    webhook::Server::registerHook("/nnti/mpi/stats", [this] (const std::map<std::string,std::string> &args, std::stringstream &results){
+    whookie::Server::registerHook("/nnti/mpi/stats", [this] (const std::map<std::string,std::string> &args, std::stringstream &results){
         stats_cb(args, results);
     });
-    webhook::Server::registerHook("/nnti/mpi/peers", [this] (const std::map<std::string,std::string> &args, std::stringstream &results){
+    whookie::Server::registerHook("/nnti/mpi/peers", [this] (const std::map<std::string,std::string> &args, std::stringstream &results){
         peers_cb(args, results);
     });
 }
 
 void
-mpi_transport::unregister_webhook_cb(void)
+mpi_transport::unregister_whookie_cb(void)
 {
-    webhook::Server::deregisterHook("/nnti/mpi/connect");
-    webhook::Server::deregisterHook("/nnti/mpi/disconnect");
-    webhook::Server::deregisterHook("/nnti/mpi/stats");
-    webhook::Server::deregisterHook("/nnti/mpi/peers");
+    whookie::Server::deregisterHook("/nnti/mpi/connect");
+    whookie::Server::deregisterHook("/nnti/mpi/disconnect");
+    whookie::Server::deregisterHook("/nnti/mpi/stats");
+    whookie::Server::deregisterHook("/nnti/mpi/peers");
 }
 
 void
@@ -1631,17 +1703,40 @@ mpi_transport::execute_cmd_op(
     nnti::datatype::mpi_peer   *peer = (nnti::datatype::mpi_peer *)work_id->wr().peer();
     nnti::core::mpi_connection *conn = (nnti::core::mpi_connection *)peer->conn();
 
-    nnti::datatype::mpi_buffer *local_buffer  = (nnti::datatype::mpi_buffer *)work_id->wr().local_hdl();
-    uint64_t                    local_offset  = work_id->wr().local_offset();
+    nnti::datatype::mpi_buffer *local_buffer = (nnti::datatype::mpi_buffer *)work_id->wr().local_hdl();
+    uint64_t                    local_offset = work_id->wr().local_offset();
+    uint64_t                    local_length = local_buffer->length();
+
+    nnti::datatype::mpi_buffer *remote_buffer = (nnti::datatype::mpi_buffer *)work_id->wr().remote_hdl();
+
+    uint64_t                    op_length = work_id->wr().length();
+
+    // bounds checking - MPI won't help us do bounds checking because we
+    // are telling it to send/receive based on the app's WR which means
+    // the lengths will always match.  We might get a segfault or other
+    // memory error if we try to send/receive beyond the allocated buffer
+    // limits, but that's not a very nice thing to do to the app.
+    if (local_offset + op_length > local_length) {
+        log_error("mpi_transport", "SEND length extends beyond the end of local buffer");
+        return NNTI_EMSGSIZE;
+    }
+    if (remote_buffer) {
+        uint64_t remote_offset = work_id->wr().remote_offset();
+        uint64_t remote_length = remote_buffer->length();
+        if (remote_offset + op_length > remote_length) {
+            log_error("mpi_transport", "SEND length extends beyond the end of remote buffer");
+            return NNTI_EMSGSIZE;
+        }
+    }
 
     if (!cmd_op->eager()) {
         log_debug("mpi_transport",
                   "posting long send Issend(%s) (payload=%p, local_offset=%lu, length=%lu, peer=%d, cmd_tag=%d",
-                  cmd_op->toString().c_str(), local_buffer->payload(), local_offset, work_id->wr().length(), peer->rank(), local_buffer->cmd_tag());
+                  cmd_op->toString().c_str(), local_buffer->payload(), local_offset, op_length, peer->rank(), local_buffer->cmd_tag());
 
         std::unique_lock<std::mutex> mpi_lock(mpi_mutex_);
         mpi_rc = MPI_Issend((char*)local_buffer->payload() + local_offset,
-                            work_id->wr().length(),
+                            op_length,
                             MPI_BYTE,
                             peer->rank(),
                             local_buffer->cmd_tag(),
@@ -1728,33 +1823,58 @@ mpi_transport::execute_rdma_op(
     nnti::datatype::mpi_peer   *peer = (nnti::datatype::mpi_peer *)work_id->wr().peer();
     nnti::core::mpi_connection *conn = (nnti::core::mpi_connection *)peer->conn();
 
-    nnti::datatype::mpi_buffer *local_buffer  = (nnti::datatype::mpi_buffer *)work_id->wr().local_hdl();
-    uint64_t                    local_offset  = work_id->wr().local_offset();
+    nnti::datatype::mpi_buffer *local_buffer = (nnti::datatype::mpi_buffer *)work_id->wr().local_hdl();
+    uint64_t                    local_offset = work_id->wr().local_offset();
+    uint64_t                    local_length = local_buffer->length();
+
     nnti::datatype::mpi_buffer *remote_buffer = (nnti::datatype::mpi_buffer *)work_id->wr().remote_hdl();
     uint64_t                    remote_offset = work_id->wr().remote_offset();
+    uint64_t                    remote_length = remote_buffer->length();
+
+    uint64_t                    op_length = work_id->wr().length();
+
+    // bounds checking - MPI won't help us do bounds checking because we
+    // are telling it to send/receive based on the app's WR which means
+    // the lengths will always match.  We might get a segfault or other
+    // memory error if we try to send/receive beyond the allocated buffer
+    // limits, but that's not a very nice thing to do to the app.
+    if (local_offset + op_length > local_length) {
+        log_error("mpi_transport", "RDMA length extends beyond the end of local buffer");
+        return NNTI_EMSGSIZE;
+    }
+    if (remote_offset + op_length > remote_length) {
+        log_error("mpi_transport", "RDMA length extends beyond the end of remote buffer");
+        return NNTI_EMSGSIZE;
+    }
 
     switch (work_id->wr().op()) {
         case NNTI_OP_GET:
             mpi_lock.lock();
             mpi_rc = MPI_Irecv((char*)local_buffer->payload() + local_offset,
-                               work_id->wr().length(),
+                               op_length,
                                MPI_BYTE,
                                peer->rank(),
                                local_buffer->get_tag(),
                                MPI_COMM_WORLD,
                                &rdma_op->rdma_request());
             mpi_lock.unlock();
+            if (mpi_rc != MPI_SUCCESS) {
+                log_error("mpi_transport", "MPI_Irecv() failed - rc=%d", mpi_rc);
+            }
             break;
         case NNTI_OP_PUT:
             mpi_lock.lock();
             mpi_rc = MPI_Issend((char*)local_buffer->payload() + local_offset,
-                                work_id->wr().length(),
+                                op_length,
                                 MPI_BYTE,
                                 peer->rank(),
                                 remote_buffer->put_tag(),
                                 MPI_COMM_WORLD,
                                 &rdma_op->rdma_request());
             mpi_lock.unlock();
+            if (mpi_rc != MPI_SUCCESS) {
+                log_error("mpi_transport", "MPI_Issend() failed - rc=%d", mpi_rc);
+            }
             break;
         case NNTI_OP_NOOP:
         case NNTI_OP_SEND:
@@ -1775,6 +1895,9 @@ mpi_transport::execute_rdma_op(
                         MPI_COMM_WORLD,
                         &rdma_op->cmd_request());
     mpi_lock.unlock();
+    if (mpi_rc != MPI_SUCCESS) {
+        log_error("mpi_transport", "MPI_Issend() failed - rc=%d", mpi_rc);
+    }
     mpi_transport::add_outstanding_cmd_op(
         rdma_op->cmd_request(),
         rdma_op);
@@ -1837,10 +1960,29 @@ mpi_transport::execute_atomic_op(
     nnti::datatype::mpi_peer   *peer = (nnti::datatype::mpi_peer *)work_id->wr().peer();
     nnti::core::mpi_connection *conn = (nnti::core::mpi_connection *)peer->conn();
 
-    nnti::datatype::mpi_buffer *local_buffer  = (nnti::datatype::mpi_buffer *)work_id->wr().local_hdl();
-    uint64_t                    local_offset  = work_id->wr().local_offset();
+    nnti::datatype::mpi_buffer *local_buffer = (nnti::datatype::mpi_buffer *)work_id->wr().local_hdl();
+    uint64_t                    local_offset = work_id->wr().local_offset();
+    uint64_t                    local_length = local_buffer->length();
+
     nnti::datatype::mpi_buffer *remote_buffer = (nnti::datatype::mpi_buffer *)work_id->wr().remote_hdl();
     uint64_t                    remote_offset = work_id->wr().remote_offset();
+    uint64_t                    remote_length = remote_buffer->length();
+
+    uint64_t                    op_length = work_id->wr().length();
+
+    // bounds checking - MPI won't help us do bounds checking because we
+    // are telling it to send/receive based on the app's WR which means
+    // the lengths will always match.  We might get a segfault or other
+    // memory error if we try to send/receive beyond the allocated buffer
+    // limits, but that's not a very nice thing to do to the app.
+    if (local_offset + op_length > local_length) {
+        log_error("mpi_transport", "RDMA length extends beyond the end of local buffer");
+        return NNTI_EMSGSIZE;
+    }
+    if (remote_offset + op_length > remote_length) {
+        log_error("mpi_transport", "RDMA length extends beyond the end of remote buffer");
+        return NNTI_EMSGSIZE;
+    }
 
     std::unique_lock<std::mutex> mpi_lock(mpi_mutex_);
     mpi_rc = MPI_Irecv((char*)local_buffer->payload() + local_offset,
@@ -1998,14 +2140,15 @@ mpi_transport::complete_get_command(nnti::core::mpi_cmd_msg *cmd_msg)
     MPI_Status  status;
 
     std::unique_lock<std::mutex> mpi_lock(mpi_mutex_);
-    mpi_rc = MPI_Issend((char*)target_buffer->payload() + cmd_msg->target_offset(),
+    mpi_rc = MPI_Ssend((char*)target_buffer->payload() + cmd_msg->target_offset(),
                         cmd_msg->payload_length(),
                         MPI_BYTE,
                         peer->rank(),
                         initiator_buffer->get_tag(),
-                        MPI_COMM_WORLD,
-                        &req);
-    mpi_rc = MPI_Wait(&req, &status);
+                        MPI_COMM_WORLD);
+    if (mpi_rc != MPI_SUCCESS) {
+        log_error("mpi_transport", "MPI_Ssend failed. rc=%d", mpi_rc);
+    }
     mpi_lock.unlock();
 
     cmd_msg->post_recv();
@@ -2159,7 +2302,7 @@ mpi_transport::poll_msg_requests(std::vector<MPI_Request> &reqs, int &index, int
     std::unique_lock<std::mutex> mpi_lock(mpi_mutex_, std::defer_lock);
     std::lock(req_lock, mpi_lock);
     int mpi_rc = MPI_Testany(outstanding_msg_requests_.size(), &outstanding_msg_requests_[0], &index, &done, &event);
-    if ((mpi_rc == MPI_SUCCESS) && (index >= 0) && (done == TRUE)) {
+    if ((mpi_rc == MPI_SUCCESS) && (index >= 0) && (done == 1)) {
         // get the cmd_msg now while we hold the lock
         cmd_msg = outstanding_msgs_[index];
         remove_outstanding_cmd_msg(req_lock, cmd_msg->index());
@@ -2184,14 +2327,14 @@ mpi_transport::progress_msg_requests(void)
     mpi_rc = poll_msg_requests(outstanding_msg_requests_, index, done, event, cmd_msg);
 
     /* MPI_Testany() says no active requests.  this is not fatal. */
-    if ((mpi_rc == MPI_SUCCESS) && (index == MPI_UNDEFINED) && (done == TRUE)) {
+    if ((mpi_rc == MPI_SUCCESS) && (index == MPI_UNDEFINED) && (done == 1)) {
         log_debug("mpi_transport", "MPI_Testany() says there a no active requests (mpi_rc=%d, index=%d, done=%d)", mpi_rc, index, done);
         nnti_rc = NNTI_ENOENT;
     }
     /* MPI_Testany() says requests have completed */
     else if (mpi_rc == MPI_SUCCESS) {
         /* case 1: success */
-        if (done == FALSE) {
+        if (done == 0) {
             nnti_rc = NNTI_EWOULDBLOCK;
         } else {
             nnti_rc = NNTI_OK;
@@ -2251,7 +2394,7 @@ mpi_transport::poll_op_requests(std::vector<MPI_Request> &reqs, int &index, int 
     std::unique_lock<std::mutex> mpi_lock(mpi_mutex_, std::defer_lock);
     std::lock(req_lock, mpi_lock);
     int mpi_rc = MPI_Testany(outstanding_op_requests_.size(), &outstanding_op_requests_[0], &index, &done, &event);
-    if ((mpi_rc == MPI_SUCCESS) && (index >= 0) && (done == TRUE)) {
+    if ((mpi_rc == MPI_SUCCESS) && (index >= 0) && (done == 1)) {
         // get the cmd_op now while we hold the lock
         cmd_op = outstanding_ops_[index];
         remove_outstanding_cmd_op(req_lock, cmd_op->index());
@@ -2276,14 +2419,14 @@ mpi_transport::progress_op_requests(void)
     mpi_rc = poll_op_requests(outstanding_op_requests_, index, done, event, cmd_op);
 
     /* MPI_Testany() says no active requests.  this is not fatal. */
-    if ((mpi_rc == MPI_SUCCESS) && (index == MPI_UNDEFINED) && (done == TRUE)) {
+    if ((mpi_rc == MPI_SUCCESS) && (index == MPI_UNDEFINED) && (done == 1)) {
         log_debug("mpi_transport", "MPI_Testany() says there a no active requests (mpi_rc=%d, index=%d, done=%d)", mpi_rc, index, done);
         nnti_rc = NNTI_ENOENT;
     }
     /* MPI_Testany() says requests have completed */
     else if (mpi_rc == MPI_SUCCESS) {
         /* case 1: success */
-        if (done == FALSE) {
+        if (done == 0) {
             nnti_rc = NNTI_EWOULDBLOCK;
         } else {
             nnti_rc = NNTI_OK;
@@ -2305,10 +2448,13 @@ mpi_transport::progress_op_requests(void)
                     break;
                 case NNTI_OP_SEND:
                     if (!cmd_op->eager()) {
-                        std::unique_lock<std::mutex> mpi_lock(mpi_mutex_);
-                        MPI_Wait(&cmd_op->long_send_request(), &event);
+                        mpi_lock.lock();
+                        mpi_rc = MPI_Wait(&cmd_op->long_send_request(), &event);
                         mpi_lock.unlock();
 
+                        if (mpi_rc != MPI_SUCCESS) {
+                            log_error("mpi_transport", "MPI_Wait(long_send_request) (mpi_rc=%d)", mpi_rc);
+                        }
                         log_debug("mpi_transport", "Long Send Event= {");
                         log_debug("mpi_transport", "\tsource  = %d", event.MPI_SOURCE);
                         log_debug("mpi_transport", "\ttag     = %d", event.MPI_TAG);
@@ -2321,8 +2467,12 @@ mpi_transport::progress_op_requests(void)
                 case NNTI_OP_ATOMIC_FADD:
                 case NNTI_OP_ATOMIC_CSWAP:
                     mpi_lock.lock();
-                    MPI_Wait(&cmd_op->rdma_request(), &event);
+                    mpi_rc = MPI_Wait(&cmd_op->rdma_request(), &event);
                     mpi_lock.unlock();
+
+                    if (mpi_rc != MPI_SUCCESS) {
+                        log_error("mpi_transport", "MPI_Wait(rdma_request) (mpi_rc=%d)", mpi_rc);
+                    }
                     log_debug("mpi_transport", "RDMA Event= {");
                     log_debug("mpi_transport", "\tsource  = %d", event.MPI_SOURCE);
                     log_debug("mpi_transport", "\ttag     = %d", event.MPI_TAG);

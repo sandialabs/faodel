@@ -9,6 +9,9 @@
 
 namespace dirman {
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
+
 /**
  * @brief A message data structure used by dirman ops
  *
@@ -64,6 +67,8 @@ typedef struct msg_dirman {
 
 
 } msg_dirman_t;
+
+#pragma GCC diagnostic pop
 
 } // namespace dirman
 

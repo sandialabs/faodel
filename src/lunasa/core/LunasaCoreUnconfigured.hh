@@ -18,7 +18,7 @@ public:
   LunasaCoreUnconfigured();
   ~LunasaCoreUnconfigured() override;
   
-  void init(std::string lmm_name, std::string emm_name, bool use_webhook,
+  void init(std::string lmm_name, std::string emm_name, bool use_whookie,
             const faodel::Configuration &config) override;
   void start() override {}
   void finish() override {}

@@ -18,7 +18,7 @@
 #include "dirman/DirMan.hh"
 #include "kelpie/Kelpie.hh"
 
-#include "webhook/Server.hh"
+#include "whookie/Server.hh"
 
 #include "support/Globals.hh"
 
@@ -35,7 +35,7 @@ struct Params {
   int num_cols;
   int ldo_size;
 };
-Params P = { 2, 10, 20*1024 };
+Params P = { 8, 10, 20*1024 };
 
 
 
@@ -52,7 +52,7 @@ target.dirman.host_root
 #kelpie.type standard
 
 #bootstrap.debug true
-#webhook.debug true
+#whookie.debug true
 #opbox.debug true
 #dirman.debug true
 #kelpie.debug true
@@ -180,7 +180,7 @@ vector<pair<kelpie::Key, lunasa::DataObject>> generateAndPublish(kelpie::Pool dh
                      } );
     EXPECT_EQ(0, rc);
   }
-  while(num_left) {sched_yield(); } //TODO: add a timeout
+  while(num_left) { sched_yield(); } //TODO: add a timeout
 
   return kvs;
 }
@@ -270,19 +270,19 @@ void checkWantUnbounded(kelpie::Pool dht, const vector<pair<kelpie::Key, lunasa:
 
 }
 
-TEST_F(MPIDHTTest, VerifySaneWebhookIP) {
-  //If webhook chose the wrong port, it can get a bad ip address
+TEST_F(MPIDHTTest, VerifySaneWhookieIP) {
+  //If whookie chose the wrong port, it can get a bad ip address
 
   EXPECT_TRUE( my_id.Valid() );
-  EXPECT_TRUE( my_id.ValidIP() );  //Most likely to break if webhook.interfaces is bad
+  EXPECT_TRUE( my_id.ValidIP() );  //Most likely to break if whookie.interfaces is bad
   EXPECT_TRUE( my_id.ValidPort() );
 }
 
 
 // Sanity check: This test just checks to make sure the dhts are setup correctly. If these
 // are note right, then you'll get a lot of errors about whether things are local or remote.
-// The most common problem is that webhook grabbed the wrong IP card and it has a bad
-// IP address (see sanity check above). To fix, set "webhook.interfaces" in FAODEL_CONFIG. 
+// The most common problem is that whookie grabbed the wrong IP card and it has a bad
+// IP address (see sanity check above). To fix, set "whookie.interfaces" in FAODEL_CONFIG.
 TEST_F(MPIDHTTest, CheckDHTs) {
 
   auto di  = dht_full.GetDirectoryInfo();
@@ -291,14 +291,14 @@ TEST_F(MPIDHTTest, CheckDHTs) {
   auto di_self = dht_single_self.GetDirectoryInfo();
   auto di_other = dht_single_other.GetDirectoryInfo();
   
-  EXPECT_EQ(G.mpi_size,   di.children.size());
-  EXPECT_EQ(G.mpi_size/2, di_front.children.size());
-  EXPECT_EQ(G.mpi_size - G.mpi_size/2, di_back.children.size());
-  EXPECT_EQ(1, di_self.children.size());
-  EXPECT_EQ(1, di_other.children.size());
+  EXPECT_EQ(G.mpi_size,   di.members.size());
+  EXPECT_EQ(G.mpi_size/2, di_front.members.size());
+  EXPECT_EQ(G.mpi_size - G.mpi_size/2, di_back.members.size());
+  EXPECT_EQ(1, di_self.members.size());
+  EXPECT_EQ(1, di_other.members.size());
 
-  if(di_self.children.size()==1) EXPECT_EQ(my_id, di_self.children[0].node);
-  if(di_other.children.size()==1) EXPECT_EQ(G.nodes[G.mpi_size-1], di_other.children[0].node);
+  if(di_self.members.size()==1) EXPECT_EQ(my_id, di_self.members[0].node);
+  if(di_other.members.size()==1) EXPECT_EQ(G.nodes[G.mpi_size-1], di_other.members[0].node);
 
   //Verify our node is actually in self lists. Assumes we're rank 0 (see main).
   EXPECT_TRUE(  di.ContainsNode(my_id) );
@@ -495,6 +495,113 @@ TEST_F(MPIDHTTest, BasicHalf2WantUnbounded) {
 
 }
 
+TEST_F(MPIDHTTest, ListTestSingle) {
+
+  kelpie::Pool dht = dht_single_self;
+  auto kvs = generateAndPublish(dht, "list_test1");
+  checkInfo(dht, kvs, false, kelpie::Availability::InLocalMemory);
+
+  kelpie::ObjectCapacities oc;
+  rc = dht.List(kelpie::Key("row_list_test1_1","*"), &oc );
+  EXPECT_EQ(kelpie::KELPIE_OK, rc);
+
+  cout <<"Got list with num items="<<oc.keys.size()<<endl;
+
+  for(int i=0;i<oc.keys.size(); i++) {
+    cout <<"  " << oc.keys[i].str() << oc.capacities[i]<<endl;
+  }
+}
+
+TEST_F(MPIDHTTest, ListTestRowWildcardSingleSelf) {
+
+  kelpie::Pool dht = dht_single_self;
+  auto kvs = generateAndPublish(dht, "list_test2");
+  checkInfo(dht, kvs, false, kelpie::Availability::InLocalMemory);
+
+  //Query1: See if we get everything with two wildcards: "row_list_test2*, *"
+  kelpie::ObjectCapacities oc;
+  rc = dht.List(kelpie::Key("row_list_test2*","*"), &oc );
+  EXPECT_EQ(kelpie::KELPIE_OK, rc);
+  EXPECT_EQ(P.num_rows*P.num_cols, oc.keys.size()); // rows x cols worth of data
+  for(int i=0;i<oc.keys.size(); i++) {
+    cout << "  " << oc.keys[i].str() << "  " << oc.capacities[i] << endl;
+    EXPECT_EQ(P.ldo_size, oc.capacities[i]);
+    EXPECT_TRUE( StringBeginsWith(oc.keys[i].K1(), "row_list_test2"));
+    EXPECT_TRUE( StringBeginsWith(oc.keys[i].K2(), "col_list_test2"));
+  }
+
+
+  //Query2: See if we get everything with col wildcard: "row_list_test2, *"
+  kelpie::ObjectCapacities oc2;
+  rc = dht.List(kelpie::Key("row_list_test2_1","*"), &oc2 );
+  EXPECT_EQ(kelpie::KELPIE_OK, rc);
+  EXPECT_EQ(P.num_cols, oc2.keys.size());  //Num cols worth of data
+  for(int i=0;i<oc2.keys.size(); i++) {
+    cout << "  " << oc2.keys[i].str() << "  " << oc2.capacities[i] << endl;
+    EXPECT_EQ(P.ldo_size, oc2.capacities[i]);
+    EXPECT_EQ(   oc2.keys[i].K1(), "row_list_test2_1");
+    EXPECT_TRUE( StringBeginsWith(oc2.keys[i].K2(), "col_list_test2"));
+  }
+
+  //Query3: See if we get a col wildcard: "*, col_list_test2_3
+  kelpie::ObjectCapacities oc3;
+  rc = dht.List(kelpie::Key("row_list_test2*","col_list_test2_3"), &oc3 );
+  EXPECT_EQ(kelpie::KELPIE_OK, rc);
+  EXPECT_EQ(P.num_rows, oc3.keys.size());  //Num cols worth of data
+  for(int i=0;i<oc3.keys.size(); i++) {
+    cout << "  " << oc3.keys[i].str() << "  " << oc3.capacities[i] << endl;
+    EXPECT_EQ(P.ldo_size, oc3.capacities[i]);
+    EXPECT_TRUE( StringBeginsWith( oc3.keys[i].K1(), "row_list_test2"));
+    EXPECT_EQ(oc3.keys[i].K2(), "col_list_test2_3");
+  }
+
+}
+
+
+TEST_F(MPIDHTTest, ListTestRowWildcardFull) {
+
+  kelpie::Pool dht = dht_full;
+  auto kvs = generateAndPublish(dht, "list_test3");
+  checkInfo(dht, kvs, false, kelpie::Availability::InLocalMemory);
+
+  //Query1: See if we get everything with two wildcards: "row_list_test3*, *"
+  kelpie::ObjectCapacities oc;
+  rc = dht.List(kelpie::Key("row_list_test3*","*"), &oc );
+  EXPECT_EQ(kelpie::KELPIE_OK, rc);
+  EXPECT_EQ(P.num_rows*P.num_cols, oc.keys.size()); // rows x cols worth of data
+  for(int i=0;i<oc.keys.size(); i++) {
+    cout << "  " << oc.keys[i].str() << "  " << oc.capacities[i] << endl;
+    EXPECT_EQ(P.ldo_size, oc.capacities[i]);
+    EXPECT_TRUE( StringBeginsWith(oc.keys[i].K1(), "row_list_test3"));
+    EXPECT_TRUE( StringBeginsWith(oc.keys[i].K2(), "col_list_test3"));
+  }
+
+
+  //Query2: See if we get everything with col wildcard: "row_list_test3, *"
+  kelpie::ObjectCapacities oc2;
+  rc = dht.List(kelpie::Key("row_list_test3_1","*"), &oc2 );
+  EXPECT_EQ(kelpie::KELPIE_OK, rc);
+  EXPECT_EQ(P.num_cols, oc2.keys.size());  //Num cols worth of data
+  for(int i=0;i<oc2.keys.size(); i++) {
+    cout << "  " << oc2.keys[i].str() << "  " << oc2.capacities[i] << endl;
+    EXPECT_EQ(P.ldo_size, oc2.capacities[i]);
+    EXPECT_EQ(   oc2.keys[i].K1(), "row_list_test3_1");
+    EXPECT_TRUE( StringBeginsWith(oc2.keys[i].K2(), "col_list_test3"));
+  }
+
+  //Query3: See if we get a col wildcard: "*, col_list_test3_3
+  kelpie::ObjectCapacities oc3;
+  rc = dht.List(kelpie::Key("row_list_test3*","col_list_test3_3"), &oc3 );
+  EXPECT_EQ(kelpie::KELPIE_OK, rc);
+  EXPECT_EQ(P.num_rows, oc3.keys.size());  //Num cols worth of data
+  for(int i=0;i<oc3.keys.size(); i++) {
+    cout << "  " << oc3.keys[i].str() << "  " << oc3.capacities[i] << endl;
+    EXPECT_EQ(P.ldo_size, oc3.capacities[i]);
+    EXPECT_TRUE( StringBeginsWith( oc3.keys[i].K1(), "row_list_test3"));
+    EXPECT_EQ(oc3.keys[i].K2(), "col_list_test3_3");
+  }
+
+}
 
 
 void targetLoop(){
@@ -511,6 +618,13 @@ int main(int argc, char **argv){
   faodel::Configuration config(default_config_string);
   config.AppendFromReferences();
   G.StartAll(argc, argv, config);
+
+  if(G.mpi_size < 4) {
+    if(G.mpi_rank==0)
+      cerr<<"mpi_kelpie_dht needs to be run with at least 4 ranks\n";
+    G.StopAll();
+    return -1;
+  }
 
   assert(G.mpi_size >= 4 && "mpi_kelpie_dht needs to be 4 or larger");
 

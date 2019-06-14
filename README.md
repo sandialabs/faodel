@@ -36,7 +36,7 @@ FAODEL is composed of multiple libraries:
   layer for high-performance networks. It provides application with
   the ability to send messages and coordinate RDMA transfers via
   registered memory.
-- [WebHook](src/webhook/README_WebHook.md): WebHook is a network service for
+- [Whookie](src/whookie/README_Whookie.md): Whookie is a network service for
   FAODEL nodes that enables users and applications to query
   and change the state of a node via an HTTP connection.
 - [Services](src/faodel-services/README_Services.md): Basic services that make it
@@ -81,8 +81,9 @@ The following helped contribute ideas and provided feedback for the project:
 
 This release includes third-party software that contains its own licensing
 and copyright info:
+- cereal (in tpl/cereal)
 - gperftools (in tpl/gperftools)
-- Boost ASIO examples (in src/webhook/server)
+- Boost ASIO examples (in src/whookie/server)
 
 Copyright
 =========

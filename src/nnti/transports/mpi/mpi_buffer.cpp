@@ -17,7 +17,7 @@
 #include <string>
 
 #include "nnti/nnti_logger.hpp"
-#include "nnti/nnti_packable.h"
+#include "nnti/nnti_serialize.hpp"
 #include "nnti/nnti_types.h"
 
 #include "nnti/nnti_callback.hpp"

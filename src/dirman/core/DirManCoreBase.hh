@@ -43,6 +43,10 @@ public:
   //DirMan Exposed API
   virtual bool Locate(const faodel::ResourceURL &search_url, faodel::nodeid_t *reference_node=nullptr);
   virtual bool GetDirectoryInfo(const faodel::ResourceURL &url, bool check_local, bool check_remote, faodel::DirectoryInfo *dir_info=nullptr) = 0;
+
+  virtual bool DefineNewDir(const faodel::DirectoryInfo &dir_info) = 0;
+          bool DefineNewDir(const faodel::ResourceURL &url);
+
   virtual bool HostNewDir(const faodel::DirectoryInfo &dir_info) = 0;
           bool HostNewDir(const faodel::ResourceURL &url);
 
@@ -52,52 +56,48 @@ public:
   virtual bool JoinDirWithName(const faodel::ResourceURL &url, std::string name, faodel::DirectoryInfo *dir_info=nullptr) = 0;
   virtual bool LeaveDir(const faodel::ResourceURL &url, faodel::DirectoryInfo *dir_info=nullptr) = 0;
 
+  //Remove references to a dir from the dirman server
+  virtual bool DropDir(const faodel::ResourceURL &url) = 0;
+
+
   //Report back who this node talks to to get info
   virtual faodel::nodeid_t GetAuthorityNode() const = 0;
 
   //Get a list of names this node knows about
   virtual void GetCachedNames(std::vector<std::string> *resource_names);
 
+  //Different ways of looking up local info
   bool lookupLocal(const std::vector<faodel::ResourceURL> &search_url,  std::vector<faodel::DirectoryInfo> *dir_info=nullptr);  //for rpc
   bool lookupLocal(const faodel::ResourceURL &search_url,  faodel::DirectoryInfo *dir_info=nullptr, faodel::nodeid_t *reference_node=nullptr);
   bool lookupLocal(const std::string &bucket_path, faodel::DirectoryInfo *dir_info=nullptr, faodel::nodeid_t *reference_node=nullptr);
-  //bool joinLocal(const faodel::ResourceURL &child_url, DirectoryInfo *parent_dir_info=nullptr); //for rpc
 
 
-  void HandleWebhookStatus(const std::map<std::string,std::string> &args, std::stringstream &results);
-  void HandleWebhookEntry(const std::map<std::string,std::string> &args, std::stringstream &results);
+  //Provide info back to whookie
+  void HandleWhookieStatus(const std::map<std::string,std::string> &args, std::stringstream &results);
+  void HandleWhookieEntry(const std::map<std::string,std::string> &args, std::stringstream &results);
 
   //InfoInterface
   void sstr(std::stringstream &ss, int depth=0, int indent=0) const override = 0;
 
 protected:
-  DirectoryCache  dc_others; //Resources others (ie copies from prior lookups)
-  DirectoryCache  dc_mine;   //Resources I own (ie master copy in system)
-  DirectoryOwnerCache doc;   //Where to find items
-  faodel::nodeid_t my_node; //Who I am
-
+  DirectoryCache  dc_others;       //Resources others (ie copies from prior lookups)
+  DirectoryCache  dc_mine;         //Resources I own (ie master copy in system)
+  DirectoryOwnerCache doc;         //Where to find items
+  faodel::nodeid_t my_node;        //Who I am
+  faodel::bucket_t default_bucket; //Bucket to use
+  bool strict_checking;            //Add additional hooks for checking requests
 
   //Internal API for implementing Exposed API
   virtual bool discoverParent(const faodel::ResourceURL &url, faodel::nodeid_t *reference_node) = 0;
   virtual bool cacheForeignDir(const faodel::DirectoryInfo &dir_info) = 0;
   virtual bool lookupRemote(faodel::nodeid_t nodeid, const faodel::ResourceURL &resource_url, faodel::DirectoryInfo *dir_info=nullptr) = 0;
   virtual bool joinRemote(faodel::nodeid_t parent_node, const faodel::ResourceURL &child_url, bool send_detailed_reply=false) = 0;
+  virtual void appendWhookieParameterTable(faodel::ReplyStream *rs);
 
+  //Helpers
+  faodel::nodeid_t parseConfigForRootNode(const faodel::Configuration &config) const;
   std::vector<std::string> readURLsFromFilesWithRetry(std::string file_names);
   bool writeURLsToFileOrDie(const std::string file_name, const std::vector<faodel::ResourceURL> &urls);
-
-
-  virtual void appendWebhookParameterTable(faodel::ReplyStream *rs);
-
-  //bool registerURL(const faodel::ResourceURL url);
-  //bool registerDirectoryInfo(const DirectoryInfo resource);
-
-  //bool _RegisterDirectoryInfo(std::map<std::string, DirectoryInfo *> &ric, const DirectoryInfo &dir_info);
-  //bool _LookupDirectoryInfo(std::map<std::string, DirectoryInfo *> &ric, const faodel::ResourceURL &url, DirectoryInfo **dir_info);
-
-  bool debug;
-  bool strict_checking;
-  faodel::bucket_t default_bucket;
 
 };
 

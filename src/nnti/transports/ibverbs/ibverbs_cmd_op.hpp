@@ -16,7 +16,7 @@
 #include <sstream>
 #include <string>
 
-#include "nnti/nnti_packable.h"
+#include "nnti/nnti_serialize.hpp"
 #include "nnti/nnti_types.h"
 #include "nnti/nnti_threads.h"
 #include "nnti/nnti_util.hpp"
@@ -63,7 +63,7 @@ public:
         sq_wr_.opcode     = IBV_WR_SEND;
         sq_wr_.send_flags = IBV_SEND_SIGNALED;
 
-        sge_.addr   = (uint64_t)cmd_mr_->addr;
+        sge_.addr   = (uint64_t)cmd_msg_.buf();
         sge_.length = cmd_msg_.size();
         sge_.lkey   = cmd_mr_->lkey;
 
@@ -90,7 +90,7 @@ public:
         sq_wr_.opcode     = IBV_WR_SEND;
         sq_wr_.send_flags = IBV_SEND_SIGNALED;
 
-        sge_.addr   = (uint64_t)cmd_mr_->addr;
+        sge_.addr   = (uint64_t)cmd_msg_.buf();
         sge_.length = cmd_msg_.size();
         sge_.lkey   = cmd_mr_->lkey;
 
@@ -119,7 +119,7 @@ public:
         } else {
             register_cmd_msg();
 
-            sge_.addr   = (uint64_t)cmd_mr_->addr;
+            sge_.addr   = (uint64_t)cmd_msg_.buf();
             sge_.lkey   = cmd_mr_->lkey;
         }
 
@@ -131,8 +131,10 @@ public:
         return;
     }
 
-  ~ibverbs_cmd_op() override {
-        if ((wid_) && !(wid_->wr().flags() & NNTI_OF_ZERO_COPY)) {
+    ~ibverbs_cmd_op() override {
+        if (transport_->use_odp_) {
+            log_debug("ibverbs_buffer", "using ODP - unregister is a no-op");
+        } else if ((wid_) && !(wid_->wr().flags() & NNTI_OF_ZERO_COPY)) {
             log_debug("ibverbs_buffer", "deregistering ibverbs_cmd_op (cmd_msg_.buf()=%x)", cmd_mr_->addr);
             ibv_dereg_mr(cmd_mr_);
         }
@@ -200,11 +202,15 @@ private:
     void
     register_cmd_msg(void)
     {
-        log_debug("ibverbs_cmd_op", "registering ibverbs_cmd_op (cmd_msg_.buf()=%x)", cmd_msg_.buf());
-        cmd_mr_ = ibv_reg_mr(transport_->pd_, cmd_msg_.buf(), cmd_msg_.size(), 0);
-        if (!cmd_mr_) {
-            log_error("ibverbs_cmd_op", "failed to register memory region: %s", strerror(errno));
-            return;
+        if (transport_->use_odp_) {
+            cmd_mr_ = transport_->odp_mr_;
+        } else {
+            log_debug("ibverbs_cmd_op", "registering ibverbs_cmd_op (cmd_msg_.buf()=%x)", cmd_msg_.buf());
+            cmd_mr_ = ibv_reg_mr(transport_->pd_, cmd_msg_.buf(), cmd_msg_.size(), 0);
+            if (!cmd_mr_) {
+                log_error("ibverbs_cmd_op", "failed to register memory region: %s", strerror(errno));
+                return;
+            }
         }
 
         return;

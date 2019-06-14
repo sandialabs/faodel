@@ -11,8 +11,8 @@
 #include "opbox/core/OpBoxCoreThreaded.hh"
 
 
-#include "webhook/WebHook.hh"
-#include "webhook/Server.hh"
+#include "whookie/Whookie.hh"
+#include "whookie/Server.hh"
 
 #include "lunasa/Lunasa.hh"
 
@@ -56,7 +56,7 @@ void SingletonImpl::GetBootstrapDependencies(
                        vector<string> &optional) const {
   name = "opbox";
   requires = {"backburner", "lunasa"};
-  optional = {"webhook"};
+  optional = {"whookie"};
 }
 
 
@@ -89,9 +89,9 @@ void SingletonImpl::Init(const faodel::Configuration &config){
 
 
   //Unconfigured can exist before bootstrap, so we need to make sure we don't
-  //register any hooks in unconfigured before webhook has been Init'd.
-  webhook::Server::updateHook("/opbox/opregistry", [this] (const map<string,string> &args, stringstream &results) {
-      return registry.HandleWebhookStatus(args, results);
+  //register any hooks in unconfigured before whookie has been Init'd.
+  whookie::Server::updateHook("/opbox/opregistry", [this] (const map<string,string> &args, stringstream &results) {
+      return registry.HandleWhookieStatus(args, results);
     });
 
   core->init(config);

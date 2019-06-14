@@ -53,6 +53,7 @@ bool atomic_result_is_be(struct ibv_context *ctx)
 #if (NNTI_HAVE_IBV_EXP_QUERY_DEVICE && NNTI_HAVE_IBV_EXP_ATOMIC_HCA_REPLY_BE)
     int ibv_rc=0;
     struct ibv_exp_device_attr exp_dev_attr;
+    memset(&exp_dev_attr, 0, sizeof(exp_dev_attr));
     exp_dev_attr.comp_mask = IBV_EXP_DEVICE_ATTR_RESERVED - 1;
     ibv_rc = ibv_exp_query_device(ctx, &exp_dev_attr);
     if (ibv_rc) {
@@ -89,7 +90,7 @@ void ib_sanity_check()
 
     bool have_exp_qp             = exp_qp();
     bool have_exp_atomic_cap     = exp_atomic_cap(&dev_attr);
-    bool byte_swap_atomic_result = atomic_result_is_be(ctx);
+    //bool byte_swap_atomic_result = atomic_result_is_be(ctx);
 
     cout << "========================IBVerbs Sanity Check==========================" << endl;
     if (have_exp_qp) {

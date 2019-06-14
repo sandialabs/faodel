@@ -65,6 +65,8 @@ public:
   LocalKVCell * getCol(const Key &key);
   LocalKVCell * getCol(const std::string colname);
   std::string   getFirstColumnName();
+  size_t        getFirstColumnUserSize();
+  int           getActiveColumnNamesCapacities(const std::string &search_string, std::vector<std::string> *names, std::vector<size_t> *capacities);
 
 private:
   LocalKVCell * getOrCreateCol(const Key &key, bool *previously_existed);

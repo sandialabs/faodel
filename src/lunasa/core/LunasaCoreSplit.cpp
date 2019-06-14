@@ -10,8 +10,8 @@
 #include "lunasa/core/LunasaCoreSplit.hh"
 #include "lunasa/core/Singleton.hh"
 
-#include "webhook/WebHook.hh"
-#include "webhook/Server.hh"
+#include "whookie/Whookie.hh"
+#include "whookie/Server.hh"
 
 using namespace std;
 
@@ -31,7 +31,7 @@ LunasaCoreSplit::~LunasaCoreSplit() {
   eager_allocator->DecrRef();
 }
 
-void LunasaCoreSplit::init(string lmm_name, string emm_name, bool use_webhook,
+void LunasaCoreSplit::init(string lmm_name, string emm_name, bool use_whookie,
                            const faodel::Configuration &config) {
   dbg("LunasaCoreSplit init. Lazy: "+lmm_name+" Eager: "+emm_name);
   
@@ -51,23 +51,23 @@ void LunasaCoreSplit::init(string lmm_name, string emm_name, bool use_webhook,
   lazy_allocator = new_lazy_allocator;
   eager_allocator = new_eager_allocator;
   
-  dbg("LunasaCoreSplit allocators created. Updating webhook");
+  dbg("LunasaCoreSplit allocators created. Updating whookie");
 
-  webhook::Server::updateHook("/lunasa", [this] (const map<string,string> &args, stringstream &results) {
-      return HandleWebhookStatus(args, results);
+  whookie::Server::updateHook("/lunasa", [this] (const map<string,string> &args, stringstream &results) {
+      return HandleWhookieStatus(args, results);
     });
-  webhook::Server::updateHook("/lunasa/eager_details", [this] (const map<string,string> &args, stringstream &results) {
-      return HandleWebhookEagerDetails(args, results);
+  whookie::Server::updateHook("/lunasa/eager_details", [this] (const map<string,string> &args, stringstream &results) {
+      return HandleWhookieEagerDetails(args, results);
     });
-  webhook::Server::updateHook("/lunasa/lazy_details", [this] (const map<string,string> &args, stringstream &results) {
-      return HandleWebhookLazyDetails(args, results);
+  whookie::Server::updateHook("/lunasa/lazy_details", [this] (const map<string,string> &args, stringstream &results) {
+      return HandleWhookieLazyDetails(args, results);
     });
 }
 
 void LunasaCoreSplit::finish() {
-  webhook::Server::deregisterHook("/lunasa");
-  webhook::Server::deregisterHook("/lunasa/eager_details");
-  webhook::Server::deregisterHook("/lunasa/lazy_details");
+  whookie::Server::deregisterHook("/lunasa");
+  whookie::Server::deregisterHook("/lunasa/eager_details");
+  whookie::Server::deregisterHook("/lunasa/lazy_details");
 }
 
 void LunasaCoreSplit::RegisterPinUnpin(net_pin_fn pin, net_unpin_fn unpin) {
@@ -109,12 +109,12 @@ Lunasa LunasaCoreSplit::GetLunasaInstance() {
 }
 
 
-void LunasaCoreSplit::HandleWebhookStatus(const map<string,string> &args, stringstream &results){
+void LunasaCoreSplit::HandleWhookieStatus(const map<string,string> &args, stringstream &results){
 
   faodel::ReplyStream rs(args, "Lunasa Status", &results);
 
   rs.mkSection("Lunasa: Split Allocator");
-  rs.mkText( R"(Lunasa is currently configured to use <b>Split</b> allocators. This means Lunasa
+  rs.mkText( R"(Lunasa is currently configured to use Split allocators. This means Lunasa
 has one allocator for tracking lazy-pinned memory (memory that is only pinned when it is about to leave
 the network) and eager-pinned memory (memory that is pinned when requested.)");
 
@@ -122,31 +122,31 @@ the network) and eager-pinned memory (memory that is pinned when requested.)");
 
 
   if(lazy_allocator==eager_allocator) {
-    rs.mkText("<b>Note</b>: Lunasa is currently configured to combine lazy and eager allocators");
-    lazy_allocator->webhookStatus(rs, "Lazy/Eager");
+    rs.mkText(rs.createBold("Note:")+" Lunasa is currently configured to combine lazy and eager allocators");
+    lazy_allocator->whookieStatus(rs, "Lazy/Eager");
     
   } else {
-    eager_allocator->webhookStatus(rs, "Eager");
+    eager_allocator->whookieStatus(rs, "Eager");
     rs.mkText(html::mkLink("Eager Memory Details", "/lunasa/eager_details"));
-    lazy_allocator->webhookStatus(rs, "Lazy");
+    lazy_allocator->whookieStatus(rs, "Lazy");
     rs.mkText(html::mkLink("Lazy Memory Details", "/lunasa/lazy_details"));         
   }
   rs.Finish(); 
 }
 
-void LunasaCoreSplit::HandleWebhookEagerDetails(const map<string,string> &args, stringstream &results) {
+void LunasaCoreSplit::HandleWhookieEagerDetails(const map<string,string> &args, stringstream &results) {
 
   faodel::ReplyStream rs(args, "Lunasa Eager Allocator Details", &results);
-  eager_allocator->webhookStatus(rs, "Eager");
-  eager_allocator->webhookMemoryAllocations(rs, "Eager");
+  eager_allocator->whookieStatus(rs, "Eager");
+  eager_allocator->whookieMemoryAllocations(rs, "Eager");
   rs.Finish();
 }
 
-void LunasaCoreSplit::HandleWebhookLazyDetails(const map<string,string> &args, stringstream &results) {
+void LunasaCoreSplit::HandleWhookieLazyDetails(const map<string,string> &args, stringstream &results) {
 
   faodel::ReplyStream rs(args, "Lunasa Lazy Allocator Details", &results);
-  lazy_allocator->webhookStatus(rs, "Lazy");
-  lazy_allocator->webhookMemoryAllocations(rs, "Lazy");
+  lazy_allocator->whookieStatus(rs, "Lazy");
+  lazy_allocator->whookieMemoryAllocations(rs, "Lazy");
   rs.Finish();
 }
 

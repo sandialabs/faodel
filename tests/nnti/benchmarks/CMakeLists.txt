@@ -12,13 +12,16 @@ SET(EXTRA_TEST_LIBS "-lz")
 
 
 # Build the test support lib-------------------------------------------------
-add_library(benchutils
-            bench_utils.hpp
-            bench_utils.cpp
-)
-set_target_properties(benchutils PROPERTIES LINKER_LANGUAGE  CXX )
-target_link_libraries(benchutils PUBLIC nnti  )
-add_dependencies(benchutils generate-nnti_packable)
+if(Faodel_ENABLE_MPI_SUPPORT)
+
+   add_library(benchutils
+               bench_utils.hpp
+               bench_utils.cpp )
+
+   set_target_properties(benchutils PROPERTIES LINKER_LANGUAGE  CXX )
+   target_link_libraries(benchutils PUBLIC nnti  )
+
+endif(Faodel_ENABLE_MPI_SUPPORT)
 #----------------------------------------------------------------------------
 
 set(SERIAL_TEST_LIBS
@@ -36,9 +39,10 @@ set(MPI_TEST_LIBS
 #--------------+-----------------------------+----------------------------------+---------+
 # Format:      |  Name                       |  Directory                       | Autorun |
 #--------------+-----------------------------+----------------------------------+---------+
-add_serial_test( MemoryRegistration           . false  )
 
 if( Faodel_ENABLE_MPI_SUPPORT )
+  add_mpi_test( MemoryRegistration           . 1 false  )
+
   add_mpi_test( AtomicsWithCallback          . 2 false  )
   add_mpi_test( RdmaWithCallback             . 2 false  )
   add_mpi_test( SendWithCallback             . 2 false  )

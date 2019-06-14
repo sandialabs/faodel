@@ -2,8 +2,8 @@
 // LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
 // the U.S. Government retains certain rights in this software. 
 
-#ifndef WEBHOOK_SERVER_HH
-#define WEBHOOK_SERVER_HH
+#ifndef WHOOKIE_SERVER_HH
+#define WHOOKIE_SERVER_HH
 
 #include <string>
 #include <map>
@@ -12,7 +12,7 @@
 #include "faodel-common/Common.hh"
 
 
-namespace webhook {
+namespace whookie {
 
 std::string bootstrap(); //Function handed to bootstrap for dependency injection
 
@@ -25,7 +25,7 @@ class ServerImpl; //Forward reference for server implementation
 
 
 /**
- * @brief A Webhook server that maintains hooks.
+ * @brief A Whookie server that maintains hooks.
  */
 class Server {
 
@@ -33,6 +33,7 @@ public:
   Server();
   ~Server();
 
+  static int updateAppName(std::string app_name);
   static int registerHook(std::string name, cb_web_handler_t func);
   static int updateHook(std::string name, cb_web_handler_t func);
   static int deregisterHook(std::string name);
@@ -49,6 +50,6 @@ public:
 
 
 
-} // namespace webhook
+} // namespace whookie
 
-#endif // WEBHOOK_SERVER_HH
+#endif // WHOOKIE_SERVER_HH

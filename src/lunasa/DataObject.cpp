@@ -101,6 +101,17 @@ DataObject::DataObject(uint32_t dataCapacity)
         : DataObject::DataObject(0, dataCapacity, DataObject::AllocatorType::eager) {
 }
 
+/**
+ * @brief Minimal ctor that allocates a single chunk of user data + metadata from eager memory
+ * @param metaCapacity How much memory to use for metadata
+ * @param dataCapacity How much memory to use for user data
+ * @note Allocates from EAGER memory
+ * @note Users may adjust the meta/data sizes later
+ */
+DataObject::DataObject(uint16_t metaCapacity, uint32_t dataCapacity)
+        : DataObject::DataObject(metaCapacity, dataCapacity, DataObject::AllocatorType::eager) {
+}
+
 // === Create an LDO from user-allocated memory ===
 //
 // The current use-case for "User" LDOs is that a user wants to be able to 
@@ -279,6 +290,33 @@ uint32_t DataObject::readFromFile(const char *filename) {
   f.read(p, results.st_size);
   f.close();
   return 0;
+}
+
+/**
+ * @brief Set the contents of the metadata field to zero.
+ * @return void
+ */
+void DataObject::WipeMeta() {
+  // Using functions to maintain consistent definition of how size and pointer are determined
+  memset(GetMetaPtr(), 0, GetMetaSize());
+}
+
+/**
+ * @brief Set the contents of the user data field to zero.
+ * @return void
+ */
+void DataObject::WipeData() {
+  // Using functions to maintain consistent definition of how size and pointer are determined
+  memset(GetDataPtr(), 0, GetDataSize());
+}
+
+/**
+ * @brief Set the contents of the user data and metadata fields to zero.
+ * @return void
+ */
+void DataObject::WipeUser() { //Meta + Data
+  // Using functions to maintain consistent definition of how size and pointer are determined
+  memset(GetMetaPtr(), 0, GetUserSize());
 }
 
 /**

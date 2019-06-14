@@ -17,7 +17,7 @@
 
 #include "nnti/nntiConfig.h"
 
-#include "nnti/nnti_packable.h"
+#include "nnti/nnti_serialize.hpp"
 #include "nnti/nnti_datatype.hpp"
 #include "nnti/nnti_url.hpp"
 
@@ -36,8 +36,11 @@ class nnti_peer
 private:
 
 protected:
-    nnti::core::nnti_url url_;
-    NNTI_peer_p_t        packable_;
+    nnti::core::nnti_url   url_;
+    NNTI_peer_p_t          packable_;
+    const static uint64_t  max_packed_size_=256;
+    char                   packed_[max_packed_size_];
+    uint64_t               packed_size_;
 
     nnti::core::nnti_connection *conn_;
 
@@ -135,14 +138,10 @@ public:
     uint64_t
     packed_size(void)
     {
-        uint64_t packed_len=0;
-
-        xdrproc_t sizeof_fn = (xdrproc_t)&xdr_NNTI_peer_p_t;
-
-        packed_len  = xdr_sizeof(sizeof_fn, &packable_);
-        packed_len += sizeof(NNTI_datatype_t);
-
-        return packed_len;
+        if (packed_size_ == 0) {
+            packed_size_ = nnti::serialize::packed_peer_size(&packable_);
+        }
+        return packed_size_;
     }
 
     NNTI_result_t
@@ -150,68 +149,26 @@ public:
         char           *packed_buf,
         const uint64_t  packed_buflen)
     {
-        XDR              encode_xdrs;
-        xdrproc_t        encode_fn   = (xdrproc_t)&xdr_NNTI_peer_p_t;
-        uint64_t         bytes_left  = packed_buflen;
-
-        *(NNTI_datatype_t*)packed_buf = NNTI_dt_peer;
-
-        packed_buf += sizeof(NNTI_datatype_t);
-        bytes_left -= sizeof(NNTI_datatype_t);
-
-        xdrmem_create(
-                &encode_xdrs,
-                packed_buf,
-                bytes_left,
-                XDR_ENCODE);
-
-        if (!encode_fn(XDRPROC_ARGS(&encode_xdrs, &packable_))) {
-            log_fatal("nnti_peer", "packing failed");
-            return NNTI_EENCODE;
-        }
-
-        return NNTI_OK;
+        return nnti::serialize::pack_peer(&packable_, &packed_buf[0], packed_buflen, &packed_size_);
     }
 
     NNTI_result_t
     unpack(
         char           *packed_buf,
-        const uint64_t  packed_len)
+        const uint64_t  packed_buflen)
     {
-        XDR              decode_xdrs;
-        xdrproc_t        decode_fn   = (xdrproc_t)&xdr_NNTI_peer_p_t;
-        NNTI_datatype_t *dt          = (NNTI_datatype_t*)packed_buf;
-        uint64_t         dt_size     = sizeof(NNTI_peer_p_t);
-        uint64_t         bytes_left  = packed_len;
+        packed_size_ = packed_buflen;
+        memcpy(&packed_[0], &packed_buf[0], packed_buflen);
 
-        packed_buf += sizeof(NNTI_datatype_t);
-        bytes_left -= sizeof(NNTI_datatype_t);
+        return nnti::serialize::unpack_peer(&packable_, packed_buf, packed_buflen);
 
-        memset(&packable_, 0, dt_size);
-        xdrmem_create(
-                &decode_xdrs,
-                packed_buf,
-                bytes_left,
-                XDR_DECODE);
-
-        if (!decode_fn(XDRPROC_ARGS(&decode_xdrs, &packable_))) {
-            log_fatal("nnti_peer", "unpacking failed");
-            return NNTI_EDECODE;
-        }
-
-        return NNTI_OK;
     }
 
     NNTI_result_t
     free_packable(void)
     {
-        xdrproc_t free_fn = (xdrproc_t)&xdr_NNTI_peer_p_t;
-
-        xdr_free(free_fn, (char*)&packable_);
-
-        return NNTI_OK;
+        return nnti::serialize::free_peer(&packable_);
     }
-
 
     static inline nnti_peer*
     to_obj(

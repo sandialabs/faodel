@@ -42,7 +42,7 @@ public:
 
   size_t NumberOfResources() const { return known_resource_owners.size(); }
 
-  void webhookInfo(faodel::ReplyStream &rs);
+  void whookieInfo(faodel::ReplyStream &rs);
   void sstr(std::stringstream &ss, int depth=0, int indent=0) const override;
 
 private:

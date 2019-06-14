@@ -52,7 +52,7 @@ protected:
   }
 
   void TearDown() override {
-    delete lkv;          //This deregisters webhooks, so do it before bootstrap finishes
+    delete lkv;          //This deregisters whookies, so do it before bootstrap finishes
     bootstrap::Finish();
   }
 
@@ -60,7 +60,7 @@ protected:
   vector<pair<int,int>> ids;
   int DIM;
   Configuration config;
-  LocalKV *lkv; //Note: we keep this as a pointer because this needs to be destroyed *before* webhook shuts down
+  LocalKV *lkv; //Note: we keep this as a pointer because this needs to be destroyed *before* whookie shuts down
 
 };
 void setBuf(int *buf, int num, int owner, int x, int y){
@@ -239,5 +239,170 @@ TEST_F(LocalKVTest, IgnoreWrites) {
   rc = lkv->put(bucket, k1, ldo1, PoolBehavior::WriteToLocal,  nullptr, nullptr ); EXPECT_EQ(KELPIE_OK, rc);
   rc = lkv->get(bucket, k1, &ldo_return, nullptr, nullptr);                        EXPECT_EQ(KELPIE_OK, rc);
   EXPECT_EQ(1024, ldo_return.GetUserSize());
+
+}
+
+TEST_F(LocalKVTest, ListRowStar) {
+
+  int rc;
+  bucket_t bucket("bucky");
+
+  string row_names[]={"nothing1","nothing2","nothing3","nothing4",
+                      "thing1","thing2","thing3",
+                      "nothing5","nothing6",
+                      "thing4"};
+
+  map<string,int> row_to_size;
+  int i=0;
+  for( auto s : row_names) {
+    lunasa::DataObject ldo(100+i);
+    rc = lkv->put(bucket, kelpie::Key(s), ldo, PoolBehavior::WriteToLocal, nullptr,nullptr); EXPECT_EQ(KELPIE_OK, rc);
+    row_to_size[s] = 100+i;
+    i++;
+  }
+
+  { //Get thing*|"" (four rows)
+    ObjectCapacities oc;
+    rc = lkv->list(bucket, kelpie::Key("thing*"), &oc);
+    EXPECT_EQ(KELPIE_OK, rc);
+    EXPECT_EQ(oc.keys.size(), oc.capacities.size());
+    EXPECT_EQ(4, oc.keys.size());
+    for(int i = 0; i<oc.keys.size(); i++) {
+      string k1 = oc.keys[i].K1();
+      EXPECT_TRUE(StringBeginsWith(k1, "thing"));
+      EXPECT_EQ(row_to_size[k1], oc.capacities[i]);
+    }
+  }
+
+  { //Get specific row/col: "thing3|"
+    ObjectCapacities oc;
+    rc = lkv->list(bucket, kelpie::Key("thing3"), &oc);
+    EXPECT_EQ(KELPIE_OK, rc);
+    EXPECT_EQ(oc.keys.size(), oc.capacities.size());
+    EXPECT_EQ(1, oc.keys.size());
+    if(oc.keys.size()>0) {
+      EXPECT_EQ(Key("thing3"), oc.keys[0]);
+      EXPECT_EQ(row_to_size["thing3"], oc.capacities[0]);
+    }
+
+  }
+
+}
+TEST_F(LocalKVTest, ListRowColStars) {
+
+  int rc;
+  bucket_t bucket("bucky");
+
+  string row_names[] = {"some", "random", "column", "names", "go", "heree", "sowhat"};
+
+  string col_names[] = {"nothing1", "nothing2", "nothing3", "nothing4",
+                        "thing1", "thing2", "thing3",
+                        "nothing5", "nothing6",
+                        "",
+                        "thing4"};
+
+  map<kelpie::Key, int> keymap_sizes; //records how big the ldo is
+
+  //Insert a bunch or keys into lkv
+  int i = 0;
+  for(auto r : row_names) {
+    for(auto c : col_names) {
+      Key k(r,c);
+      lunasa::DataObject ldo(100 + i);
+      rc = lkv->put(bucket, k, ldo, PoolBehavior::WriteToLocal, nullptr, nullptr);
+      EXPECT_EQ(KELPIE_OK, rc);
+      keymap_sizes[k] = 100 +i;
+      i++;
+    }
+  }
+
+
+  //Good keys: Look for a list of exact matches
+  vector<kelpie::Key> exact_keys;
+  exact_keys.push_back(Key("names", "thing3"));
+  exact_keys.push_back(Key("random","nothing1"));
+  exact_keys.push_back(Key("go",    ""));
+  exact_keys.push_back(Key("some",   "thing4"));
+  for(auto k : exact_keys) {
+    ObjectCapacities oc;
+    rc = lkv->list(bucket, k, &oc);
+    EXPECT_EQ(KELPIE_OK, rc);
+    EXPECT_EQ(1, oc.keys.size()); EXPECT_EQ(1, oc.capacities.size());
+    if((oc.keys.size()==1) && (oc.capacities.size() == 1)) {
+      EXPECT_EQ( k, oc.keys[0]);
+      EXPECT_EQ( keymap_sizes[k], oc.capacities[0]);
+    }
+  }
+
+  //Missing keys: shouldn't find anything
+  vector<kelpie::Key> missing_keys;
+  missing_keys.push_back(Key("Xnames", "thing3"));  //bad row
+  missing_keys.push_back(Key("names",  "thing3X")); //bad col
+  missing_keys.push_back(Key("Xname",  "Xthing3")); //bad row/col
+  for(auto k : missing_keys) {
+    ObjectCapacities oc;
+    rc = lkv->list(bucket, k, &oc);
+    EXPECT_EQ(KELPIE_ENOENT, rc);
+    EXPECT_EQ(0, oc.keys.size()); EXPECT_EQ(0,oc.capacities.size());
+  }
+
+
+  { //Exact Row, Col*
+    ObjectCapacities oc;
+    rc = lkv->list(bucket, Key("go", "thing*"), &oc);
+    EXPECT_EQ(KELPIE_OK, rc);
+    EXPECT_EQ(4, oc.keys.size()); EXPECT_EQ(4,oc.capacities.size());
+    vector<string> found_cols;
+    for(int i=0; i<oc.keys.size(); i++) {
+      EXPECT_EQ(keymap_sizes[oc.keys[i]], oc.capacities[i]);
+      EXPECT_EQ("go", oc.keys[i].K1());
+      EXPECT_TRUE(StringBeginsWith(oc.keys[i].K2(), "thing"));
+      found_cols.push_back(oc.keys[i].K2());
+    }
+    sort(found_cols.begin(), found_cols.end());
+    vector<string> expected_cols{"thing1","thing2","thing3", "thing4"};
+    EXPECT_TRUE( (found_cols==expected_cols));
+  }
+
+
+  { //Row*, Exact col
+    ObjectCapacities oc;
+    rc = lkv->list(bucket, Key("so*", "thing3"), &oc);
+    EXPECT_EQ(KELPIE_OK, rc);
+    EXPECT_EQ(2, oc.keys.size()); EXPECT_EQ(2,oc.capacities.size());
+    vector<string> found_rows;
+    for(int i=0; i<oc.keys.size(); i++) {
+      EXPECT_EQ(keymap_sizes[oc.keys[i]], oc.capacities[i]);
+      EXPECT_TRUE(StringBeginsWith(oc.keys[i].K1(), "so"));
+      EXPECT_EQ(oc.keys[i].K2(), "thing3");
+      found_rows.push_back(oc.keys[i].K1());
+    }
+    sort(found_rows.begin(), found_rows.end());
+    vector<string> expected_rows{"some","sowhat"};
+    EXPECT_TRUE( (found_rows==expected_rows));
+  }
+
+  { //Row*, Col*
+    ObjectCapacities oc;
+    rc = lkv->list(bucket, Key("so*", "thing*"), &oc);
+    EXPECT_EQ(KELPIE_OK, rc);
+    EXPECT_EQ(8, oc.keys.size()); EXPECT_EQ(8,oc.capacities.size());
+    vector<string> found_rows;
+    vector<string> found_cols;
+    for(int i=0; i<oc.keys.size(); i++) {
+      EXPECT_EQ(keymap_sizes[oc.keys[i]], oc.capacities[i]);
+      EXPECT_TRUE(StringBeginsWith(oc.keys[i].K1(), "so"));
+      EXPECT_TRUE(StringBeginsWith(oc.keys[i].K2(), "thing"));
+      found_rows.push_back(oc.keys[i].K1());
+      found_cols.push_back(oc.keys[i].K2());
+    }
+    sort(found_rows.begin(), found_rows.end());
+    sort(found_cols.begin(), found_cols.end());
+    vector<string> expected_rows{"some","some","some","some","sowhat","sowhat","sowhat","sowhat"};
+    vector<string> expected_cols{"thing1","thing1","thing2", "thing2","thing3","thing3","thing4", "thing4"};
+    EXPECT_TRUE( (found_rows==expected_rows));
+    EXPECT_TRUE( (found_cols==expected_cols));
+  }
+
 
 }
