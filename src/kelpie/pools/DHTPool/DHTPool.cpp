@@ -229,7 +229,7 @@ rc_t DHTPool::Need(const Key &key, size_t expected_ldo_user_bytes, lunasa::DataO
   bool is_found=false;
 
   rc_t rc = Want(key, expected_ldo_user_bytes,
-                 [&key, &returned_ldo, &cv, &is_found] (bool success, Key key, lunasa::DataObject result_ldo,
+                 [&returned_ldo, &cv, &is_found] (bool success, Key key, lunasa::DataObject result_ldo,
                                                         const kv_row_info_t &ri, const kv_col_info_t &c) {
       if(success) {
         *returned_ldo = result_ldo;
