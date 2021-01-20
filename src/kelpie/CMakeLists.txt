@@ -8,6 +8,7 @@ set( HEADERS_PUBLIC
      Kelpie.hh
      Key.hh
      common/KelpieInternal.hh
+     common/ObjectCapacities.hh
      common/Types.hh
      ioms/IomBase.hh
      ioms/IomRegistry.hh
@@ -42,6 +43,7 @@ set( SOURCES
      Kelpie.cpp
      Key.cpp
      common/KelpieInternal.cpp
+     common/ObjectCapacities.cpp
      common/OpArgsObjectAvailable.cpp
      common/Types.cpp
      core/KelpieCoreBase.cpp
@@ -126,7 +128,7 @@ install(TARGETS kelpie
 
 install( FILES Kelpie.hh Key.hh
   DESTINATION ${INCLUDE_INSTALL_DIR}/faodel/kelpie )
-install( FILES common/Types.hh common/KelpieInternal.hh
+install( FILES common/Types.hh common/KelpieInternal.hh common/ObjectCapacities.hh
   DESTINATION ${INCLUDE_INSTALL_DIR}/faodel/kelpie/common )
 install( FILES ioms/IomBase.hh ioms/IomRegistry.hh
   DESTINATION ${INCLUDE_INSTALL_DIR}/faodel/kelpie/ioms )

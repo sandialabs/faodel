@@ -1,4 +1,4 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, 
 // LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
 // the U.S. Government retains certain rights in this software. 
 
@@ -14,6 +14,7 @@
 #include "lunasa/DataObject.hh"
 
 #include "kelpie/Key.hh"
+#include "kelpie/common/ObjectCapacities.hh"
 
 #include <boost/serialization/vector.hpp> //For packing ObjectCapacities
 
@@ -138,22 +139,6 @@ struct PoolBehavior {
 };
 
 
-class ObjectCapacities {
-public:
-  std::vector<kelpie::Key> keys;
-  std::vector<size_t> capacities;
-
-  void Append(const ObjectCapacities &other) {
-    keys.insert(keys.end(), other.keys.begin(), other.keys.end());
-    capacities.insert(capacities.end(), other.capacities.begin(), other.capacities.end());
-  }
-  //Serialization hook
-  template <typename Archive>
-  void serialize(Archive &ar, const unsigned int version){
-    ar & keys;
-    ar & capacities;
-  }
-};
 
 
 
