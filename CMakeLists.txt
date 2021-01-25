@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.8.0)
 project( Faodel
   LANGUAGES CXX C
-  VERSION 1.1906.1
+  VERSION 1.1906.2
   )
 
 
