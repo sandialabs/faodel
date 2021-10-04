@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 
 #include "nnti/nnti_pch.hpp"
@@ -101,7 +101,6 @@ public:
     }
 
     NNTI_result_t operator() (NNTI_event_t *event, void *context) {
-        NNTI_result_t rc = NNTI_OK;
 
         state_machine_context *c = (state_machine_context*)context;
 
@@ -116,15 +115,15 @@ public:
             case NNTI_EVENT_SEND:
                 if (c->send_count_ < c->send_threshold_) {
                     // issue another send
-                    rc = populate_buffer(c->transport_, c->send_count_, 0, c->send_src_.hdl, c->send_src_.base, c->send_src_.size);
-                    rc = send_data_async(c->transport_, 0, c->send_src_.hdl, c->send_target_.hdl, event->peer, *c->cb_, context);
+                    populate_buffer(c->transport_, c->send_count_, 0, c->send_src_.hdl, c->send_src_.base, c->send_src_.size);
+                    send_data_async(c->transport_, 0, c->send_src_.hdl, c->send_target_.hdl, event->peer, *c->cb_, context);
 
                     c->send_count_++;
                     break;
                 } else {
                     c->state_ = state_machine_context::state::GETTING;
                     // issue get
-                    rc = get_data_async(c->transport_, c->remote_rdma_.hdl, c->local_rdma_.hdl, event->peer, *c->cb_, context);
+                    get_data_async(c->transport_, c->remote_rdma_.hdl, c->local_rdma_.hdl, event->peer, *c->cb_, context);
                     c->get_count_++;
                 }
                 break;
@@ -135,7 +134,7 @@ public:
                         EXPECT_TRUE(verify_buffer((char*)event->start, event->offset+(i*msg_size), msg_size*test_iters));
                     }
                     // issue another get
-                    rc = get_data_async(c->transport_, c->remote_rdma_.hdl, c->local_rdma_.hdl, event->peer, *c->cb_, context);
+                    get_data_async(c->transport_, c->remote_rdma_.hdl, c->local_rdma_.hdl, event->peer, *c->cb_, context);
 
                     c->get_count_++;
                     break;
@@ -146,21 +145,21 @@ public:
                     c->state_ = state_machine_context::state::PUTTING;
                     // issue put
                     for (int i=0;i<10;i++) {
-                        rc = populate_buffer(c->transport_, 2*i, i, c->local_rdma_.hdl, c->local_rdma_.base, c->local_rdma_.size);
+                        populate_buffer(c->transport_, 2*i, i, c->local_rdma_.hdl, c->local_rdma_.base, c->local_rdma_.size);
                     }
-                    rc = put_data_async(c->transport_, c->local_rdma_.hdl, c->remote_rdma_.hdl, event->peer, *c->cb_, context);
+                    put_data_async(c->transport_, c->local_rdma_.hdl, c->remote_rdma_.hdl, event->peer, *c->cb_, context);
                     c->put_count_++;
                 }
                 break;
             case NNTI_EVENT_PUT:
                 if (c->put_count_ < c->put_threshold_) {
                     // issue another put
-                    rc = put_data_async(c->transport_, c->local_rdma_.hdl, c->remote_rdma_.hdl, event->peer, *c->cb_, context);
+                    put_data_async(c->transport_, c->local_rdma_.hdl, c->remote_rdma_.hdl, event->peer, *c->cb_, context);
                     c->put_count_++;
                     break;
                 } else {
                     c->state_ = state_machine_context::state::DONE;
-                    rc = send_data_async(c->transport_, 0, c->send_src_.hdl, c->send_target_.hdl, event->peer, *c->cb_, context);
+                    send_data_async(c->transport_, 0, c->send_src_.hdl, c->send_target_.hdl, event->peer, *c->cb_, context);
                 }
                 break;
             default:
@@ -235,12 +234,9 @@ TEST_F(NntiCallbackStateMachineTest, start1) {
 
     NNTI_event_queue_t  eq;
     NNTI_event_t        event;
-    NNTI_event_t        result_event;
-    uint32_t            which;
     struct buffer_properties src_buf;
     struct buffer_properties rdma_buf;
     struct buffer_properties my_q_buf;
-    NNTI_work_request_t base_wr = NNTI_WR_INITIALIZER;
 
     nnti::datatype::nnti_event_callback null_cb(t);
 

@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #include <algorithm>
 #include <functional>
@@ -9,7 +9,6 @@
 #include <thread>
 
 #include <sys/unistd.h> //gethostname
-#include <cassert>
 
 #include <boost/bimap.hpp>
 
@@ -130,7 +129,7 @@ namespace NetNnti
 
             //CDU: TODO- Do we need to pass in sender, and msg?
             OpArgs *args = new OpArgs( event_to_update_type(event) );
-            WaitingType cb_rc = user_cb_(args);
+            user_cb_(args);
             //CDU: end
 
 
@@ -264,7 +263,7 @@ namespace NetNnti
                 transport_name = "ibverbs";
             } else if (transport_name == "sockets") {
                 // NNTI doesn't have a sockets transport.  warn and try MPI.
-                // TODO: the logger isn't iniitialized yet.  use cerr until this is fixed.
+                // TODO: the logger isn't initialized yet.  use cerr until this is fixed.
                 std::cerr << "NetNnti -> net.transport.name has unsupported value 'sockets'.  Failing back to 'mpi'." << std::endl;
                 transport_name = "mpi";
             }
@@ -307,15 +306,17 @@ namespace NetNnti
         uint64_t      base_addr;
         uint32_t      length;
 
+        virtual ~NntiBufferLocal() {}
+
         void makeRemoteBuffer (
-            size_t           remote_offset,   // in
-            size_t           remote_length,   // in
+            size_t           remote_offset,            // in
+            size_t           remote_length,            // in
             NetBufferRemote *remote_buffer) override;  // out
     };
 
     void NntiBufferLocal::makeRemoteBuffer(
-        size_t           remote_offset,        // in
-        size_t           remote_length,        // in
+        size_t           remote_offset,   // in
+        size_t           remote_length,   // in
         NetBufferRemote *remote_buffer) { // out
 
         NntiBufferRemote *rb = (NntiBufferRemote*)remote_buffer;
@@ -465,28 +466,34 @@ void Start()
     NNTI_result_t rc;
 
     //Whookie should be started by this point. We can get its info now.
-    assert(whookie::Server::IsRunning() && "Whookie not started before NetNnti started");
+    F_ASSERT(whookie::Server::IsRunning(), "Whookie not started before NetNnti started");
     myid_ = whookie::Server::GetNodeID();
 
     t_ = nnti::transports::factory::get_instance(config_);
 
-    t_->start();
+    rc = t_->start();
+    if (rc == NNTI_EINVAL) {
+        throw std::runtime_error("Couldn't start the NNTI transport because the network device couldn't be initialized.  "
+                                 "Is net.transport.name correct in $FAODEL_CONFIG file?");
+    } else if (rc != NNTI_OK) {
+        throw std::runtime_error("Couldn't start the NNTI transport - reason unknown");
+    }
 
     t_->attrs(&nnti_attrs_);
 
     nnti::datatype::nnti_event_callback unexpected_cb(t_, unexpected_callback());
 
     rc = t_->eq_create(128, NNTI_EQF_UNEXPECTED, unexpected_cb, nullptr, &unexpected_eq_);
-    assert(rc==NNTI_OK && "couldn't create unexpected EQ");
+    F_ASSERT(rc==NNTI_OK, "couldn't create unexpected EQ");
 
     rc = t_->eq_create(128, NNTI_EQF_UNSET, &send_eq_);
-    assert(rc==NNTI_OK && "couldn't create unexpected EQ");
+    F_ASSERT(rc==NNTI_OK, "couldn't create unexpected EQ");
 
     rc = t_->eq_create(128, NNTI_EQF_UNSET, &recv_eq_);
-    assert(rc==NNTI_OK && "couldn't create unexpected EQ");
+    F_ASSERT(rc==NNTI_OK, "couldn't create unexpected EQ");
 
     rc = t_->eq_create(128, NNTI_EQF_UNSET, &rdma_eq_);
-    assert(rc==NNTI_OK && "couldn't create unexpected EQ");
+    F_ASSERT(rc==NNTI_OK, "couldn't create unexpected EQ");
 
     lunasa::RegisterPinUnpin(RegisterMemory, UnregisterMemory);
 
@@ -504,8 +511,8 @@ void Start()
  */
 void Finish()
 {
-    assert(initialized_ && "NetNnti not initialized");
-    assert(started_ && "NetNnti not started");
+    F_ASSERT(initialized_, "NetNnti not initialized");
+    F_ASSERT(started_, "NetNnti not started");
 
     started_=false;
 
@@ -538,7 +545,7 @@ void RegisterRecvCallback(
  */
 faodel::nodeid_t GetMyID()
 {
-    assert(initialized_ && "NetNnti not initialized");
+    F_ASSERT(initialized_, "NetNnti not initialized");
 
     return myid_;
 }
@@ -673,9 +680,9 @@ int Connect(
 int Disconnect(
     peer_ptr_t peer)
 {
-    log_debug("NetNnti", "Disconnecting from %p", (void*)peer);
+    int rc = NNTI_OK;
     peer_bimap.right.erase(peer);
-    int rc = t_->disconnect(peer->p);
+    rc = t_->disconnect(peer->p);
     delete peer;
     return rc;
 }
@@ -864,7 +871,7 @@ void SendMsg(
         base_wr.local_offset  = msg_bl_offset;
         base_wr.remote_hdl    = NNTI_INVALID_HANDLE;
         base_wr.remote_offset = 0;
-        base_wr.length        = msg.GetMetaSize() + msg.GetDataSize();
+        base_wr.length        = msg.GetMetaSize() + msg.GetDataSize() + msg.GetPaddingSize();
     } else {
         rc = msg.GetDataRdmaHandle( (void **)&msg_bl, msg_bl_offset);
         if (rc != 0) {
@@ -880,7 +887,7 @@ void SendMsg(
         base_wr.local_offset  = msg_bl_offset;
         base_wr.remote_hdl    = NNTI_INVALID_HANDLE;
         base_wr.remote_offset = 0;
-        base_wr.length        = msg.GetDataSize();
+        base_wr.length        = msg.GetDataSize() + msg.GetPaddingSize();
     }
 
     base_wr.cb_context = new DataObject(msg);
@@ -931,7 +938,7 @@ void SendMsg(
         base_wr.local_offset  = msg_bl_offset;
         base_wr.remote_hdl    = NNTI_INVALID_HANDLE;
         base_wr.remote_offset = 0;
-        base_wr.length        = msg.GetMetaSize() + msg.GetDataSize();
+        base_wr.length        = msg.GetMetaSize() + msg.GetDataSize() + msg.GetPaddingSize();;
     } else {
         rc = msg.GetDataRdmaHandle( (void **)&msg_bl, msg_bl_offset);
         if (rc != 0) {
@@ -947,7 +954,7 @@ void SendMsg(
         base_wr.local_offset  = msg_bl_offset;
         base_wr.remote_hdl    = NNTI_INVALID_HANDLE;
         base_wr.remote_offset = 0;
-        base_wr.length        = msg.GetDataSize();
+        base_wr.length        = msg.GetDataSize() + msg.GetPaddingSize();
     }
 
     user_invoking_callback *uicb = new user_invoking_callback(user_cb, new DataObject(msg));
@@ -989,7 +996,8 @@ void Get(
 
     NntiBufferLocal *local_bl;
     uint32_t         local_bl_offset;
-    uint64_t         local_size = local_ldo.GetHeaderSize() + local_ldo.GetMetaSize() + local_ldo.GetDataSize();
+    uint64_t         local_size = local_ldo.GetHeaderSize() + local_ldo.GetMetaSize() + 
+                                  local_ldo.GetDataSize() + local_ldo.GetPaddingSize();
     local_ldo.GetHeaderRdmaHandle( (void **)&local_bl, local_bl_offset);
 
     base_wr.op            = NNTI_OP_GET;
@@ -1012,6 +1020,29 @@ void Get(
     }
 
     nnti::datatype::nnti_work_request wr(t_, base_wr, *get_cb);
+
+#if 1
+    {
+    bool abort_now=false;
+    // check that local/remote offset and length are 4-byte aligned
+    if (base_wr.local_offset%4 != 0) {
+        log_error("NetNnti", "opbox::net::Get() local_offset is not 4-byte aligned - %lu", base_wr.local_offset);
+        abort_now=true;
+    }
+    if (base_wr.remote_offset%4 != 0) {
+        log_error("NetNnti", "opbox::net::Get() remote_offset is not 4-byte aligned - %lu", base_wr.remote_offset);
+        abort_now=true;
+    }
+    if (base_wr.length%4 != 0) {
+        log_error("NetNnti", "opbox::net::Get() length is not 4-byte aligned - %lu (local_size = %ld / padding = %d)", 
+                  base_wr.length, local_size, local_ldo.GetPaddingSize());
+        abort_now=true;
+    }
+    if (abort_now) {
+        abort();
+    }
+    }
+#endif
 
     t_->get(&wr, &wid);
 }
@@ -1061,7 +1092,7 @@ void Get(
     base_wr.local_offset  = local_bl_offset + local_offset;
     base_wr.remote_hdl    = remote_hdl;
     base_wr.remote_offset = nbr->offset + remote_offset;
-    base_wr.length        = length;
+    base_wr.length        = length+local_ldo.GetPaddingSize();
 
     nnti::datatype::nnti_event_callback *get_cb = nullptr;
     if (user_cb) {
@@ -1073,6 +1104,36 @@ void Get(
     }
 
     nnti::datatype::nnti_work_request wr(t_, base_wr, *get_cb);
+
+#if 1
+    {
+    bool abort_now=false;
+    bool report_all=false;
+    // check that local/remote offset and length are 4-byte aligned
+    if (base_wr.local_offset%4 != 0) {
+        log_error("NetNnti", "opbox::net::Get() local_offset is not 4-byte aligned - %lu", base_wr.local_offset);
+        abort_now=true;
+    } else if (report_all) {
+        log_error("NetNnti", "opbox::net::Get() local_offset is 4-byte aligned - %lu", base_wr.local_offset);
+    }
+    if (base_wr.remote_offset%4 != 0) {
+        log_error("NetNnti", "opbox::net::Get() remote_offset is not 4-byte aligned - %lu", base_wr.remote_offset);
+        abort_now=true;
+    } else if (report_all) {
+        log_error("NetNnti", "opbox::net::Get() remote_offset is 4-byte aligned - %lu", base_wr.remote_offset);
+    }
+    if (base_wr.length%4 != 0) {
+        log_error("NetNnti", "opbox::net::Get() length is not 4-byte aligned - %lu (length = %d / padding = %d)", 
+                  base_wr.length, length, local_ldo.GetPaddingSize());
+        abort_now=true;
+    } else if (report_all) {
+        log_error("NetNnti", "opbox::net::Get() length is 4-byte aligned - %lu", base_wr.length);
+    }
+    if (abort_now) {
+        abort();
+    }
+    }
+#endif
 
     t_->get(&wr, &wid);
 }
@@ -1108,7 +1169,7 @@ void Put(
 
     NntiBufferLocal *local_bl;
     uint32_t         local_bl_offset;
-    uint64_t         local_size = local_ldo.GetHeaderSize() + local_ldo.GetMetaSize() + local_ldo.GetDataSize();
+    uint64_t         local_size = local_ldo.GetHeaderSize() + local_ldo.GetMetaSize() + local_ldo.GetDataSize() + local_ldo.GetPaddingSize();
     local_ldo.GetHeaderRdmaHandle( (void **)&local_bl, local_bl_offset);
 
     base_wr.op            = NNTI_OP_PUT;

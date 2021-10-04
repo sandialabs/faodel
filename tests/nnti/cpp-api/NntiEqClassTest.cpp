@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 
 #include "nnti/nnti_pch.hpp"
@@ -19,11 +19,11 @@
 #include "nnti/nnti_eq.hpp"
 
 
-static const auto     num_consumers       = 3;
-static const auto     num_producers       = 1;
+static const uint32_t num_consumers       = 3;
+static const uint32_t num_producers       = 1;
 static const uint64_t queue_size          = 32;
-static const auto     events_per_producer = queue_size * 1024;
-static const auto     total_events        = events_per_producer * num_producers;
+static const uint32_t events_per_producer = queue_size * 1024;
+static const uint32_t total_events        = events_per_producer * num_producers;
 
 static const uint64_t NOT_PRODUCED = 0xA;  // this event has not been pushed onto the EQ
 static const uint64_t NOT_CONSUMED = 0xB;  // this event has not been popped off the EQ
@@ -31,8 +31,8 @@ static const uint64_t CONSUMED     = 0xC;  // this event has been popped off the
 
 
 NNTI_event_t event_source[total_events];
-std::atomic<int> next_event(0);
-std::atomic<int> events_consumed(0);
+std::atomic<uint32_t> next_event(0);
+std::atomic<uint32_t> events_consumed(0);
 
 struct ProducerWithReservation {
     nnti::datatype::nnti_event_queue *eq_;
@@ -47,8 +47,8 @@ struct ProducerWithReservation {
     void
     operator()()
     {
-        for (auto i = 0; i < events_per_producer; i ++) {
-            auto current_event = next_event.fetch_add(1);
+        for (uint32_t i = 0; i < events_per_producer; i ++) {
+            uint32_t current_event = next_event.fetch_add(1);
             assert(event_source[current_event].offset == NOT_PRODUCED);
             event_source[current_event].offset = NOT_CONSUMED;
             nnti::datatype::reservation r;
@@ -76,8 +76,8 @@ struct ProducerWithoutReservation {
     void
     operator()()
     {
-        for (auto i = 0; i < total_events; i += num_producers) {
-            auto current_event = next_event.fetch_add(1);
+        for (uint32_t i = 0; i < total_events; i += num_producers) {
+            uint32_t current_event = next_event.fetch_add(1);
             assert(event_source[current_event].offset == NOT_PRODUCED);
             event_source[i].offset = NOT_CONSUMED;
             NNTI_event_t *e = &event_source[i];
@@ -133,27 +133,27 @@ test_without_reservation()
     next_event.store(0);
     events_consumed.store(0);
     memset(event_source, 0, total_events * sizeof(NNTI_event_t));
-    for (auto i = 0; i < total_events; ++i) {
+    for (uint32_t i = 0; i < total_events; ++i) {
         event_source[i].offset = NOT_PRODUCED;
     }
 
     struct timeval tv0, tv1;
     gettimeofday(&tv0, NULL);
 
-    for (auto i = 0; i < num_producers; ++i) {
+    for (uint32_t i = 0; i < num_producers; ++i) {
         producers[i] = std::thread(ProducerWithoutReservation(&eq_without_reservations));
     }
 
     usleep(10 * 1000);
 
-    for (auto i = 0; i < num_consumers; ++i) {
+    for (uint32_t i = 0; i < num_consumers; ++i) {
         consumers[i] = std::thread(Consumer(&eq_without_reservations));
     }
 
-    for (auto i = 0; i < num_producers; ++i) {
+    for (uint32_t i = 0; i < num_producers; ++i) {
         producers[i].join();
     }
-    for (auto i = 0; i < num_consumers; ++i) {
+    for (uint32_t i = 0; i < num_consumers; ++i) {
         consumers[i].join();
     }
 
@@ -162,7 +162,7 @@ test_without_reservation()
 
     bool success = true;
     std::cout << "check results..." << std::endl;
-    for (auto i = 0; i < total_events; ++i) {
+    for (uint32_t i = 0; i < total_events; ++i) {
         if (event_source[i].offset == NOT_PRODUCED) {
             std::cout << "not produced " << i << std::endl;
             success = false;
@@ -187,27 +187,27 @@ test_with_reservation()
     next_event.store(0);
     events_consumed.store(0);
     memset(event_source, 0, total_events * sizeof(NNTI_event_t));
-    for (auto i = 0; i < total_events; ++i) {
+    for (uint32_t i = 0; i < total_events; ++i) {
         event_source[i].offset = NOT_PRODUCED;
     }
 
     struct timeval tv0, tv1;
     gettimeofday(&tv0, NULL);
 
-    for (auto i = 0; i < num_producers; ++i) {
+    for (uint32_t i = 0; i < num_producers; ++i) {
         producers[i] = std::thread(ProducerWithReservation(&eq_with_reservations));
     }
 
     usleep(10 * 1000);
 
-    for (auto i = 0; i < num_consumers; ++i) {
+    for (uint32_t i = 0; i < num_consumers; ++i) {
         consumers[i] = std::thread(Consumer(&eq_with_reservations));
     }
 
-    for (auto i = 0; i < num_producers; ++i) {
+    for (uint32_t i = 0; i < num_producers; ++i) {
         producers[i].join();
     }
-    for (auto i = 0; i < num_consumers; ++i) {
+    for (uint32_t i = 0; i < num_consumers; ++i) {
         consumers[i].join();
     }
 
@@ -216,7 +216,7 @@ test_with_reservation()
 
     bool success = true;
     std::cout << "check results..." << std::endl;
-    for (auto i = 0; i < total_events; ++i) {
+    for (uint32_t i = 0; i < total_events; ++i) {
         if (event_source[i].offset == NOT_PRODUCED) {
             std::cout << "not produced " << i << std::endl;
             success = false;

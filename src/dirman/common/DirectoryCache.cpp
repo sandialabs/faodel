@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #include <iostream>
 #include <fstream>
@@ -34,7 +34,7 @@ DirectoryCache::~DirectoryCache(){
   }
 }
 void DirectoryCache::Init(const faodel::Configuration &config, string threading_model, string mutex_type) {
-  kassert(mutex==nullptr, "Initialized more than once");
+  F_ASSERT(mutex == nullptr, "Initialized more than once");
   ConfigureLogging(config);
   mutex = GenerateMutex(threading_model, mutex_type);
 
@@ -454,8 +454,8 @@ void DirectoryCache::sstr(stringstream &ss, int depth, int indent) const {
  */
 bool DirectoryCache::_lookup(const faodel::ResourceURL &url, DirectoryInfo **resource_info, nodeid_t *reference_node){
 
-  kassert(resource_info!=nullptr, "Invalid resource info pointer");
-  kassert(url.Valid(), "Invalid url given to DC:"+url.GetFullURL());
+  F_ASSERT(resource_info != nullptr, "Invalid resource info pointer");
+  F_ASSERT(url.Valid(), "Invalid url given to DC:"+url.GetFullURL());
 
   map<string,DirectoryInfo *>::iterator it;
   string bucket_path_name = url.GetBucketPathName();
@@ -480,7 +480,7 @@ bool DirectoryCache::_lookup(const faodel::ResourceURL &url, DirectoryInfo **res
 }
 bool DirectoryCache::_lookupRootDir(bucket_t bucket, faodel::DirectoryInfo *resource_info) {
   bool found=false;
-  kassert(resource_info!=nullptr, "Invalid resource info pointer");
+  F_ASSERT(resource_info != nullptr, "Invalid resource info pointer");
 
   //Set the dir info to root
   if(resource_info) {

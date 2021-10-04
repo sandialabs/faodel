@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 /**
  * @file transport_factory.cpp
@@ -15,6 +15,7 @@
 #include "nnti/nnti_pch.hpp"
 
 #include <string>
+#include <sstream>
 #include <stdexcept>
 
 #include "faodel-common/Configuration.hh"
@@ -86,8 +87,8 @@ factory::get_instance(
 {
     transport           *t        = nullptr;
     NNTI_transport_id_t  trans_id = NNTI_DEFAULT_TRANSPORT;
-    std::string          proto;
-    std::string          trans_name;
+    std::string          proto("");
+    std::string          trans_name("");
     std::string          id_key("nnti.transport.id");
     std::string          proto_key("nnti.transport.protocol");
     std::string          name_key("nnti.transport.name");
@@ -130,6 +131,14 @@ factory::get_instance(
         t = ibverbs_transport::get_instance(config);
 #else
         // ibverbs is not configured.  try failing back to MPI.
+        std::stringstream ss;
+        ss<<
+        "------------------------------------------------------------------\n"
+        "The FAODEL_CONFIG 'net.transport.name' key is set to 'ibverbs'.\n"
+        "The 'ibverbs' transport was not configured into the Faodel network\n"
+        "library.  The 'mpi' transport will be used instead.\n"
+        "------------------------------------------------------------------";
+        std::cerr<<ss.str()<<std::endl;
         trans_id = NNTI_TRANSPORT_MPI;
 #endif
     }
@@ -142,6 +151,14 @@ factory::get_instance(
         t = ugni_transport::get_instance(config);
 #else
         // ugni is not configured.  try failing back to MPI.
+        std::stringstream ss;
+        ss<<
+        "------------------------------------------------------------------\n"
+        "The FAODEL_CONFIG 'net.transport.name' key is set to 'ugni'.\n"
+        "The 'ugni' transport was not configured into the Faodel network\n"
+        "library.  The 'mpi' transport will be used instead.\n"
+        "------------------------------------------------------------------";
+        std::cerr<<ss.str()<<std::endl;
         trans_id = NNTI_TRANSPORT_MPI;
 #endif
     }
@@ -152,6 +169,17 @@ factory::get_instance(
         config.Set(name_key, trans_name);
         config.Set(proto_key, proto);
         t = mpi_transport::get_instance(config);
+#else
+        // mpi is not configured.  there is no fallback.
+        std::stringstream ss;
+        ss<<
+        "------------------------------------------------------------------\n"
+        "The FAODEL_CONFIG 'net.transport.name' key is set to 'mpi'.\n"
+        "The 'mpi' transport was not configured into the Faodel network\n"
+        "library.  There is no fallback.  Aborting.\n"
+        "------------------------------------------------------------------";
+        std::cerr<<ss.str()<<std::endl;
+        abort();
 #endif
     }
 

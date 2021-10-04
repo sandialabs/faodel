@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 
 #include <string>
@@ -281,6 +281,8 @@ TEST(StringHelpers, RangeParsing) {
   x = ExtractIDs("2-5,4-6",8); exp={2,3,4,5,6}; EXPECT_EQ( exp, x);
   x = ExtractIDs("1-2,4-5,7-8",9); exp={1,2,4,5,7,8}; EXPECT_EQ( exp, x);
   x = ExtractIDs("4-5,1,3,8",9); exp={1,3,4,5,8}; EXPECT_EQ( exp, x);
+  x = ExtractIDs("0-0",2); exp={0}; EXPECT_EQ( exp, x);
+
   //Good - with spaces
   x = ExtractIDs("4-5, 1, 3 , 8",9); exp={1,3,4,5,8}; EXPECT_EQ( exp, x);
   x = ExtractIDs("1 - 2, 4 - 5, 7- 8",9); exp={1,2,4,5,7,8}; EXPECT_EQ( exp, x);
@@ -294,7 +296,7 @@ TEST(StringHelpers, RangeParsing) {
   x = ExtractIDs("0-middle,end",4); exp={0,1,3}; EXPECT_EQ( exp,x);
   x = ExtractIDs("middleplus,end",4); exp={2,3}; EXPECT_EQ( exp, x);
   x = ExtractIDs("all,0",4); exp={0,1,2,3}; EXPECT_EQ( exp,x);
-
+  x = ExtractIDs("0-middle",2); exp={0}; EXPECT_EQ( exp,x);
 
   //Bad values
   EXPECT_ANY_THROW(ExtractIDs("1", 1));
@@ -347,4 +349,26 @@ TEST(PunyCode, RawData) {
 
   EXPECT_EQ(src,dec);
   EXPECT_NE(src,enc);
+}
+
+TEST(StringToNum, Basics) {
+  int rc;
+  uint64_t val;
+
+  //Good
+  rc = StringToTimeUS(&val, "9"); EXPECT_EQ(0,rc); EXPECT_EQ(9, val);
+  rc = StringToTimeUS(&val, "100us"); EXPECT_EQ(0,rc); EXPECT_EQ(100, val);
+  rc = StringToTimeUS(&val, "6 us"); EXPECT_EQ(0,rc); EXPECT_EQ(6, val);
+  rc = StringToTimeUS(&val, "82ms"); EXPECT_EQ(0,rc); EXPECT_EQ(82000, val);
+  rc = StringToTimeUS(&val, "3s"); EXPECT_EQ(0,rc); EXPECT_EQ(3000000ul, val);
+  rc = StringToTimeUS(&val, "400 Seconds"); EXPECT_EQ(0,rc); EXPECT_EQ(400*1000000, val);
+  rc = StringToTimeUS(&val, "5minutes"); EXPECT_EQ(0,rc); EXPECT_EQ(5*60*1000000ul, val);
+  rc = StringToTimeUS(&val, "2 hours"); EXPECT_EQ(0,rc); EXPECT_EQ(2*3600*1000000ul, val);
+
+  //Bad
+  rc = StringToTimeUS(&val, "hours"); EXPECT_EQ(EINVAL,rc); EXPECT_EQ(0, val);
+  rc = StringToTimeUS(&val, "hour"); EXPECT_EQ(EINVAL,rc); EXPECT_EQ(0, val);
+  rc = StringToTimeUS(&val, "9x46minutes"); EXPECT_EQ(EINVAL, rc); EXPECT_EQ(0UL, val);
+
+
 }

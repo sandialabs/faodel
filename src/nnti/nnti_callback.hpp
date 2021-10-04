@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 /**
  * @file nnti_callback.hpp
@@ -51,8 +51,8 @@ public:
     NNTI_result_t
     invoke(NNTI_event_t *event, void *context) const;
 
-    std::string
-    toString() override;
+    virtual std::string
+    toString() const override;
 
 };
 

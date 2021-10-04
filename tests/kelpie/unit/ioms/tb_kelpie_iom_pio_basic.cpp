@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #include <iostream>
 #include <vector>
@@ -162,11 +162,11 @@ TEST_F(IomPosixIOSimple, UsingConfigurationByRole){
 
   //Create two ioms for this node only
   faodel::Configuration config(default_config_string);
-  config.Append("myrole.iom.myiom1.type PosixIndividualObjects");
-  config.Append("myrole.iom.myiom2.type PosixIndividualObjects");
-  config.Append("myrole.iom.myiom1.path",p1);
-  config.Append("myrole.iom.myiom2.path",p2);
-  config.Append("myrole.ioms", "myiom1;myiom2");
+  config.Append("myrole.kelpie.iom.myiom1.type PosixIndividualObjects");
+  config.Append("myrole.kelpie.iom.myiom2.type PosixIndividualObjects");
+  config.Append("myrole.kelpie.iom.myiom1.path",p1);
+  config.Append("myrole.kelpie.iom.myiom2.path",p2);
+  config.Append("myrole.kelpie.ioms", "myiom1;myiom2");
   config.Append("node_role", "myrole");
   config.AppendFromReferences();
   

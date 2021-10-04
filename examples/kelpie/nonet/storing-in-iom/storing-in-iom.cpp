@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 //This example shows how you can use an iom to store data persistently.
 //
@@ -24,6 +24,7 @@ std::string default_config_string = R"EOF(
 
 # For local testing, tell kelpie to use the nonet implementation
 kelpie.type nonet
+dirman.type none
 
 default.iom.type PosixIndividualObjects
 default.ioms     my_iom
@@ -97,16 +98,13 @@ int main(int argc, char **argv) {
 
   if(is_writer) {
     cout <<"Writing "<<NUM_ITEMS<<" to "<<path_name<<endl;
-    atomic<int> items_left(NUM_ITEMS);
+    kelpie::ResultCollector results(NUM_ITEMS);
     for (int i = 0; i < NUM_ITEMS; i++) {
       auto ldo = createLDO(i, "my brick_" + std::to_string(i), 1024);
-      piom.Publish(kelpie::Key("my_brick_" + std::to_string(i)), ldo,
-                   [&items_left](kelpie::rc_t result, kelpie::kv_row_info_t &ri, kelpie::kv_col_info_t &ci) {
-                       items_left--;
-                   });
+      piom.Publish(kelpie::Key("my_brick_" + std::to_string(i)), ldo, results);
     }
     //Wait until all publishes complete
-    while (items_left) { sched_yield(); }
+    results.Sync();
     cout << "Done writing to " << path_name << endl;
 
   } else {

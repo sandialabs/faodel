@@ -9,7 +9,6 @@ set(SERIAL_TEST_LIBS
   common
   GTest::GTest
   GTest::Main
-  ${EXTRA_TEST_LIBS}
   )
 
 set(MPI_TEST_LIBS

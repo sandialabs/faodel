@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 
 #ifndef MPI_CONNECTION_HPP_
@@ -35,6 +35,7 @@ private:
         std::string hostname;
         uint32_t    addr;
         uint32_t    port;
+        std::string fingerprint;
         int         rank;
 
         connection_params(void) {
@@ -46,10 +47,11 @@ private:
             }
 
             try {
-                hostname = peer.at("hostname");
-                addr     = nnti::util::str2uint32(peer.at("addr"));
-                port     = nnti::util::str2uint32(peer.at("port"));
-                rank     = nnti::util::str2int32(peer.at("rank"));
+                hostname    = peer.at("hostname");
+                addr        = nnti::util::str2uint32(peer.at("addr"));
+                port        = nnti::util::str2uint32(peer.at("port"));
+                fingerprint = peer.at("fingerprint");
+                rank        = nnti::util::str2int32(peer.at("rank"));
             }
             catch (const std::out_of_range& oor) {
                 log_error_stream("connection_params") << "Out of Range error: " << oor.what();
@@ -58,55 +60,53 @@ private:
     };
 
 private:
-    nnti::transports::mpi_transport *transport_;
     connection_params                peer_params_;
 
 public:
     mpi_connection(
         nnti::transports::mpi_transport *transport)
-    : nnti_connection(),
-      transport_(transport)
+    : nnti_connection()
     {
     }
     mpi_connection(
         nnti::transports::mpi_transport         *transport,
         const std::map<std::string,std::string> &peer)
     : nnti_connection(),
-      transport_(transport),
       peer_params_(peer)
     {
-        int rc;
-
         nnti::core::nnti_url url = nnti::core::nnti_url(peer_params_.hostname, peer_params_.port);
         peer_pid_ = url.pid();
         peer_     = new nnti::datatype::mpi_peer(transport, url, peer_params_.rank);
         peer_->conn(this);
 
-        log_debug("mpi_connection param_map", "hostname = %s",  peer_params_.hostname.c_str());
-        log_debug("mpi_connection param_map", "addr     = %lu", peer_params_.addr);
-        log_debug("mpi_connection param_map", "port     = %d",  peer_params_.port);
-        log_debug("mpi_connection param_map", "rank     = %d",  peer_params_.rank);
+        fingerprint_ = peer_params_.fingerprint;
+
+        log_debug("mpi_connection param_map", "hostname    = %s",  peer_params_.hostname.c_str());
+        log_debug("mpi_connection param_map", "addr        = %lu", peer_params_.addr);
+        log_debug("mpi_connection param_map", "port        = %d",  peer_params_.port);
+        log_debug("mpi_connection param_map", "fingerprint = %s",  peer_params_.fingerprint.c_str());
+        log_debug("mpi_connection param_map", "rank        = %d",  peer_params_.rank);
     }
     mpi_connection(
         nnti::transports::mpi_transport *transport,
         const std::string               &params)
-    : nnti_connection(),
-      transport_(transport)
+    : nnti_connection()
     {
-        int rc;
-
         peer_params(params);
         nnti::core::nnti_url url = nnti::core::nnti_url(peer_params_.hostname, peer_params_.port);
         peer_ = new nnti::datatype::mpi_peer(transport, url, peer_params_.rank);
         peer_->conn(this);
 
-        log_debug("mpi_connection param_str", "hostname = %s",  peer_params_.hostname.c_str());
-        log_debug("mpi_connection param_str", "addr     = %lu", peer_params_.addr);
-        log_debug("mpi_connection param_str", "port     = %d",  peer_params_.port);
-        log_debug("mpi_connection param_str", "rank     = %d",  peer_params_.rank);
+        fingerprint_ = peer_params_.fingerprint;
+
+        log_debug("mpi_connection param_str", "hostname    = %s",  peer_params_.hostname.c_str());
+        log_debug("mpi_connection param_str", "addr        = %lu", peer_params_.addr);
+        log_debug("mpi_connection param_str", "port        = %d",  peer_params_.port);
+        log_debug("mpi_connection param_map", "fingerprint = %s",  peer_params_.fingerprint.c_str());
+        log_debug("mpi_connection param_str", "rank        = %d",  peer_params_.rank);
     }
 
-  ~mpi_connection() override {
+    ~mpi_connection() override {
         return;
     }
 
@@ -114,8 +114,6 @@ public:
     peer_params(
         const std::map<std::string,std::string> &params)
     {
-        int rc;
-
         peer_params_ = connection_params(params);
 
         nnti::core::nnti_url url = nnti::core::nnti_url(peer_params_.hostname, peer_params_.port);
@@ -124,17 +122,17 @@ public:
         nnti::datatype::mpi_peer *mp = (nnti::datatype::mpi_peer*)peer_;
         mp->rank(peer_params_.rank);
 
-        log_debug("peer_params", "hostname = %s",  peer_params_.hostname.c_str());
-        log_debug("peer_params", "addr     = %lu", peer_params_.addr);
-        log_debug("peer_params", "port     = %d",  peer_params_.port);
-        log_debug("peer_params", "rank     = %d",  peer_params_.rank);
+        log_debug("peer_params", "hostname    = %s",  peer_params_.hostname.c_str());
+        log_debug("peer_params", "addr        = %lu", peer_params_.addr);
+        log_debug("peer_params", "port        = %d",  peer_params_.port);
+        log_debug("peer_params", "fingerprint = %s",  peer_params_.fingerprint.c_str());
+        log_debug("peer_params", "rank        = %d",  peer_params_.rank);
     }
 
     void
     peer_params(
         const std::string &params)
     {
-        int rc;
         std::map<std::string,std::string> param_map;
 
         std::istringstream iss(params);
@@ -151,10 +149,11 @@ public:
         nnti::datatype::mpi_peer *mp = (nnti::datatype::mpi_peer*)peer_;
         mp->rank(peer_params_.rank);
 
-        log_debug("peer_params", "hostname = %s",  peer_params_.hostname.c_str());
-        log_debug("peer_params", "addr     = %lu", peer_params_.addr);
-        log_debug("peer_params", "port     = %d",  peer_params_.port);
-        log_debug("peer_params", "rank     = %d",  peer_params_.rank);
+        log_debug("peer_params", "hostname    = %s",  peer_params_.hostname.c_str());
+        log_debug("peer_params", "addr        = %lu", peer_params_.addr);
+        log_debug("peer_params", "port        = %d",  peer_params_.port);
+        log_debug("peer_params", "fingerprint = %s",  peer_params_.fingerprint.c_str());
+        log_debug("peer_params", "rank        = %d",  peer_params_.rank);
     }
 
 private:

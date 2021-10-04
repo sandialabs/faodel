@@ -1,13 +1,12 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #include <climits>
 #include <string>
 #include <vector>
 #include <iostream>
 #include <iomanip>
-#include <sstream>
 #include <algorithm>
 
 #include <stdexcept>
@@ -58,7 +57,7 @@ string ExpandPunycode(string const &s) {
 
       if( isxdigit(c[i]) && isxdigit(c[i+1]) ) {
 
-        unsigned char tmp=0;
+        unsigned char tmp;
         if     (isdigit(c[i])) tmp =      c[i] - '0';
         else if(islower(c[i])) tmp = 10 + c[i] - 'a';
         else                   tmp = 10 + c[i] - 'A';
@@ -86,14 +85,14 @@ bool IsValidIPString(const string &hostname) {
   bool all_digits=true;
   bool has_digits=false;
 
-  for(auto s : octets) {
-    if(s=="") return false;
+  for(auto &s : octets) {
+    if(s.empty()) return false;
     char *p;
     long val = strtol(s.c_str(), &p,10);
     if(*p) {
       //Couldn't parse.. not a digit
       all_digits=false;
-    } else if((val>=0) || (val<=255)) {
+    } else if((val>=0) && (val<=255)) {
       has_digits=true;
     } else {
       has_digits=true;
@@ -109,14 +108,14 @@ bool IsValidIPString(const string &hostname) {
 /**
  * @brief Convert a numerical string (eg "100" "4K") into an int32 value (eg 100, 4096)
  * @param[out] val The output variable to set
- * @param[in] name Input string to parse
+ * @param[in] token Input string to parse
  * @retval 0 If input could be parsed
  * @retval EINVAL If input string couldn't be parsed
  */
-int StringToInt32(int32_t *val, const std::string &name) {
-  kassert(val,"Null val ptr handed to StringToInt32");
+int StringToInt32(int32_t *val, const std::string &token) {
+  F_ASSERT(val, "Null val ptr handed to StringToInt32");
   int64_t val64;
-  int rc = StringToInt64(&val64, name);
+  int rc = StringToInt64(&val64, token);
   if(rc!=0) return rc;
   *val = (val64 & 0x0FFFFFFFFL);
   return 0;
@@ -125,14 +124,14 @@ int StringToInt32(int32_t *val, const std::string &name) {
 /**
  * @brief Convert a numerical string (eg "100" "4K") into an uint32 value (eg 100, 4096)
  * @param[out] val The output variable to set
- * @param[in] name Input string to parse
+ * @param[in] token Input string to parse
  * @retval 0 If input could be parsed
  * @retval EINVAL If input string couldn't be parsed
  */
-int StringToUInt32(uint32_t *val, const std::string &name) {
-  kassert(val,"Null val ptr handed to StringToUInt32");
+int StringToUInt32(uint32_t *val, const std::string &token) {
+  F_ASSERT(val, "Null val ptr handed to StringToUInt32");
   uint64_t val64;
-  int rc = StringToUInt64(&val64, name);
+  int rc = StringToUInt64(&val64, token);
   if(rc!=0) return rc;
   *val = (val64 & 0x0FFFFFFFFL);
   return 0;
@@ -141,13 +140,13 @@ int StringToUInt32(uint32_t *val, const std::string &name) {
 /**
  * @brief Convert a numerical string (eg "100" "4K") into an int64 value (eg 100, 4096)
  * @param[out] val The output variable to set
- * @param[in] name Input string to parse
+ * @param[in] token Input string to parse
  * @retval 0 If input could be parsed
  * @retval EINVAL If input string couldn't be parsed
  */
-int StringToInt64(int64_t *val, string const &name) {
-  kassert(val,"Null val ptr handed to StringToInt64");
-  string sname = name;
+int StringToInt64(int64_t *val, string const &token) {
+  F_ASSERT(val, "Null val ptr handed to StringToInt64");
+  string sname = token;
   int64_t multiplier=1;
   char last_char = *sname.rbegin();
   if(!isdigit(last_char)) {
@@ -156,7 +155,7 @@ int StringToInt64(int64_t *val, string const &name) {
     case'm': multiplier = 1024*1024; break;
     case'g': multiplier = 1024*1024*1024; break;
     default:
-      cerr << "Parsing problem decyphering " << name << " as an integer string\n";
+      cerr << "Parsing problem decyphering " << token << " as an integer string\n";
       return EINVAL;
     }
   }
@@ -169,13 +168,13 @@ int StringToInt64(int64_t *val, string const &name) {
 /**
  * @brief Convert a numerical string (eg "100" "4K") into an uint64 value (eg 100, 4096)
  * @param[out] val The output variable to set
- * @param[in] name Input string to parse
+ * @param[in] token Input string to parse
  * @retval 0 If input could be parsed
  * @retval EINVAL If input string couldn't be parsed
  */
-int StringToUInt64(uint64_t *val, string const &name) {
-  kassert(val,"Null val ptr handed to StringToUInt64");
-  string sname = name;
+int StringToUInt64(uint64_t *val, string const &token) {
+  F_ASSERT(val, "Null val ptr handed to StringToUInt64");
+  string sname = token;
   int64_t multiplier=1;
   char last_char = *sname.rbegin();
   if(!isdigit(last_char)) {
@@ -184,7 +183,7 @@ int StringToUInt64(uint64_t *val, string const &name) {
     case'm': multiplier = 1024*1024; break;
     case'g': multiplier = 1024*1024*1024; break;
     default:
-      cerr << "Parsing problem decyphering " << name << " as an unsigned integer string\n";
+      cerr << "Parsing problem decyphering " << token << " as an unsigned integer string\n";
       return EINVAL;
     }
   }
@@ -199,18 +198,87 @@ int StringToUInt64(uint64_t *val, string const &name) {
   return 0;
 }
 /**
- * @brief Convert a numerical string into an pointer value
+ * @brief Convert a numerical string into a pointer value
  * @param[out] val The output variable to set
- * @param[in] sval Input string to parse
+ * @param[in] token Input string to parse
  * @retval 0 If input could be parsed
  * @retval EINVAL If input string couldn't be parsed
  * @note This function is **not** commonly used and can be dangerous
  */
-int StringToPtr(void **val, string const &sval) {
-  kassert(val,"Null val ptr handed to StringToPtr");
+int StringToPtr(void **val, string const &token) {
+  F_ASSERT(val, "Null val ptr handed to StringToPtr");
 
   //Pass back to the user
-  *val = (void*)strtoull(sval.c_str(), nullptr, 16);
+  *val = (void*)strtoull(token.c_str(), nullptr, 16);
+
+  return 0;
+}
+
+/**
+ * @brief Convert a string with a boolean flag into a value
+ * @param val The output
+ * @param token  Input string to parse (valid options: true,false,1,0,t,f)
+ * @retval 0 If input token could be parsed
+ * @retval EINVAL if input token couldn't be parsed
+ */
+int StringToBoolean(bool *val, const string &token) {
+  if(token.empty()) { if(val) *val=false; return EINVAL; }
+  string ltoken = ToLowercase(token);
+  if((ltoken=="true") || (ltoken=="1") || (ltoken=="t")) {
+    if(val) *val = true;
+    return 0;
+  }
+  if((ltoken=="false") || (ltoken=="0") || (ltoken=="f")) {
+    if(val) *val = false;
+    return 0;
+  }
+  return EINVAL;
+}
+
+/**
+ * @brief Convert a time string (with us,ms,minutes,hours,seconds,s suffixes) to a uint64 microsecond value
+ * @param val The output in microseconds
+ * @param token Input string to parse
+ * @retval 0 If input could be parsed
+ * @retval EINVAL if input string couldn't be parsed
+ */
+int StringToTimeUS(uint64_t *val, string const &token) {
+  F_ASSERT(val, "Null val ptr handed to StringToTimeUS");
+  if(token.empty()) { *val=0; return EINVAL; }
+
+  vector<pair<string, uint64_t>> table = { {"us",      1},
+                                           {"ms",      1000},
+                                           {"minutes", 60*1000*1000ul},
+                                           {"hours",   3600*1000*1000ul},
+                                           {"seconds", 1000*1000ul},
+                                           {"s",       1000*1000ul}  //note:make sure this is last since others end in s
+                                         };
+  uint64_t multiplier=1; //Assume us if not specified
+  string sname = faodel::ToLowercase(token);
+  for(auto &name_mult : table) {
+    if(StringEndsWith(sname, name_mult.first)) {
+      multiplier = name_mult.second;
+      size_t last=sname.size()-name_mult.first.size();
+      while((last>0) && (sname.at(last-1)==' ')) //trim spaces
+        last--;
+      sname = sname.substr(0, last);
+      break;
+    }
+  }
+  //Check for non-numbers
+  bool is_good= !sname.empty();
+  for(int i=0; (is_good) && (i<sname.size()); i++) {
+    is_good = isdigit(sname.at(i));
+  }
+
+  if(is_good) {
+    *val = multiplier * strtoul(sname.c_str(), nullptr, 0);
+    is_good = !((*val == ULONG_MAX) && (errno == ERANGE));
+  }
+  if(!is_good) {
+    *val = 0;
+    return EINVAL;
+  }
 
   return 0;
 }
@@ -268,6 +336,24 @@ void ToLowercaseInPlace(string &s) {
   std::transform(s.begin(), s.end(), s.begin(), ::tolower);
 }
 
+//From stack overflow: s/o 440133
+// Note: make sure you srand() before this since it's just the stock C rng!
+string RandomString(size_t string_length) {
+  auto randchar = []() -> char
+  {
+      const char charset[] =
+              "0123456789"
+              "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+              "abcdefghijklmnopqrstuvwxyz";
+      const size_t max_index = (sizeof(charset) - 1);
+      return charset[ rand() % max_index ];
+  };
+  std::string str(string_length,0);
+  std::generate_n( str.begin(), string_length, randchar );
+  return str;
+}
+
+
 /**
  * @brief Determine if string begins with a specific prefix
  *
@@ -297,6 +383,28 @@ bool StringEndsWith(const std::string &s, const std::string &search_suffix) {
                     search_suffix.begin());
 }
 
+/**
+ * @brief Convert an integer into a zero-padded string of a specified number of digits
+ * @param val The number to use
+ * @param to_num_digits The number of string digits to return
+ * @return Zero-padded string (eg, 93 zero padded to 5 digits becomes "00093")
+ */
+std::string StringZeroPad(int val, int to_num_digits) {
+  string s=std::to_string(val);
+  if(s.size()<to_num_digits)
+    s = string(to_num_digits - s.size(),'0') + s;
+  return s;
+}
+
+string StringCenterTitle(const std::string &s) {
+  if(s.empty()) return string(80,'=');
+  stringstream ss;
+  string stmp = (s.size()<76) ? s : s.substr(0,76);
+  size_t left = (80 - (stmp.size()+2))/2;
+  size_t right = (80 - (left + 1 + stmp.size() + 1));
+  ss << string(left,'=') <<" " << stmp <<" "<< string(right, '=');
+  return ss.str();
+}
 
 /**
  * @brief Split a path into a vector of strings
@@ -317,8 +425,8 @@ vector<string> SplitPath(string const &s) {
  */
 string JoinPath(vector<string> const &vv, int num_items) {
 
-  kassert(num_items>=0, "JoinPath");
-  kassert(num_items<=(int)vv.size(), "JoinPath");
+  F_ASSERT(num_items >= 0, "JoinPath");
+  F_ASSERT(num_items <= (int)vv.size(), "JoinPath");
 
   stringstream ss;
   for(int i=0; i<num_items; i++)
@@ -345,19 +453,17 @@ string Join(const vector<string> &tokens, char sep) {
  * @retval string The expanded path
  * @retval string An empty string ("") if wordexp() returned an error
  */
-string ExpandPath(std::string const &s, int flags)
-{
-    int rc=0;
-    wordexp_t p;
-    string result;
+string ExpandPath(std::string const &s, int flags) {
+  wordexp_t p;
+  string result;
 
-    rc = wordexp(s.c_str(), &p, flags);
-    if ((rc==0) && (p.we_wordc==1)) {
-        result = string(p.we_wordv[0]);
-        wordfree(&p);
-        return result;
-    }
-    return string("");
+  int rc = wordexp(s.c_str(), &p, flags);
+  if ((rc==0) && (p.we_wordc==1)) {
+      result = string(p.we_wordv[0]);
+      wordfree(&p);
+      return result;
+  }
+  return string("");
 }
 /**
  * @brief Use wordexp() to perform symbol expansion on a string allowing all substitutions
@@ -366,9 +472,8 @@ string ExpandPath(std::string const &s, int flags)
  * @retval string The expanded path
  * @retval string An empty string ("") if wordexp() returned an error
  */
-string ExpandPath(std::string const &s)
-{
-    return ExpandPath(s, 0);
+string ExpandPath(std::string const &s) {
+  return ExpandPath(s, 0);
 }
 /**
  * @brief Use wordexp() to perform symbol expansion on a string disallowing command substitution
@@ -377,15 +482,61 @@ string ExpandPath(std::string const &s)
  * @retval string The expanded path
  * @retval string An empty string ("") if wordexp() returned an error
  */
-string ExpandPathSafely(std::string const &s)
-{
-    return ExpandPath(s, WRDE_NOCMD);
+string ExpandPathSafely(std::string const &s) {
+  return ExpandPath(s, WRDE_NOCMD);
 }
+
+
+/**
+ * @brief Resolve an item in a component string, guessing "item" first, then "item.env_name"
+ * @param item The name of the item to resolve (eg path, file)
+ * @param settings The map of settings extacted from a config for a particular item
+ * @retval The resolved string (possibly pulled from env var)
+ * @retval Empty string when not found or env var did no exist
+ *
+ * Sometimes we pull out a chunk of settings from a Configuration that are related to
+ * a specific entity. While most of the time we use k/v pairs, users can also append
+ * the key name with ".env_name" to specify that we should get the actual value from
+ * the env var that was specified. See IomPosixIndividualObjetcs for an example
+ */
+string GetItemFromComponentSettings(const string &item, const map<string,string> &settings) {
+  string resolved_value;
+
+  auto ii = settings.find(item);
+  if(ii != settings.end()) {
+    resolved_value = ii->second;
+  } else {
+    ii = settings.find(item + ".env_name");
+    if( (ii != settings.end()) && (!ii->second.empty()) ) {
+      char *c_item_var = getenv(ii->second.c_str());
+      if(c_item_var != nullptr) {
+        resolved_value = string(c_item_var);
+      }
+    }
+  }
+  return resolved_value;
+}
+/**
+ * @brief Shortcut for pulling a file from a component setting (appends "/" if needed)
+ * @param settings Component settings to examine
+ * @retval path (ending in '/')
+ * @retval empty (not found)
+ */
+std::string GetPathFromComponentSettings(const std::map<std::string,std::string> &settings) {
+  string p = GetItemFromComponentSettings("path", settings);
+  if((!p.empty()) && (p.back()!='/')) p=p+"/";
+  return p;
+}
+std::string GetFileFromComponentSettings(const std::map<std::string,std::string> &settings) {
+  return GetItemFromComponentSettings("file", settings);
+}
+
+
 
 void ConvertToHexDump(const char *x, ssize_t len, int chars_per_line,
                       int grouping_size,
-                      string even_prefix, string even_suffix,
-                      string odd_prefix,  string odd_suffix,
+                      const string &even_prefix, const string &even_suffix,
+                      const string &odd_prefix,  const string &odd_suffix,
                       vector<string> *byte_offsets,
                       vector<string> *hex_lines,
                       vector<string> *txt_lines) {
@@ -471,7 +622,7 @@ void ConvertToHexDump(const char *x, ssize_t len,  int chars_per_line,
   if(txt_part) *txt_part = ss_txt.str();
 }
 
-void ConvertToHexDump(const string s, int chars_per_line,
+void ConvertToHexDump(const string &s, int chars_per_line,
                       string *hex_part, string *txt_part) {
 
   ConvertToHexDump(s.c_str(),s.size(), chars_per_line, hex_part, txt_part);
@@ -525,6 +676,10 @@ uint32_t hash_dbj2(const bucket_t &bucket, const string &s) {
 
 uint32_t hash32(const std::string &s) {
   return hash_dbj2(s);
+}
+uint16_t hash16(const std::string &s) {
+  uint32_t h = hash32(s);
+  return (h>>16) ^ (h & 0x0FFFF);
 }
 
 /**
@@ -604,7 +759,7 @@ int parseIDInRange(const std::string &token, int num_nodes) {
  * @return Set containing all the values
  * @thows runtime_error When invalid input
  */
-std::set<int> ExtractIDs(const std::string line, int num_nodes) {
+std::set<int> ExtractIDs(const std::string &line, int num_nodes) {
 
   string s=ToLowercase(line);
 
@@ -626,7 +781,7 @@ std::set<int> ExtractIDs(const std::string line, int num_nodes) {
       //This is some range value, like 2-4 or 2-end
       int a = parseIDInRange(range_val[0], num_nodes);
       int b = parseIDInRange(range_val[1], num_nodes);
-      if((a>b) || (b<0) || (a>=num_nodes) || (b>=num_nodes) ||(a==b))
+      if((a>b) || (b<0) || (a>=num_nodes) || (b>=num_nodes)) // ||(a==b))
         throw std::runtime_error("ExtractID Range parse problem in token '"+t+"' for '"+line+"'");
 
       for(int i=a; i<=b; i++)

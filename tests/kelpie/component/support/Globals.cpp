@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 
 
@@ -22,10 +22,9 @@ Globals::~Globals(){
 }
 
 
-
 // This version looks at config to guess what the ip should be. The root info
 // is bcast to all nodes, the config updated, and then bootstrap starts.
-void Globals::StartAll(int &argc, char **argv, faodel::Configuration &config){
+void Globals::StartAll(int &argc, char **argv, faodel::Configuration &config, int minimum_ranks) {
 
   stringstream ss;
   string whookie_port;
@@ -35,8 +34,10 @@ void Globals::StartAll(int &argc, char **argv, faodel::Configuration &config){
   MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank);
   MPI_Comm_size(MPI_COMM_WORLD, &mpi_size);
 
-  if(mpi_size<=1) {
-    cerr<<"This test needs to be run with multiple ranks via MPI\n";
+  if(mpi_size<minimum_ranks) {
+    if(mpi_rank==0)
+      cerr<<"Testing Error: This test needs to be run with at least "<<minimum_ranks<<" ranks via MPI\n";
+    MPI_Finalize();
     exit(-1);
   }
 

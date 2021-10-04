@@ -1,11 +1,11 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
-#include <stdio.h>
-#include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
+#include <cstdio>
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
 #include <sstream>
 #include <iostream>
 #include <thread>
@@ -32,15 +32,12 @@ RFTPool::RFTPool(const ResourceURL &pool_url)
   //TODO: the DHTPool ctor makes connections to ALL resources. We only need the one
 
   string intended_rank = pool_url.GetOption("rank");
-  if(intended_rank == "") {
+  if(intended_rank.empty()) {
     MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank);
   } else {
     mpi_rank = std::stoi(intended_rank, nullptr, 0);
   }
 
-}
-RFTPool::~RFTPool(){
-  //lkv was allocated in core
 }
 
 /**

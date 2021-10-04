@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #ifndef KELPIE_KEY_HH
 #define KELPIE_KEY_HH
@@ -63,6 +63,18 @@ public:
   void        K1(std::string value)       { k1 = value; }    //!< Set the row label
   void        K2(std::string value)       { k2 = value; }    //!< Set the column label
 
+  //Wildcard checks
+  bool IsRowWildcard() const;
+  bool IsColWildcard() const;
+  bool IsWildcard() const;
+
+  //Prefix check
+  bool matchesPrefixString(bool row_is_prefix, const std::string &row_match,
+                           bool col_is_prefix, const std::string &col_match) const;
+
+  //Wildcard check
+  bool Matches(const std::string &row_wildcard, const std::string &col_wildcard) const;
+  bool Matches(const Key &pattern_key) const { return Matches(pattern_key.K1(), pattern_key.K2()); }
 
   //Simple pack/unpack to binary string
   std::string pup() const;
@@ -96,6 +108,7 @@ public:
    */
   std::string str() const { return k1+"|"+k2; }          //!< Join the row/column labels into one string (for debugging)
 
+  std::string str_as_args() const;                      //!< Return in argument string form (eg '-k1 key1 -k2 key2')
 
   bool operator== (const Key &other) const { return   (k1 == other.K1()) && (k2 == other.K2());  }
   bool operator!= (const Key &other) const { return !((k1 == other.K1()) && (k2 == other.K2())); }
@@ -112,6 +125,10 @@ public:
   size_t size() const { return k1.size() + k2.size(); }  //!< Total length of the row and column names
 
   bool valid() const { return (k1.size() > 0); }         //!< A valid key has to at least have a row name
+
+  static Key Random(size_t k1_length, size_t k2_length=0);           //!< Generate a random string key of specified length
+  static Key Random(const std::string &k1_name, size_t k2_length=0); //!< Generate a key with a fixed row name and random column name
+  static Key Random(size_t k1_length, const std::string &k2_name);   //!< Generate a key with a fixed column name and random row name
 
 private:
   std::string k1;

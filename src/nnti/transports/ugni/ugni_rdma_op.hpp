@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 
 #ifndef UGNI_RDMA_OP_HPP_
@@ -199,9 +199,21 @@ private:
                 conn->rdma_ep_hdl(),
                 &post_desc_);
         if (gni_rc != GNI_RC_SUCCESS) {
-            log_error("ugni_rdma_op", "failed to post BTE (gni_rc=%d): %s", gni_rc, strerror(errno));
-            result_ = NNTI_EMSGSIZE;
-            goto error;
+          // log an error message and set a generic error code; if possible, set a specific code below 
+          log_error("ugni_rdma_op", "failed to post BTE (gni_rc=%d): %s", gni_rc, strerror(errno));
+          result_ = NNTI_EIO;
+
+          if (gni_rc == GNI_RC_ALIGNMENT_ERROR) {
+              result_ = NNTI_EALIGN;
+          } else if (gni_rc == GNI_RC_ERROR_NOMEM) {
+              result_ = NNTI_ENOMEM;
+          } else if (gni_rc == GNI_RC_INVALID_PARAM) {
+              result_ = NNTI_EINVAL;
+          } else if (gni_rc == GNI_RC_PERMISSION_ERROR) {
+              result_ = NNTI_EPERM;
+          }
+
+          goto error;
         }
         nthread_unlock(&transport_->ugni_lock_);
         log_debug("ugni_rdma_op", "called PostRdma()");
@@ -288,7 +300,7 @@ error:
 
         return op_state::CLEANUP;
     }
-    op_state
+    void
     update_stats(void)
     {
         nnti::datatype::nnti_work_request &wr = wid_->wr();

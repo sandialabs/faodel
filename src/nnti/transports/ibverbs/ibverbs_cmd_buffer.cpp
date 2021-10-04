@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 
 #include "nnti/nntiConfig.h"
@@ -32,8 +32,6 @@ ibverbs_cmd_buffer::ibverbs_cmd_buffer(
   cmd_count_(cmd_count),
   cmd_offset_(0)
 {
-    int rc;
-
     setup_command_buffer();
 }
 ibverbs_cmd_buffer::~ibverbs_cmd_buffer()
@@ -86,7 +84,7 @@ ibverbs_cmd_buffer::setup_command_buffer(void)
         cmd_mr_  = ibv_reg_mr(transport_->pd_, cmd_buf_, cmd_size_ * cmd_count_, ibv_flags);
 //    }
 
-    for (int i=0;i<cmd_count_;i++) {
+    for (uint32_t i=0;i<cmd_count_;i++) {
         char *cmd_addr = (char*)cmd_buf_+(cmd_size_ * i);
         log_debug("ibverbs_cmd_buffer", "cmd_addr = %p = %lx + (%u * %d)", cmd_addr, cmd_buf_, cmd_size_, i);
         nnti::core::ibverbs_cmd_msg *cm = new nnti::core::ibverbs_cmd_msg(transport_, this, cmd_addr, cmd_size_);
@@ -101,14 +99,14 @@ ibverbs_cmd_buffer::teardown_command_buffer(void)
 {
     log_debug("ibverbs_cmd_buffer", "teardown_command_buffer: enter");
 
-    for (int i=0;i<cmd_count_;i++) {
+    for (uint32_t i=0;i<cmd_count_;i++) {
         delete msgs_[i];
     }
     if (transport_->use_odp_) {
         log_debug("ibverbs_buffer", "using ODP - unregister is a no-op");
     } else {
         log_debug("ibverbs_cmd_buffer", "deregistering ibverbs_cmd_buffer (cmd_buf_=%x)", cmd_buf_);
-        int ibv_rc=ibv_dereg_mr(cmd_mr_);
+        ibv_dereg_mr(cmd_mr_);
     }
     delete[] cmd_buf_;
 

@@ -47,12 +47,19 @@
 
 
 /* Faodel Common Info */
+#cmakedefine01 Faodel_ASSERT_METHOD_NONE
+#cmakedefine01 Faodel_ASSERT_METHOD_CASSERT
+#cmakedefine01 Faodel_ASSERT_METHOD_DEBUG_WARN
+#cmakedefine01 Faodel_ASSERT_METHOD_DEBUG_HALT
+#cmakedefine01 Faodel_ASSERT_METHOD_DEBUG_EXIT
+
 #cmakedefine Faodel_THREADING_MODEL   @Faodel_THREADING_MODEL@
 #cmakedefine Faodel_THREADING_MODEL_PTHREADS   1
 #cmakedefine Faodel_THREADING_MODEL_OPENMP     1
 #cmakedefine01 Faodel_LOGGINGINTERFACE_DISABLED
 #cmakedefine01 Faodel_LOGGINGINTERFACE_USE_SBL
 
+#cmakedefine01 Faodel_ENABLE_DEBUG_TIMERS
 
 /* NNTI Config Info */
 #cmakedefine01 NNTI_BUILD_IBVERBS

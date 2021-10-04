@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #ifndef OPBENCHMARKPUT_HH
 #define OPBENCHMARKPUT_HH
@@ -22,7 +22,10 @@ class OpBenchmarkPut
     enum class State : int  {
         start=0,
         snd_wait_for_ack,
-        tgt_created,
+        warm_up,
+        warm_up_wait,
+        start_benchmark,
+        execute_benchmark,
         done
     };
 

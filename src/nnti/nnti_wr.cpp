@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 
 #include "nnti/nntiConfig.h"
@@ -20,34 +20,34 @@ namespace datatype {
 
     nnti_work_request::nnti_work_request(
         nnti::transports::transport *transport)
-        : cb_(transport),
-          nnti_datatype(transport,
-                        NNTI_dt_work_request)
+        : nnti_datatype(transport,
+                        NNTI_dt_work_request),
+          wr_(),
+          cb_(transport)
+
     {
         return;
     }
     nnti_work_request::nnti_work_request(
         nnti::transports::transport *transport,
         NNTI_work_request_t         &wr)
-        : cb_(transport,
-              wr.callback),
-          nnti_datatype(transport,
-                        NNTI_dt_work_request)
+        : nnti_datatype(transport,
+            NNTI_dt_work_request),
+          wr_(wr),
+          cb_(transport,
+              wr.callback)
     {
-        wr_ = wr;
-
         return;
     }
     nnti_work_request::nnti_work_request(
         nnti::transports::transport         *transport,
         NNTI_work_request_t                 &wr,
         nnti::datatype::nnti_event_callback  cb)
-        : cb_(cb),
-          nnti_datatype(transport,
-                        NNTI_dt_work_request)
+        : nnti_datatype(transport,
+                        NNTI_dt_work_request),
+          wr_(wr),
+          cb_(cb)
     {
-        wr_ = wr;
-
         return;
     }
 
@@ -67,7 +67,7 @@ namespace datatype {
     {
         return wr_.peer;
     }
-    const NNTI_process_id_t
+    NNTI_process_id_t
     nnti_work_request::peer_pid(void) const
     {
         nnti::datatype::nnti_peer *peer=(nnti::datatype::nnti_peer*)wr_.peer;

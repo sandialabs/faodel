@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 
 #include "nnti/nnti_pch.hpp"
@@ -74,7 +74,6 @@ public:
     }
 
     NNTI_result_t operator() (NNTI_event_t *event, void *context) {
-        NNTI_result_t rc = NNTI_OK;
 
         pingpong_context *c = (pingpong_context*)context;
 
@@ -101,9 +100,9 @@ public:
                     uint32_t seed     = *(uint32_t*)(payload+4); // the salt
                     seed++;
 
-                    rc = populate_buffer(c->transport_, seed, 0, c->send_src_.hdl, c->send_src_.base, c->send_src_.size);
+                    populate_buffer(c->transport_, seed, 0, c->send_src_.hdl, c->send_src_.base, c->send_src_.size);
 
-                    rc = send_data_async(c->transport_, 0, c->send_src_.hdl, c->send_target_.hdl, event->peer, *c->cb_, context);
+                    send_data_async(c->transport_, 0, c->send_src_.hdl, c->send_target_.hdl, event->peer, *c->cb_, context);
 
                     c->recv_count_++;
                 } else {

@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 /**
  * @file Lunasa.hh
@@ -86,6 +86,10 @@ void RegisterPinUnpin(net_pin_fn pin, net_unpin_fn unpin);
 void RegisterDataObjectType(dataobject_type_t tag, std::string name, fn_DataObjectDump_t dump_func);
 void DeregisterDataObjectType(dataobject_type_t tag);
 bool DumpDataObject(const DataObject &ldo, faodel::ReplyStream &rs);
+
+
+DataObject LoadDataObjectFromFile(std::string filename);
+
 
 std::vector<std::string> AvailableAllocators();
 std::vector<std::string> AvailableCores();

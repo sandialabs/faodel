@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #ifndef OPBOX_OPBOXCORETHREADED_HH
 #define OPBOX_OPBOXCORETHREADED_HH
@@ -13,6 +13,7 @@
 #include "lunasa/DataObject.hh"
 #include "opbox/ops/Op.hh"
 #include "opbox/core/OpBoxCoreBase.hh"
+#include "opbox/core/OpTimer.hh"
 
 namespace opbox {
 namespace internal {
@@ -42,13 +43,11 @@ public:
   int LaunchOp(opbox::Op *op, mailbox_t *resulting_mailbox) override;
   int TriggerOp(mailbox_t mailbox, std::shared_ptr<OpArgs> args) override;
 
-  //int EnueueTriggerOp(mailbox_t mailbox, std::shared_ptr<OpArgs> args) override;
-  
   int HandleIncomingMessage(opbox::net::peer_ptr_t peer, message_t *incoming_message) override;
   int UpdateOp(Op *op, OpArgs *args) override;
-  
-  
-  
+
+  int GetNumberOfActiveOps(unsigned int op_id=0) override;
+
   void HandleWhookieStatus(const std::map<std::string,std::string> &args, std::stringstream &results);
   void HandleWhookieActiveOps(const std::map<std::string,std::string> &args, std::stringstream &results);
   std::string GetType() const override { return "threaded"; }
@@ -67,18 +66,12 @@ private:
   void        addActiveOp(opbox::Op *op);
   void        endActiveOp(mailbox_t mailbox);
 
-  int doUpdate(mailbox_t my_mailbox, Op *op, OpArgs *args);
-
-  int doLaunchOp(Op *op);
-
-  int doHandleIncomingMessage(mailbox_t my_mailbox, Op *op, OpArgs *args);
-  int doUpdateOp(Op *op, OpArgs *args);
-  int doTriggerOp(mailbox_t mailbox, Op *op, OpArgs *args);
 
   faodel::MutexWrapper *op_mutex;
   std::map<int, opbox::Op *> active_ops;
 
-  const uint32_t recv_buf_count=10;
+  OpTimer *op_timer = nullptr; //Debug: collect info about how long each op took
+
 };
 
 } //namespace internal

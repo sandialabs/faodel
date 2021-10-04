@@ -1,3 +1,7 @@
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
+
 #include <stdlib.h>
 #include <iostream>
 #include <libgen.h>
@@ -14,7 +18,7 @@ using namespace faodel;
 
 //Global
 int global_verbose_level=0;
-
+int global_rank=0;
 
 //Helper functions
 bool dumpSpecificHelp(string subcommand, const string options[5]) {
@@ -48,6 +52,16 @@ void warn(const string &s){
   cerr << "\033[1;31m" << "Warning:" << ":\033[0m "<<s<<endl;
 }
 
+void info0(const string &s) {
+  if(global_rank==0) info(s);
+}
+void dbg0(const string &s) {
+  if(global_rank==0) dbg(s);
+}
+void warn0(const string &s) {
+  if(global_rank==0) warn(s);
+}
+
 void modifyConfigLogging(Configuration *config, const vector<string > &basic_service_names, const vector<string> &very_verbose_service_names) {
 
   for(auto s : basic_service_names) {
@@ -66,10 +80,12 @@ void modifyConfigLogging(Configuration *config, const vector<string > &basic_ser
 
 
 int dumpHelp(string subcommand) {
-  cout <<"faodel <options> COMMAND <args>\n";
-  cout <<" options:\n"
+  cout <<"faodel <options> COMMAND <args>\n"
+       <<"\n"
+       <<" options:\n"
        <<"  -v/-V or --verbose/--very-verbose : Display runtime/debug info\n"
-       <<"  -d id or --dirman-node id         : Use hex id for dirman node (overrides env vars)\n"
+       <<"  --dirman-node id                  : Override config and use id for dirman\n"
+       <<"\n"
        <<" commands:\n";
 
   bool found=false;
@@ -80,6 +96,9 @@ int dumpHelp(string subcommand) {
   found |= dumpHelpResource(subcommand);
   found |= dumpHelpKelpieServer(subcommand);
   found |= dumpHelpKelpieClient(subcommand);
+  found |= dumpHelpKelpieBlast(subcommand);
+  found |= dumpHelpAllInOne(subcommand);
+  found |= dumpHelpPlay(subcommand);
 
   string help_help[5] = {
           "help", "help", "<cmd>", "Provide more info about specific commands\n",
@@ -155,10 +174,10 @@ int main(int argc, char **argv) {
     if(     (sarg == "-v")  || (sarg == "--verbose"))           global_verbose_level = 1;
     else if((sarg == "-V")  || (sarg == "--very-verbose"))      global_verbose_level = 2;
     else if((sarg == "-VV") || (sarg == "--very-very-verbose")) global_verbose_level = 3;
-    else if((sarg == "-d")  || (sarg == "--dirman-node")) {
+    else if( /* no -d */       (sarg == "--dirman-node")) { //Note: -d is common for --dir, so don't use it
       i++;
       if(i>=argc) {
-        cerr <<"Error: provided -d or --dirman-node, but did not provide a node id\n";
+        cerr <<"Error: provided --dirman-node, but did not provide a node id\n";
         return -1;
       }
       //Change env vars so this overrides.. this does not override anything in config file
@@ -187,6 +206,7 @@ int main(int argc, char **argv) {
     }
 
     //Figure out which command this is and process it
+    if(rc==ENOENT) rc = checkAllInOneCommands(cmd, args);
     if(rc==ENOENT) rc = checkBuildCommands(cmd, args);
     if(rc==ENOENT) rc = checkConfigCommands(cmd, args);
     if(rc==ENOENT) rc = checkWhookieClientCommands(cmd, args);
@@ -194,6 +214,8 @@ int main(int argc, char **argv) {
     if(rc==ENOENT) rc = checkResourceCommands(cmd, args);
     if(rc==ENOENT) rc = checkKelpieServerCommands(cmd, args);
     if(rc==ENOENT) rc = checkKelpieClientCommands(cmd, args);
+    if(rc==ENOENT) rc = checkKelpieBlastCommands(cmd, args);
+    if(rc==ENOENT) rc = checkPlayCommands(cmd, args);
 
 
     //Help menus

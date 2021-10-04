@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 /*
  *  @file: nnti_util.hpp
@@ -48,69 +48,17 @@
 namespace nnti  {
 namespace util {
 
-static uint32_t
-str2uint32(const std::string &s)
-{
-    uint32_t i = 0;
+uint32_t
+str2uint32(const std::string &s);
+uint64_t
+str2uint64(const std::string &s);
 
-    try {
-        i = boost::lexical_cast<uint32_t>(s);
-    }
-    catch (boost::bad_lexical_cast &) {
-        // i is already 0.  do nothing.
-        // i = 0;
-    }
+int32_t
+str2int32(const std::string &s);
+int64_t
+str2int64(const std::string &s);
 
-    return i;
-}
-static uint64_t
-str2uint64(const std::string &s)
-{
-    uint64_t i = 0;
-
-    try {
-        i = boost::lexical_cast<uint64_t>(s);
-    }
-    catch (boost::bad_lexical_cast &) {
-        // i is already 0.  do nothing.
-        // i = 0;
-    }
-
-    return i;
-}
-
-static int32_t
-str2int32(const std::string &s)
-{
-    int32_t i = 0;
-
-    try {
-        i = boost::lexical_cast<int32_t>(s);
-    }
-    catch (boost::bad_lexical_cast &) {
-        // i is already 0.  do nothing.
-        // i = 0;
-    }
-
-    return i;
-}
-static int64_t
-str2int64(const std::string &s)
-{
-    int64_t i = 0;
-
-    try {
-        i = boost::lexical_cast<int64_t>(s);
-    }
-    catch (boost::bad_lexical_cast &) {
-        // i is already 0.  do nothing.
-        // i = 0;
-    }
-
-    return i;
-}
-
-static inline int
+inline int
 sleep(
     const uint64_t msec)
 {
@@ -135,7 +83,7 @@ sleep(
 }
 
 /* Thomas Wang's 64 bit to 32 bit Hash Function (http://www.concentric.net/~ttwang/tech/inthash.htm) */
-static inline uint32_t
+inline uint32_t
 hash6432shift(
     uint64_t key)
 {
@@ -151,7 +99,9 @@ hash6432shift(
 /*
  * Convert a 64 bit value from big endian to host byte order.
  */
-static inline uint64_t betoh64(uint64_t val)
+inline uint64_t
+betoh64(
+    uint64_t val)
 {
 #if __BYTE_ORDER == __BIG_ENDIAN
     return val;

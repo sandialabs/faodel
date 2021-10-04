@@ -1,10 +1,36 @@
 Release Information
 ===================
 
-This file provides information about different releases of the
-faodel tools. Releases are named alphabetically and have a
-4-digit ID associated with them that designates the year and month of
-the release.
+This file provides information about different releases of the faodel tools. 
+Releases are named alphabetically and have a 4-digit ID associated with them
+that designates the year and month of the release.
+
+Fluid (1.2108.1)
+----------------
+- Summary: Trace record/playback, Stress tools, UDFs, and testing
+- Release Improvements
+  - Kelpie: Added Drop and RowInfo operations for remote use
+  - Kelpie: Added ResultCollector to simplify async requests
+  - Kelpie: New trace pool for client-side pool activities
+  - Lunasa: Added DataObjectPacker for easier packing
+  - Lunasa: Added StringObject for easier packing of text  
+  - NNTI: Added support for RoCE
+  - faodel-cli: config-info dumps out configuration options
+  - faodel-cli: New playback option that can use traces
+  - faodel-cli: New kblast option generates parallel kelpie traffic
+  - faodel-stress: New tool for benchmarking CPU for non-net activities
+  - OpBox: Ability to capture timing traces for ops
+  - Backburner: New notification methods to decrease CPU usage  
+- Significant User-Visible Changes:
+  - Kelpie: kv_row/col_info_t replaced by object_info_t (smaller, simpler)
+  - config: "ioms" are now "kelpie.ioms"
+    config: backburner.notification_method for pipe, polling, sleep_polling
+  - Examples cam now be built inside the build via BUILD_EXAMPLES
+  - OpBoxStandard is now OpBoxDeprecatedStandard
+- Experimental Features
+  - kelpie 'Compute' allows server to perform computations on objects via UDFs
+- Known Issues: todo
+
 
 Excelsior! (1.1906.1)
 ---------------------

@@ -59,6 +59,7 @@ message( STATUS "[Faodel] Locating required third-party libraries" )
 # These are options in the Faodel build
 set( Faodel_ENABLE_IOM_LEVELDB @Faodel_ENABLE_IOM_LEVELDB@ )
 set( Faodel_ENABLE_IOM_HDF5 @Faodel_ENABLE_IOM_HDF5@ )
+set( Faodel_ENABLE_IOM_CASSANDRA @Faodel_ENABLE_IOM_CASSANDRA@ )
 
 
 include( ${CMAKE_CURRENT_LIST_DIR}/FaodelTPLs.cmake )

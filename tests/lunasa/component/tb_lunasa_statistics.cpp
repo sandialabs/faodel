@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #include "gtest/gtest.h"
 //#include <mpi.h>
@@ -22,7 +22,6 @@ string default_config = R"EOF(
 default.kelpie.core_type nonet
 
 #lkv settings for the server
-server.max_capacity 32M
 server.mutex_type   rwlock
 
 lunasa.eager_memory_manager tcmalloc
@@ -87,7 +86,7 @@ TEST_F(LunasaStatisticsTest, FixedSizeAllocations) {
   int i = 0;
 
   DataObject *allocs = new DataObject[ops];
-  char buffer[BUFFER_LENGTH];
+  //char buffer[BUFFER_LENGTH];
 
   EXPECT_EQ(0, Lunasa::TotalAllocated());
   while(num_bytes[i]>0) {
@@ -117,10 +116,9 @@ TEST_F(LunasaStatisticsTest, RandomSizeAllocations) {
   srand((int) clock());
 
   unsigned long *num_bytes = (unsigned long *) malloc(ops*sizeof(unsigned long));
-  int i = 0;
 
   DataObject *allocs = new DataObject[ops];
-  char buffer[BUFFER_LENGTH];
+  //char buffer[BUFFER_LENGTH];
 
   for(int i = 0; i<ops; i++) {
     num_bytes[i] = rand()%1048576*sizeof(int);

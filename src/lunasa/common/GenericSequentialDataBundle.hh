@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #ifndef FAODEL_GENERICSEQUENTIALBUNDLE_HH
 #define FAODEL_GENERICSEQUENTIALBUNDLE_HH
@@ -31,7 +31,7 @@ namespace lunasa {
 template<class EXTRA_META_TYPE>
 struct GenericSequentialBundle {
   uint32_t num_items;
-  uint32_t pad2; //Reserved for alignme
+  uint32_t pad2; //Reserved for alignment
   EXTRA_META_TYPE meta;
   unsigned char packed_data[0];
 

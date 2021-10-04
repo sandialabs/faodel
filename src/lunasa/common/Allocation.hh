@@ -1,17 +1,25 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #ifndef LUNASA_ALLOCATION_HH
 #define LUNASA_ALLOCATION_HH 
 
 #include <atomic>
-#include <assert.h>
 
 #include "faodel-common/Common.hh"
 
 #include "lunasa/Lunasa.hh"
 #include "lunasa/allocators/AllocatorBase.hh"
+
+//Debug: dump out info about when LDO refcount changes happen
+//#define Faodel_DEBUG_LDO_REFCOUNTS
+#ifdef Faodel_DEBUG_LDO_REFCOUNTS
+#define DBG_REFCOUNT(s) { std::cout<<"DEBUG_LDO: "<<s<<" count is now: "<<local.ref_count<<std::endl; }
+#else
+#define DBG_REFCOUNT(s)
+#endif
+
 
 /* !!!! TODO !!!!
  * Enumerate assumptions.
@@ -58,6 +66,7 @@ typedef struct {
   AllocatorBase *allocator;    //!< Reference to the allocator that provided the memory
   uint32_t net_buffer_offset;  //!< Starting offset into buffer? May be nonzero when doing a suballocation
   uint32_t allocated_bytes;    //!< Number of bytes that were allocated (includes local, header, and user sizes)
+  uint32_t padding;
 
   // User-allocated memory segments that have been made part of the LDO.
   // NOTE: a std::vector is used here to support potential cases in the future
@@ -80,17 +89,23 @@ typedef struct {
 //   
 struct Allocation {
   allocation_local_t  local;   //!< Pointers and bookkeeping only available on local node
-  allocation_header_t header;  //!< Start of raw data, includes lengths
+#if defined(__GNUC__)
+  allocation_header_t header __attribute__ ((aligned (4)));  //!< Start of raw data, includes lengths
 
+#elif defined(__INTEL_COMPILER)
+  __declspec(align(4)) allocation_header_t header;  //!< Start of raw data, includes lengths
+#else
+#error Unsupported compiler (only GCC or Intel currently supported; Apple Clang TODO)!!
+#endif
   #pragma GCC diagnostic push
   #pragma GCC diagnostic ignored "-Wpedantic"
-  uint8_t             user[0]; //!< Start of user's meta/data
+  uint8_t user[0]; //!< Start of user's meta/data
   #pragma GCC diagnostic pop
 
-  void setHeader(int initial_ref_count,
-                 uint16_t meta_size, uint32_t data_size,
-                 dataobject_type_t type) {
+  void setHeader(int initial_ref_count, uint16_t meta_size, uint32_t data_size, 
+                 uint32_t padding, dataobject_type_t type) {
     local.ref_count = ATOMIC_VAR_INIT(initial_ref_count);
+    local.padding   = padding;
     header.type       = type;
     header.data_bytes = data_size;
     header.meta_bytes = meta_size;
@@ -110,12 +125,14 @@ struct Allocation {
   // !!!! TODO not sure whether these get used !!!!
   bool IsPinned()    { return local.net_buffer_handle != nullptr; }
   int  GetRefCount() { return local.ref_count.load(); }
-  void IncrRef()     { ++local.ref_count; }
-  void DropRef()     { --local.ref_count; } //For internal patching
+  void IncrRef()     { ++local.ref_count; DBG_REFCOUNT("IncrRef"); }
+  void DropRef()     { --local.ref_count; DBG_REFCOUNT("DropRef"); } //For internal patching
   int  DecrRef() {    //Issues a dealloc of this when reaches zero
-    assert(local.ref_count > 0 && "LunasaDataObject refcount decremented to below zero");
+    F_ASSERT(local.ref_count > 0, "LunasaDataObject refcount decremented to below zero");
 
     int num_left = --local.ref_count;
+    DBG_REFCOUNT("DecrRef");
+
     if(num_left == 0) {
       if( local.user_data_segments != nullptr ) {
 

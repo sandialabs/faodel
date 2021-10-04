@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 
 // This test tests mpisync start to see if multiple nodes
@@ -63,9 +63,10 @@ public:
   void Init(const faodel::Configuration &config) override {
     ConfigureLogging(config);
     myconfig = config;
+    dbg("init called");
   }
-  void Start() override {}
-  void Finish() override {}
+  void Start() override { dbg("start called");}
+  void Finish() override { dbg("finish called");}
   void GetBootstrapDependencies(std::string &name,
                                 std::vector<std::string> &requires,
                                 std::vector<std::string> &optional) const override {
@@ -155,6 +156,8 @@ TEST_F(BootstrapMPITest, MPISyncStartMPI) {
 
 mpisyncstart.enable true
 
+#getconfig.debug true  #Show our config interceptor getting called
+
 dirman.root_node_mpi 0
 dirman.resources_mpi[] dht:/my/all&info="booya"   ALL
 dirman.resources_mpi[] dht:/my/single&info="single" 0
@@ -163,15 +166,17 @@ dirman.resources_mpi[] dht:/my/double&info="single" 0-middle
 )EOF";
 
   test_bcastConfig(CMD_NEW_MPISYNC_START, c1);
-  bootstrap::Start(Configuration(c1), test_mpisync::bootstrap /*mpisyncstart::bootstrap*/);
+  bootstrap::Start(Configuration(c1), test_mpisync::bootstrap ); // <-- Call our special bootstrap so we can get config!
 
-  Configuration c = test_mpisync::get_config.myconfig;
+
+  Configuration c = test_mpisync::get_config.myconfig; // <-- Use our special bootstrap to get the config everyone saw
   int num1, num2;
   vector<string> urls_orig, urls_mod;
   num1 = c.GetStringVector(&urls_orig, "dirman.resources_mpi");
   num2 = c.GetStringVector(&urls_mod, "dirman.resources");
   EXPECT_EQ(num1, num2);
   EXPECT_EQ(3, num2);
+
   if (num2 <= 3) {
     ResourceURL urls[3];
     DirectoryInfo dir_info[3];
@@ -185,6 +190,7 @@ dirman.resources_mpi[] dht:/my/double&info="single" 0-middle
     EXPECT_EQ("single", urls[1].name);
     EXPECT_EQ("double", urls[2].name);
   }
+
 }
 
 

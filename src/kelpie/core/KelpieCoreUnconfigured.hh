@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #ifndef KELPIE_KELPIECOREUNCONFIGURED_HH
 #define KELPIE_KELPIECOREUNCONFIGURED_HH
@@ -39,11 +39,11 @@ public:
   //Pool Management
   void RegisterPoolConstructor(std::string pool_name, fn_PoolCreate_t ctor_function) override;
   Pool Connect(const faodel::ResourceURL &resource_url) override;
+  std::vector<std::string> GetRegisteredPoolTypes() const override;
 
-  //IOM Management
-  void RegisterIomConstructor(std::string type, fn_IomConstructor_t ctor_function) override;
-  IomBase * FindIOM(iom_hash_t iom_hash) override;
-  
+  //Pool Server
+  int JoinServerPool(const faodel::ResourceURL &url, const std::string &optional_node_name) override;
+
   //InfoInterface function
   void sstr(std::stringstream &ss, int depth=0, int indent=0) const override;
 

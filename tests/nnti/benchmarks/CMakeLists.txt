@@ -8,8 +8,6 @@ include_directories(
    ${CMAKE_SOURCE_DIR}/src/nnti
    ${CMAKE_BINARY_DIR}/src/nnti
 )
-SET(EXTRA_TEST_LIBS "-lz")
-
 
 # Build the test support lib-------------------------------------------------
 if(Faodel_ENABLE_MPI_SUPPORT)
@@ -26,9 +24,9 @@ endif(Faodel_ENABLE_MPI_SUPPORT)
 
 set(SERIAL_TEST_LIBS
   benchutils
+  ZLIB::ZLIB
   GTest::GTest
   GTest::Main
-  ${EXTRA_TEST_LIBS}
 )
 
 set(MPI_TEST_LIBS 
@@ -39,11 +37,12 @@ set(MPI_TEST_LIBS
 #--------------+-----------------------------+----------------------------------+---------+
 # Format:      |  Name                       |  Directory                       | Autorun |
 #--------------+-----------------------------+----------------------------------+---------+
-
+if( Faodel_HAVE_CRC32 )
 if( Faodel_ENABLE_MPI_SUPPORT )
   add_mpi_test( MemoryRegistration           . 1 false  )
 
   add_mpi_test( AtomicsWithCallback          . 2 false  )
   add_mpi_test( RdmaWithCallback             . 2 false  )
   add_mpi_test( SendWithCallback             . 2 false  )
-endif()
+endif( Faodel_ENABLE_MPI_SUPPORT )
+endif( Faodel_HAVE_CRC32 )

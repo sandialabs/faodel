@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #include <iostream>
 
@@ -30,10 +30,10 @@ const string OpDirManCentralized::op_name = "OpDirManCentralized";
 OpDirManCentralized::OpDirManCentralized(RequestType req_type, faodel::nodeid_t root_id, faodel::DirectoryInfo dir_info)
         : Op(true), state(State::start), ldo_msg(), request_type(RequestType::HostNewDir) {
 
-  kassert(req_type == RequestType::HostNewDir, "Only supports hostnewdir now");
+  F_ASSERT(req_type == RequestType::HostNewDir, "Only supports hostnewdir now");
 
   int rc = opbox::net::Connect(&peer, root_id); //Retrieve the root's peer ptr
-  kassert((rc==0), "Connect failed?");
+  F_ASSERT((rc == 0), "Connect failed?");
 
   msg_dirman::AllocateRequest(ldo_msg,
                               RequestType::HostNewDir,
@@ -52,11 +52,11 @@ OpDirManCentralized::OpDirManCentralized(RequestType req_type, faodel::nodeid_t 
 OpDirManCentralized::OpDirManCentralized(RequestType req_type, faodel::nodeid_t root_id, faodel::ResourceURL url)
         : Op(true), state(State::start), ldo_msg(), request_type(req_type) {
 
-  kassert((req_type == RequestType::GetInfo)  ||
-          (req_type == RequestType::JoinDir)  ||
-          (req_type == RequestType::LeaveDir) ||
-          (req_type == RequestType::DropDir)  ||
-          (req_type == RequestType::ReturnDirInfo), "Request type not handled");
+  F_ASSERT((req_type == RequestType::GetInfo) ||
+           (req_type == RequestType::JoinDir) ||
+           (req_type == RequestType::LeaveDir) ||
+           (req_type == RequestType::DropDir) ||
+           (req_type == RequestType::ReturnDirInfo), "Request type not handled");
 
   int rc = opbox::net::Connect(&peer, root_id); //Retrieve the root's peer ptr
   if(rc!=0) {
@@ -108,7 +108,7 @@ string OpDirManCentralized::GetStateName() const {
     case State::done:
       return "Done";
   }
-  KFAIL();
+  F_FAIL();
 }
 
 } // namespace dirman

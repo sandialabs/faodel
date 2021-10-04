@@ -1,14 +1,103 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #include <iostream>
 #include <stdexcept>
+#include "faodel-common/StringHelpers.hh"
 #include "kelpie/Key.hh"
 
 using namespace std;
 
 namespace kelpie {
+
+
+/**
+ * @brief Determine if Key has a wildcard in its row (ie, ends with '*')
+ * @retval true It's a wildcard
+ * @retval false Not a wildcard
+ */
+bool Key::IsRowWildcard() const {
+  return faodel::StringEndsWith(k1, "*");
+}
+
+/**
+ * @brief Determine if Key has a wildcard in its column (ie, ends with '*')
+ * @retval true It's a wildcard
+ * @retval false Not a wildcard
+ */
+bool Key::IsColWildcard() const {
+  return faodel::StringEndsWith(k2, "*");
+}
+
+/**
+ * @brief Determine if Key has a wildcard in either its row or column (ie, ends with '*')
+ * @retval true It's a wildcard
+ * @retval false Not a wildcard
+ */
+bool Key::IsWildcard() const {
+  return IsRowWildcard() || IsColWildcard();
+}
+
+/**
+ * @brief Determine whether this key matches row/col search parameters
+ * @param row_is_prefix true=Allow any key that matches this prefix, false=Row name must be exact
+ * @param row_match     The row name to match against (does NOT permit wildcards)
+ * @param col_is_prefix true=Allow any key that matches this prefix, false=Col name must be exact
+ * @param col_match     The col name to match against (does NOT permit wildcards)
+ * @retval true The key matches
+ * @retval false The key does NOT match
+ *
+ * This is a power user function, as it expects that you've looked at some key, determined
+ * it was a wildcard or not, and removed the trailing '*' because you're searching a lot
+ * of keys. The Matches() function below illustrates that kind of behavior.
+ */
+bool Key::matchesPrefixString(bool row_is_prefix, const std::string &row_match,
+                              bool col_is_prefix, const std::string &col_match) const {
+
+  //Check the row first
+  if(row_is_prefix) {
+    //User originally asked for "my_row_prefix*" or "*", so row_match is "my_row_prefix" or ""
+    if( (!row_match.empty()) &&  //Empty in this case means match everything
+        (!faodel::StringBeginsWith(k1, row_match))) {
+      return false;
+    }
+
+  } else {
+    //User is expecting an exact match
+    if(k1 != row_match) return false;
+  }
+
+  //Check the column
+  if(col_is_prefix) {
+    //User originally asked for "my_col_prefix*" or "*", so col_match is "my_col_prefix" or ""
+    if( (!col_match.empty()) &&  //Empty in this case means match everything
+        (!faodel::StringBeginsWith(k2, col_match))) {
+      return false;
+    }
+
+  } else {
+    //User is expecting an exact match
+    if(k2 != col_match) return false;
+  }
+
+  return true;
+}
+
+/**
+ * @brief Determine if this key matches a row/col wildcards
+ * @param row_wildcard The exact row name to match, or a wildcard (eg my_row*)
+ * @param col_wildcard The exact col name to match, or a wildcard (eg my_col*)
+ * @retval true This key matches the inputs
+ * @retval false This key does NOT match the inputs
+ */
+bool Key::Matches(const std::string &row_wildcard, const std::string &col_wildcard) const {
+  bool is_row_wildcard = faodel::StringEndsWith(row_wildcard, "*");
+  bool is_col_wildcard = faodel::StringEndsWith(col_wildcard, "*");
+  string row_prefix = (is_row_wildcard) ? row_wildcard.substr(0, row_wildcard.size()-1) : row_wildcard;
+  string col_prefix = (is_col_wildcard) ? col_wildcard.substr(0, col_wildcard.size()-1) : col_wildcard;
+  return matchesPrefixString(is_row_wildcard, row_prefix, is_col_wildcard, col_prefix);
+}
 
 
 /**
@@ -32,11 +121,11 @@ string Key::pup() const {
   size_t len = 2+k1.size()+k2.size();
   s.resize(len);
 
-  s[0] = static_cast<uint8_t>(k1.size() & 0x0ff);
-  s[1] = static_cast<uint8_t>(k2.size() & 0x0ff);
-  size_t i=2;
+  size_t i=0;
   for(size_t j=0; j<k1.size(); i++, j++) s[i] = k1[j];
   for(size_t j=0; j<k2.size(); i++, j++) s[i] = k2[j];
+  s[i++] = static_cast<uint8_t>(k1.size() & 0x0ff);
+  s[i++] = static_cast<uint8_t>(k2.size() & 0x0ff);
   
   return s;
 }
@@ -53,15 +142,70 @@ void Key::pup(const std::string &packed_string) {
   
   int s0{0},s1{0};
   if(packed_string.size()>2) { //2 bytes for length fields, which can be zero
-    s0=static_cast<uint8_t>(packed_string[0]);
-    s1=static_cast<uint8_t>(packed_string[1]);
+    int i = packed_string.size() - 1;
+    // WORKING backward from the end of the string
+    s1=static_cast<uint8_t>(packed_string[i--]);
+    s0=static_cast<uint8_t>(packed_string[i--]);
   }
   if(s0+s1+2>static_cast<int>(packed_string.size())){
     throw std::runtime_error("Error unpacking key");
   }
-  k1 = (s0==0) ? "" : packed_string.substr(2,   s0); 
-  k2 = (s1==0) ? "" : packed_string.substr(2+s0,s1); 
-
+  k1 = (s0==0) ? "" : packed_string.substr(0,   s0); 
+  k2 = (s1==0) ? "" : packed_string.substr(0+s0,s1); 
 }
+
+
+string Key::str_as_args() const {
+  //Todo: would be nice to handle spaces via quotes
+  stringstream ss;
+  if(!k1.empty())                    ss<<"-k1 "<<k1;
+  if((!k1.empty()) && (!k2.empty())) ss<<" ";
+  if(!k2.empty())                    ss<<"-k2 "<<k2;
+  return ss.str();
+}
+
+/**
+ * @brief Generate a key with random alpha-numeric labels
+ * @param k1_length The number of characters for the row part of the key
+ * @param k2_length The number of characters for the col part of the key
+ * @retval Key that has random printable characters for its row/column components
+ */
+Key Key::Random(size_t k1_length, size_t k2_length) {
+  string s1 = faodel::RandomString(k1_length);
+  if(k2_length==0) {
+    return Key(s1);
+  }
+  string s2 = faodel::RandomString(k2_length);
+  return Key(s1, s2);
+}
+
+/**
+ * @brief Generate a key with a fixed row name and random alpha-numeric column name
+ * @param k1_name The name to use for the row part of the key
+ * @param k2_length The number of characters for the col part of the key
+ * @retval Key that has random printable characters for its row/column components
+ */
+Key Key::Random(const string &k1_name, size_t k2_length) {
+  if(k2_length==0) {
+    return Key(k1_name);
+  }
+  string s2 = faodel::RandomString(k2_length);
+  return Key(k1_name, s2);
+}
+
+/**
+ * @brief Generate a key with a random alpha-numeric row name and a fixed column name
+ * @param k1_length The number of characters for the row part of the key
+ * @param k2_name The name to use for the column part of the key
+ * @retval Key that has random printable characters for its row/column components
+ */
+Key Key::Random(size_t k1_length, const string &k2_name) {
+  string s1 = faodel::RandomString(k1_length);
+  return Key(s1, k2_name);
+}
+
+
+
+
 
 } // namespace kelpie

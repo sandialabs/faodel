@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #include <iostream>
 #include <chrono>
@@ -27,7 +27,7 @@ OpRegistry::OpRegistry()
  * @brief Signify that work has been completed and that all known ops should be discarded
  */
 void OpRegistry::Finish(){
-  kassert(finalized, "Finish attempted on OpRegistry when it has not been started");
+  F_ASSERT(finalized, "Finish attempted on OpRegistry when it has not been started");
 
   mutex->Lock();
   //Get rid of all post ops
@@ -92,6 +92,27 @@ void OpRegistry::RegisterOp(int op_id, string op_name, fn_OpCreate_t func){
     op_names_post[op_id] = op_name;
     mutex->Unlock();
   }
+}
+
+/**
+ * @brief Convert a registered op id number to a name
+ * @param[in] op_id The ID of the op
+ * @retval NAME The name of the registered op
+ * @retval "" ID was not registered
+ */
+string OpRegistry::GetOpName(int op_id) const {
+  auto search1 = op_names_pre.find(op_id);
+  if(search1 != op_names_pre.end()) {
+    return search1->second;
+  }
+  string result;
+  mutex->ReaderLock();
+  auto search2 = op_names_post.find(op_id);
+  if(search2 != op_names_post.end()) {
+    result = search2->second;
+  }
+  mutex->Unlock();
+  return result;
 }
 
 /**

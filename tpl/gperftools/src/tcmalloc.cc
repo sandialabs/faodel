@@ -892,7 +892,7 @@ class TCMallocImplementation : public MallocExtension {
       return;
     }
     num_bytes = num_bytes - extra_bytes_released_;
-    // num_bytes might be less than one page.  If we pass zero to
+    // num_user_bytes might be less than one page.  If we pass zero to
     // ReleaseAtLeastNPages, it won't do anything, so we release a whole
     // page now and let extra_bytes_released_ smooth it out over time.
     Length num_pages = max<Length>(num_bytes >> kPageShift, 1);
@@ -901,7 +901,7 @@ class TCMallocImplementation : public MallocExtension {
     if (bytes_released > num_bytes) {
       extra_bytes_released_ = bytes_released - num_bytes;
     } else {
-      // The PageHeap wasn't able to release num_bytes.  Don't try to
+      // The PageHeap wasn't able to release num_user_bytes.  Don't try to
       // compensate with a big release next time.  Specifically,
       // ReleaseFreeMemory() calls ReleaseToSystem(LONG_MAX).
       extra_bytes_released_ = 0;

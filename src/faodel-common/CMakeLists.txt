@@ -18,7 +18,8 @@ set(HEADERS
   QuickHTML.hh
   ReplyStream.hh
   ResourceURL.hh
-  SerializationHelpers.hh
+        SerializationHelpersBoost.hh
+  SerializationHelpersCereal.hh
   StringHelpers.hh
 )
 
@@ -42,11 +43,17 @@ set(SOURCES
   StringHelpers.cpp
 )
 
+if(Faodel_ENABLE_MPI_SUPPORT)
+  LIST( APPEND Common_imports MPI::MPI_CXX)
+endif()
+LIST( APPEND Common_imports tpl-cereal )
+
+
 add_library( common ${HEADERS} ${SOURCES} )
 set_target_properties( common PROPERTIES
   OUTPUT_NAME "faodel-common"
   )
-target_link_libraries( common sbl )
+target_link_libraries( common PUBLIC sbl ${Common_imports})
 
 
 

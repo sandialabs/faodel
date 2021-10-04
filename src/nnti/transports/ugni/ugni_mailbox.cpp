@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 
 #include "nnti/nntiConfig.h"
@@ -33,15 +33,11 @@ ugni_mailbox::ugni_mailbox(
   cmd_count_(cmd_count),
   cmd_offset_(0)
 {
-    int rc;
-
     setup_command_buffer();
 }
 ugni_mailbox::~ugni_mailbox()
 {
     teardown_command_buffer();
-
-    return;
 }
 
 std::string

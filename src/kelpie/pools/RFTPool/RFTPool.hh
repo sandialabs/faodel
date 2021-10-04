@@ -1,12 +1,12 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #ifndef KELPIE_RFTPOOL_HH
 #define KELPIE_RFTPOOL_HH
 
-#include <stdint.h>
-#include <stdlib.h>
+#include <cstdint>
+#include <cstdlib>
 #include <vector>
 #include <map>
 #include <memory>
@@ -32,13 +32,13 @@ class RFTPool : public DHTPool {
 
 public:
 
-  RFTPool(const faodel::ResourceURL &pool_url);
-  ~RFTPool() override;
+  explicit RFTPool(const faodel::ResourceURL &pool_url);
+  ~RFTPool() override = default;
 
   std::string TypeName() const override { return "rft"; }
 
   //InfoInterface function
-  void sstr(std::stringstream &ss, int depth=0, int indent=0) const override;
+  void sstr(std::stringstream &ss, int depth, int indent) const override;
 
 protected:
   uint32_t findNodeIndex(const Key &key) override;

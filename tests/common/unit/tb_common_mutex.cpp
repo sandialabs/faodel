@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 
 #include <string>
@@ -97,7 +97,8 @@ void * th_burnRW(void *argsIn) {
       //cout <<"Doing w lock on " << key << " " << args->id << " " << i << endl;
       args->mutex->WriterLock();
 
-      (*args->rw_map)[key] = key;
+      //(*args->rw_map)[key] = key;
+      (*args->rw_map)[key] = val;
       mutex->Unlock();
       num_wr++;
     } else {

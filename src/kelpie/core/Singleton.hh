@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #ifndef KELPIE_SINGLETON_HH
 #define KELPIE_SINGLETON_HH
@@ -70,6 +70,16 @@ public:
   static kelpie::internal::SingletonImpl         impl;
 };
 
+/// Alias for getting at the current kelpie core
+KelpieCoreBase * getKelpieCore();
+
+//Internal functions
+std::vector<std::string> getCoreTypes();
+std::vector<std::string> getPoolTypes();
+std::vector<std::string> getIomTypes();
+
+IomBase * FindIOM(std::string iom_name);
+IomBase * FindIOM(iom_hash_t iom_hash);
 
 }  // namespace internal
 }  // namespace kelpie

@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #include "opbox/core/Singleton.hh"
 
@@ -69,7 +69,7 @@ void SingletonImpl::Init(const faodel::Configuration &config){
 
   ConfigureLogging(config);
   string dirman_type;
-  config.GetLowercaseString(&dirman_type, "dirman.type",  "none");
+  config.GetLowercaseString(&dirman_type, "dirman.type",  "centralized");
 
 
   dbg("About to create type "+dirman_type);

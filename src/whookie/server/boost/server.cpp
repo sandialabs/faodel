@@ -46,7 +46,7 @@ server::server()
 server::~server(){
   stop();
 }
-void server::Init(const faodel::Configuration &config){
+void server::InitAndModifyConfiguration(faodel::Configuration *config){
 
   int64_t port;
   string interfaces;
@@ -54,11 +54,11 @@ void server::Init(const faodel::Configuration &config){
   string interface_address("");
 
   //Extract config info for whookie
-  ConfigureLogging(config); //Grab logging
-  config.GetString(&app_name,            "whookie.app_name",   "Whookie Application");
-  config.GetInt(&port,                   "whookie.port",       "1990");
-  config.GetLowercaseString(&address,    "whookie.address",    "0.0.0.0");
-  config.GetLowercaseString(&interfaces, "whookie.interfaces", "eth,lo");
+  ConfigureLogging(*config); //Grab logging
+  config->GetString(&app_name,            "whookie.app_name",   "Whookie Application");
+  config->GetInt(&port,                   "whookie.port",       "1990");
+  config->GetLowercaseString(&address,    "whookie.address",    "0.0.0.0");
+  config->GetLowercaseString(&interfaces, "whookie.interfaces", "eth,lo");
 
   /*
    * How whookie finds an address to bind to:
@@ -77,7 +77,8 @@ void server::Init(const faodel::Configuration &config){
   requested_address = address;
   requested_port = port;
 
-  config.GetAllSettings(&config_entries); //Copy all of the config settings for display
+  //config.GetAllSettings(&config_entries); //Copy all of the config settings for display
+  bootstrap_config_ptr = config; //Get a reference back to bootstrap
 
   asio_ = new asio_resources();
   do_await_stop();
@@ -113,8 +114,11 @@ void server::HandleWhookieConfig(const map<string,string> &args, stringstream &r
   rs.tableRow({"Whookie Link", rs.createLink(  my_nodeid.GetHttpLink(), my_nodeid.GetHttpLink(), false)  });
   rs.tableRow({"NodeID", rs.createLink( my_nodeid.GetHex(), my_nodeid.GetHttpLink(), false) }); // my_nodeid.GetHtmlLink()});
   rs.tableEnd();
-  
-  rs.mkTable(config_entries, "User-Supplied Configuration");
+
+  vector<pair<string,string>> config_entries;
+  bootstrap_config_ptr->GetAllSettings(&config_entries);
+
+  rs.mkTable(config_entries, "Current Configuration");
   rs.mkText(rs.createBold("Note:")+"These are the parameters provided to bootstrap. Some values "
             "(eg whookie.port) may have been adjusted due to conflicts\n");
   

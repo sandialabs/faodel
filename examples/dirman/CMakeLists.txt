@@ -1,15 +1,34 @@
-set(PROJECT_NAME dirman-example)
+set(PROJECT_NAME ex_dirman)
+
+if( NOT TARGET MPI::MPI_CXX )
+    message( STATUS "Some Dirman Examples will not be built because MPI Support was not enabled")
+
+else()
 
 
-add_executable(       dirman1-preload-configuration dirman1-preload-configuration.cpp)
-set_target_properties(dirman1-preload-configuration PROPERTIES LINKER_LANGUAGE CXX )
-target_link_libraries(dirman1-preload-configuration Faodel::dirman)
+    # When doing a standalone build, use the Faodel::dirman imported target
+    if(NOT DEFINED EXAMPLE_LIBS)
+        set(EXAMPLE_LIBS Faodel::dirman)
+    endif()
 
-add_executable(       dirman2-runtime-define dirman2-runtime-define.cpp)
-set_target_properties(dirman2-runtime-define PROPERTIES LINKER_LANGUAGE CXX )
-target_link_libraries(dirman2-runtime-define Faodel::dirman)
+    # We also use mpi
+    list(APPEND EXAMPLE_LIBS
+            MPI::MPI_CXX
+            )
 
-install(TARGETS dirman1-preload-configuration dirman2-runtime-define
-        EXPORT faodelExampleTargets
-        RUNTIME DESTINATION "${BINARY_INSTALL_DIR}" COMPONENT bin
-)
+    set(TARGET ex_dirman1-preload-configuration)
+    add_executable(       ${TARGET} dirman1-preload-configuration.cpp)
+    set_target_properties(${TARGET} PROPERTIES LINKER_LANGUAGE CXX )
+    target_link_libraries(${TARGET} ${EXAMPLE_LIBS} )
+
+    set(TARGET ex_dirman2-runtime-define)
+    add_executable(       ${TARGET} dirman2-runtime-define.cpp)
+    set_target_properties(${TARGET} PROPERTIES LINKER_LANGUAGE CXX )
+    target_link_libraries(${TARGET} ${EXAMPLE_LIBS})
+
+    install(TARGETS ex_dirman1-preload-configuration ex_dirman2-runtime-define
+            EXPORT faodelExampleTargets
+            RUNTIME DESTINATION "${BINARY_INSTALL_DIR}" COMPONENT bin
+    )
+
+endif()

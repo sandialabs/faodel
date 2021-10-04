@@ -1,4 +1,4 @@
-set(PROJECT_NAME job2job)
+set(PROJECT_NAME ex_opbox_job2job)
 
 set(HEADERS
    OpInterjobPing.hh
@@ -22,11 +22,11 @@ set(CLIENT_EXEC ${PROJECT_NAME}-client)
 
 add_executable(${SERVER_EXEC} ${HEADERS} ${SERVER_SOURCES} ${COMMON_SOURCES})
 set_target_properties(${SERVER_EXEC} PROPERTIES LINKER_LANGUAGE CXX )
-target_link_libraries(${SERVER_EXEC} ${EXAMPLES_LIBS})
+target_link_libraries(${SERVER_EXEC} ${EXAMPLE_LIBS})
 
 add_executable(${CLIENT_EXEC} ${HEADERS} ${CLIENT_SOURCES} ${COMMON_SOURCES})
 set_target_properties(${CLIENT_EXEC} PROPERTIES LINKER_LANGUAGE CXX )
-target_link_libraries(${CLIENT_EXEC} ${EXAMPLES_LIBS})
+target_link_libraries(${CLIENT_EXEC} ${EXAMPLE_LIBS})
 
 install(TARGETS ${PROJECT_NAME}-server ${PROJECT_NAME}-client
         EXPORT faodelExampleTargets

@@ -3,9 +3,28 @@ FAODEL Overview
 FAODEL (Flexible, Asynchronous, Object Data-Exchange Libraries) is a 
 collection of software libraries that are used to implement 
 different data management services on high-performance computing (HPC)
-platforms. This project is part of the Advanced Technology Development
-and Mitigation (ATDM) effort for NNSA's ASC program at Sandia 
-National Laboratories. 
+platforms. This project was funded through NNSA's ASC program at Sandia 
+National Laboratories.
+
+- **What Problem Does This Solve?** HPC workflows often need a way to
+  move large datasets between two or more MPI applications. Rather than route
+  intermediate data through the filesystem, FAODEL lets you pass the data
+  *directly* between the two MPI applications or *indirectly* through a 
+  separate distributed memory application. The filesystem can also be used
+  if applications in the workflow do not run concurrently.
+  
+- **Who Is the Intended Audience?** This software is intended for HPC 
+  developers that write parallel MPI applications in C++ and run 
+  workflows on cluster computers with hundreds to thousands of compute
+  nodes. FAODEL requires an HPC network fabric such as InfiniBand, RoCE,
+  OmniPath, or Gemini.
+
+- **Pronounciation**: We say *"Fay-oh-Dell"*.
+ 
+**Note**: FAODEL development takes place in a private repository due to Sandia's
+      software release process. The Github repository is only updated when
+      there are minor bug fixes or new release snapshots. This message will
+      be updated if/when FAODEL is no longer being developed.
 
 Components
 ----------
@@ -47,6 +66,17 @@ FAODEL is composed of multiple libraries:
   provides a way to map log information in FAODEL components to
   Boost's logging library.
   
+There are two main command-line tools users may find useful:
+
+- [faodel-cli](tools/faodel-cli/README_Faodel_Cli.md): This tool is an 
+  all-in-one tool for hosting and configuring different faodel services 
+  such as dirman and kelpie. Users can obtain build and runtime info, as 
+  well as query services and put/get/delete objects. Commands can also be
+  replayed through the play command. 
+- [faodel-stress](tools/faodel-stress/README_Faodel_Stress.md): This
+  standalone tool can be used to benchmark a system and estimate how
+  well it performs different data management operations.
+
 Additional Information
 ======================
 This release includes files to help guide users. The files are:
@@ -59,6 +89,10 @@ This release includes files to help guide users. The files are:
 - [NEWS](NEWS.md): The news file provides a history of major changes provided
   with each release of this software. Developers should review this document
   when switching to a new release.
+- [Configuration File Cookbook](docs/ConfigurationFileCookbook.md): This page 
+  provides a summary of runtime configuration settings to plug into your
+  $FAODEL_CONFIG file
+- [What's a Faodel?](docs/WhatsAFaodel.md) How we picked the acronym.
 
 Contributors
 ============
@@ -85,8 +119,10 @@ and copyright info:
 - gperftools (in tpl/gperftools)
 - Boost ASIO examples (in src/whookie/server)
 
+
+
 Copyright
 =========
-Copyright 2018 National Technology & Engineering Solutions of Sandia, LLC
+Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
 (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S. 
 Government retains certain rights in this software. 

@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 
 #include "opbox/net/net.hh"
@@ -65,7 +65,7 @@ int opbox::net::GetRdmaPtr(
     opbox::net::NetBufferLocal  **nbl,           // out
     opbox::net::NetBufferRemote  *nbr)           // out
 {
-    uint32_t length = ldo->GetHeaderSize() + ldo->GetMetaSize() + ldo->GetDataSize();
+    uint32_t length = ldo->GetHeaderSize() + ldo->GetMetaSize() + ldo->GetDataSize() + ldo->GetPaddingSize();
     return opbox::net::GetRdmaPtr(ldo, ldo->GetLocalHeaderSize(), length, nbl, nbr);
 }
 

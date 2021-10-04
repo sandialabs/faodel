@@ -17,6 +17,13 @@ check_c_source_compiles(
 
 SET( NNTI_HAVE_XDR 1 )
 
+if( NOT NNTI_HAVE_RPC_TYPES_H  OR  NOT NNTI_HAVE_RPC_XDR_H )
+  SET( NNTI_HAVE_XDR 0 )
+endif()
+
 if( NOT NNTI_HAVE_XDR_SIZEOF )
   SET( NNTI_HAVE_XDR 0 )
 endif()
+
+SET( NNTI_HAVE_XDR ${NNTI_HAVE_XDR} CACHE BOOL "Does XDR exist on this system?" )
+

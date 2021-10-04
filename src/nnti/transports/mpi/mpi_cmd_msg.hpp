@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 
 #ifndef MPI_CMD_MSG_HPP_
@@ -62,7 +62,6 @@ private:
     size_t                           index_;
 
     nnti::transports::mpi_transport *transport_;
-    nnti::core::mpi_cmd_buffer      *cmd_buf_;
     struct cmd_msg                  *cmd_msg_buf_;
     uint32_t                         cmd_msg_size_;
 

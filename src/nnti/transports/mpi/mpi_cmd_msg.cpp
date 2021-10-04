@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 
 #include "nnti/nntiConfig.h"
@@ -25,7 +25,6 @@ mpi_cmd_msg::mpi_cmd_msg(
     nnti::transports::mpi_transport *transport,
     const uint32_t                   cmd_msg_size)
 : transport_(transport),
-  cmd_buf_(nullptr),
   cmd_msg_buf_(nullptr),
   cmd_msg_size_(cmd_msg_size),
   free_in_dtor_(true),
@@ -40,7 +39,6 @@ mpi_cmd_msg::mpi_cmd_msg(
     uint32_t                         id,
     nnti::datatype::nnti_work_id    *wid)
 : transport_(transport),
-  cmd_buf_(nullptr),
   cmd_msg_buf_(nullptr),
   unexpected_(false)
 {
@@ -64,7 +62,6 @@ mpi_cmd_msg::mpi_cmd_msg(
     char                            *buf,
     uint32_t                         buf_size)
 : transport_(transport),
-  cmd_buf_(cmd_buf),
   cmd_msg_buf_((struct cmd_msg*)buf),
   cmd_msg_size_(buf_size),
   free_in_dtor_(false),

@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #ifndef KELPIE_POOLBASE_HH
 #define KELPIE_POOLBASE_HH
@@ -9,7 +9,7 @@
 #include <vector>
 #include <atomic>
 #include <future>
-#include <inttypes.h>
+#include <cinttypes>
 
 #include "faodel-common/Common.hh"
 #include "faodel-common/LoggingInterface.hh"
@@ -43,21 +43,22 @@ class PoolBase
           public faodel::LoggingInterface {
 
 public:
-  PoolBase(faodel::ResourceURL const &pool_url);
+  explicit PoolBase(faodel::ResourceURL const &pool_url, pool_behavior_t behavior_flags=PoolBehavior::DefaultBaseClass);
 
-  ~PoolBase() override { }  //Fill in if creates anything
+  ~PoolBase() override = default;  //Fill in if creates anything
 
-  virtual rc_t Publish(const Key &key, fn_publish_callback_t callback) = 0;
-  virtual rc_t Publish(const Key &key, const lunasa::DataObject &user_ldo, fn_publish_callback_t callback) = 0;
+  virtual rc_t Publish(const Key &key, const fn_publish_callback_t &callback) = 0;
+  virtual rc_t Publish(const Key &key, const lunasa::DataObject &user_ldo, const fn_publish_callback_t &callback) = 0;
 
-  virtual rc_t Want(const Key &key, size_t expected_ldo_user_bytes, fn_want_callback_t callback) = 0;     //Notify when available
+  virtual rc_t Want(const Key &key, size_t expected_ldo_user_bytes, const fn_want_callback_t &callback) = 0; //Notify when available
+  virtual rc_t Need(const Key &key, size_t expected_ldo_user_bytes, lunasa::DataObject *returned_ldo) = 0;   //Block until returned
 
-  virtual rc_t Need(const Key &key, size_t expected_ldo_user_bytes, lunasa::DataObject *returned_ldo) = 0;  //Block until get
+  virtual rc_t Compute(const Key &key, const std::string &function_name, const std::string &function_args, const fn_compute_callback_t &callback) = 0;                                  //Async compute
 
-  virtual rc_t Info(const Key &key,  kv_col_info_t *col_info) = 0;
-  virtual rc_t RowInfo(const Key &key,  kv_row_info_t *row_info) = 0;
+  virtual rc_t Info(const Key &key,  object_info_t *col_info) = 0;
+  virtual rc_t RowInfo(const Key &key,  object_info_t *row_info) = 0;
 
-  virtual rc_t Drop(const Key &key) = 0;
+  virtual rc_t Drop(const Key &key, fn_drop_callback_t callback) = 0;
 
   virtual rc_t List(const Key &search_key, ObjectCapacities *object_capacities=nullptr) = 0;
 

@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #include "gtest/gtest.h"
 //#include <mpi.h>
@@ -27,7 +27,6 @@ lunasa.lazy_memory_manager malloc
 lunasa.eager_memory_manager malloc
 
 #lkv settings for the server
-server.max_capacity 32M
 server.mutex_type   rwlock
 
 node_role server
@@ -169,8 +168,8 @@ TEST_F(LunasaGenericRandomDataBundle, PackBinData) {
 }
 TEST_F(LunasaGenericRandomDataBundle, PayloadCapacityCheck) {
 
-  int LINE_SIZE=100;
-  int NUM_INSERTS=10;
+  const int LINE_SIZE=100;
+  const int NUM_INSERTS=10;
 
   DataObject ldo_myevents(sizeof(bundle_myevents_t), LINE_SIZE*NUM_INSERTS, DataObject::AllocatorType::eager);
   auto *myevents = ldo_myevents.GetMetaPtr<bundle_myevents_t *>();
@@ -326,8 +325,8 @@ TEST_F(LunasaGenericSequentialDataBundle, PackBinData) {
 
 TEST_F(LunasaGenericSequentialDataBundle, PayloadCapacityCheck) {
 
-  int LINE_SIZE=100;
-  int NUM_INSERTS=10;
+  const int LINE_SIZE=100;
+  const int NUM_INSERTS=10;
 
   DataObject ldo_myevents(sizeof(seq_bundle_myevents_t),
                           (sizeof(uint32_t)+LINE_SIZE)*NUM_INSERTS,

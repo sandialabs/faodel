@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #include "lunasa/allocators/AllocatorMalloc.hh"
 #include "lunasa/common/Allocation.hh"
@@ -51,24 +51,24 @@ Allocation *AllocatorMalloc::Allocate(uint32_t user_capacity) {
     return nullptr;
   }
 
-  int total_capacity = user_capacity + sizeof(Allocation);
-  Allocation *alloc = static_cast<Allocation *>(malloc(total_capacity));
+  user_capacity += sizeof(Allocation);
+  Allocation *alloc = static_cast<Allocation *>(malloc(user_capacity));
 
   /* RECORD where the allocation came from. */
   alloc->local.allocator = this;
   alloc->local.net_buffer_handle = nullptr;
   alloc->local.net_buffer_offset = 0;
-  alloc->local.allocated_bytes = total_capacity;
+  alloc->local.allocated_bytes = user_capacity;
   alloc->local.user_data_segments = nullptr;
 
   // Pin the whole chunk when eager
   if(mEagerPinning) {
-    mPinFunc(alloc, total_capacity, alloc->local.net_buffer_handle);
+    mPinFunc(alloc, user_capacity, alloc->local.net_buffer_handle);
   }
 
   // Add to the set
   mutex->WriterLock();
-  mTotalAllocated += total_capacity;
+  mTotalAllocated += user_capacity;
   mTotalUsed += user_capacity;
   allocations.insert(alloc);
   mutex->Unlock();
@@ -80,7 +80,7 @@ void AllocatorMalloc::Free(Allocation *allocation) {
 
   bool is_empty;
   
-  kassert(allocation!=nullptr, "Free of nullptr");
+  F_ASSERT(allocation != nullptr, "Free of nullptr");
   dbg("Free "+to_string(allocation->local.allocated_bytes));
 
   mutex->WriterLock();
@@ -94,7 +94,7 @@ void AllocatorMalloc::Free(Allocation *allocation) {
     mTotalUsed -= allocation->local.allocated_bytes - sizeof(Allocation);
     free(allocation);
   } else {
-    assert(0);
+    F_ASSERT(0, "Allocation not found in free");
   }
 
   is_empty = allocations.empty();

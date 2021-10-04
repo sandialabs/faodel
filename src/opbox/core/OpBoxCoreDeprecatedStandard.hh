@@ -1,9 +1,9 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
-#ifndef OPBOX_OPBOXCORESTANDARD_HH
-#define OPBOX_OPBOXCORESTANDARD_HH
+#ifndef OPBOX_OPBOXCOREDEPRECATEDSTANDARD_HH
+#define OPBOX_OPBOXCOREDEPRECATEDSTANDARD_HH
 
 #include <vector>
 #include <thread>
@@ -13,6 +13,7 @@
 #include "lunasa/DataObject.hh"
 #include "opbox/ops/Op.hh"
 #include "opbox/core/OpBoxCoreBase.hh"
+#include "opbox/core/OpTimer.hh"
 
 namespace opbox {
 namespace internal {
@@ -29,15 +30,15 @@ namespace internal {
  * @deprecated The original, standard class is now deprecated due to
  * ordering issues that arise in a threaded environment. Use 'threaded' instead
  */
-class OpBoxCoreStandard :
+class OpBoxCoreDeprecatedStandard :
     public OpBoxCoreBase,
     public faodel::LoggingInterface {
 
 public:
-  OpBoxCoreStandard();
-  ~OpBoxCoreStandard() override;
+  OpBoxCoreDeprecatedStandard();
+  ~OpBoxCoreDeprecatedStandard() override;
 
-  //Boostrap calls are handled by the singleton, which then calls these functions
+  //Bootstrap calls are handled by the singleton, which then calls these functions
   void init(const faodel::Configuration &config) override;
   void start() override;
   void finish() override;
@@ -47,6 +48,8 @@ public:
 
   int HandleIncomingMessage(opbox::net::peer_ptr_t peer, message_t *incoming_message) override;
   int UpdateOp(Op *op, OpArgs *args) override;
+
+  int GetNumberOfActiveOps(unsigned int op_id=0) override;
 
   void HandleWhookieStatus(const std::map<std::string,std::string> &args, std::stringstream &results);
 
@@ -64,15 +67,12 @@ private:
   void        addActiveOp(opbox::Op *op);
   void        endActiveOp(mailbox_t mailbox);
 
-  int doUpdate(mailbox_t my_mailbox, Op *op, OpArgs *args);
+  int doAction(mailbox_t my_mailbox, Op *op, OpArgs *args);
 
   faodel::MutexWrapper *op_mutex;
   std::map<int, opbox::Op *> active_ops;
 
-  const uint32_t recv_buf_count=10;
-
-  //std::thread th_progress;
-  //void eventLoop();
+  OpTimer *op_timer = nullptr; //Debug: collect info about how long each op took
 
 };
 
@@ -81,4 +81,4 @@ private:
 
 //extern opbox::OpBox ebox; //Global contained in OpBox.cpp
 
-#endif // OPBOX_OPBOXCORESTANDARD_HH
+#endif // OPBOX_OPBOXCOREDEPRECATEDSTANDARD_HH

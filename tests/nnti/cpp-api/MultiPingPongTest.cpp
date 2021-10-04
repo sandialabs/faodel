@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 
 #include "nnti/nnti_pch.hpp"
@@ -90,7 +90,6 @@ public:
     }
 
     NNTI_result_t operator() (NNTI_event_t *event, void *context) {
-        NNTI_result_t rc = NNTI_OK;
 
         pingpong_context *c = (pingpong_context*)context;
 
@@ -118,10 +117,10 @@ public:
                     uint32_t seed     = *(uint32_t*)(payload+4); // the salt
                     seed++;
 
-                    rc = populate_buffer(c->transport_, seed, 0, c->send_src_.hdl, c->send_src_.base, c->send_src_.size);
+                    populate_buffer(c->transport_, seed, 0, c->send_src_.hdl, c->send_src_.base, c->send_src_.size);
 
                     struct buffer_properties *send_target = c->send_target_map_[event->peer];
-                    rc = send_data_async(c->transport_, 0, c->send_src_.hdl, send_target->hdl, event->peer, *c->cb_, context);
+                    send_data_async(c->transport_, 0, c->send_src_.hdl, send_target->hdl, event->peer, *c->cb_, context);
 
                     c->recv_count_++;
                 } else {
@@ -265,7 +264,7 @@ TEST_F(NntiMultiPingPongTest, start1) {
 
         MPI_Barrier(MPI_COMM_WORLD);
 
-        for (int i=0;i<num_clients;i++) {
+        for (uint32_t i=0;i<num_clients;i++) {
             struct buffer_properties *peer_pingpong_buf = new struct buffer_properties;
 
             rc = recv_target_hdl(t, recv_buf.hdl, recv_buf.base, &peer_pingpong_buf->hdl, &peer_hdl, unexpected_eq);

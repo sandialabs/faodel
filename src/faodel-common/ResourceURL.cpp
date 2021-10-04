@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #include <iostream>
 #include <vector>
@@ -48,7 +48,7 @@ namespace faodel {
  * @param[in] url The string version of a url
  * @return ResourceURL
  */
-ResourceURL::ResourceURL(string url)
+ResourceURL::ResourceURL(const string &url)
   : reference_node(NODE_UNSPECIFIED), bucket(BUCKET_UNSPECIFIED) {
 
   string tmp_bucket, tmp_nodeid;
@@ -67,7 +67,7 @@ ResourceURL::ResourceURL(string url)
  * @retval 0 - Parsed fine
  * @retval EINVAL - todo- other error codes
  */
-rc_t ResourceURL::SetURL(const std::string& url) {
+rc_t ResourceURL::SetURL(const std::string &url) {
   std::string temp_bucket, temp_nodeid;
   auto rc = ParseURL( url, &resource_type, &temp_bucket, &temp_nodeid, &path, &name, &options );
   if( rc == 0 ) {
@@ -107,7 +107,7 @@ string ResourceURL::GetURL(bool include_type, bool include_node, bool include_bu
   if(path!="/")            ss<<path;
   if(true)                 ss<<"/"<<name;
   if((include_options) &&
-     (!options.empty()))   ss<<"&"<<options;
+     (!options.empty()))   ss<<"&"<<GetSortedOptions();
   return ss.str();
 }
 
@@ -121,6 +121,17 @@ bool ResourceURL::IsEmpty() const {
          (bucket ==BUCKET_UNSPECIFIED) &&
          (path.empty()) && (name.empty()) && (options.empty());
 }
+
+/**
+ * @brief Convert the full path name to a version using dashes instead of slashes
+ * @return string With dashes eg, "-my-full-path-name"
+ */
+string ResourceURL::Dashify() const {
+  string s=GetPathName();
+  std::replace(s.begin(), s.end(), '/','-');
+  return s;
+}
+
 
 /**
  * @brief Append one or more directories to the end of the full path
@@ -352,20 +363,21 @@ rc_t ResourceURL::ParseURL(const string url,
         throw std::invalid_argument("ResourceURL parse problem: Path did not start with '/' in url '" + url + "'");
 
         //Some resource names are special and permit no path
-      else if((tmp_name.empty()) && (tmp_type != "local") && (tmp_type != "unconfigured"))
+      else if((tmp_name.empty()) && (tmp_type != "local") && (tmp_type !="null") && (tmp_type != "unconfigured"))
         throw std::invalid_argument("ResourceURL parse problem: Had zero-length name in url '" + url + "'");
     }
 
   } else {
 
-    //Didn't get a path/name. Only time this is ok is when we do local ops
-    if(tmp_type!="local")
+    //Didn't get a path/name. Only time this is ok is when we do local and null
+    if(!((tmp_type=="local") || (tmp_type=="null")))
       throw std::invalid_argument("ResourceURL parse problem: Pathname missing '/' in url '"+url+"'");
 
   }
 
   //Patch local references. If we are given a reference and the path starts
   //with local, the type gets set to local.
+  //TODO: This option is a kludge and should be done away with.
   if(tmp_type.empty()) {
 
     if((tmp_path=="/local") ||
@@ -375,7 +387,7 @@ rc_t ResourceURL::ParseURL(const string url,
     }
   }
 
-
+  //Pass back all parts
   if(path)          *path = tmp_path;
   if(name)          *name = tmp_name;
   if(resource_type) *resource_type = tmp_type;
@@ -408,7 +420,7 @@ bool ResourceURL::operator!=(const ResourceURL &x) const {
  * @param[in] option_name The new option name
  * @param[in] value String value for the option
  */
-void ResourceURL::SetOption(string option_name, string value) {
+void ResourceURL::SetOption(const string &option_name, const string &value) {
   string new_option = option_name+"="+value;
   //Look for the easy way first
   if(options.empty()) {
@@ -437,9 +449,10 @@ void ResourceURL::SetOption(string option_name, string value) {
  * @brief Look for a particular option and return its value or ""
  *
  * @param[in] option_name - The option name to fetch
+ * @param[in] default_value - The string to return if not found (defaults to "")
  * @return string - The option value, or "" for not found
  */
-string ResourceURL::GetOption(string option_name) const {
+string ResourceURL::GetOption(const string &option_name, const string &default_value) const {
   vector<string> ops;
   string sname=option_name+"=";
   Split(ops, options, '&', true);
@@ -448,7 +461,7 @@ string ResourceURL::GetOption(string option_name) const {
       return full_op.substr(sname.size());
     }
   }
-  return "";
+  return default_value;
 }
 
 /**
@@ -491,7 +504,7 @@ vector<std::pair<std::string,std::string>> ResourceURL::GetOptions() const {
  * @param[in] option_name - The option name to remove
  * @return string - The value for the last option removed or ""
  */
-string ResourceURL::RemoveOption(string option_name) {
+string ResourceURL::RemoveOption(const string &option_name) {
   vector<string> ops;
   string removed_val="";
   string sname=option_name+"=";

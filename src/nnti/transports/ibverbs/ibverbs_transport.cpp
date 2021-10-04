@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 /**
  * @file ibverbs_transport.hpp
@@ -67,9 +67,7 @@ namespace transports {
 /**
  * @brief Initialize NNTI to use a specific transport.
  *
- * \param[in]  trans_id  The ID of the transport the client wants to use.
- * \param[in]  my_url    A string that describes the transport parameters.
- * \param[out] trans_hdl A handle to the activated transport.
+ * \param[in]  config    A Configuration object that NNTI should use to configure itself.
  * \return A result code (NNTI_OK or an error)
  *
  */
@@ -142,7 +140,15 @@ ibverbs_transport::start(void)
     dev_list = ibv_get_device_list(&dev_count);
     if (select_ib_device(dev_list, dev_count, &nic_port_) == false) {
         log_error("ibverbs_transport", "select_ib_device failed");
-        return NNTI_EIO;
+        return NNTI_EINVAL;
+    }
+
+    // The default GID index for IB hardware is 1.
+    // If this is RoCE hardware, use 3 instead.
+    nic_gid_idx_ = 1;
+    if (is_roce_) {
+        // TODO: iterate through GID indexes to find valid GID
+        nic_gid_idx_ = 3;
     }
     ibv_free_device_list(dev_list);
 
@@ -162,6 +168,12 @@ ibverbs_transport::start(void)
                   "Could not find an active port. "
                   "FAODEL's net.transport.interfaces was set to %s. Cannot continue.",
                   interface_dev_list_.c_str());
+        return NNTI_EIO;
+    }
+
+    log_debug("ibverbs_transport", "calling ibv_query_gid()");
+    if (ibv_query_gid(ctx_, nic_port_, nic_gid_idx_, &gid_)) {
+        log_error("ibverbs_connection", "ibv_query_gid failed");
         return NNTI_EIO;
     }
 
@@ -332,7 +344,6 @@ ibverbs_transport::stop(void)
 
     ibv_close_device(ctx_);
 
-cleanup:
     log_debug("ibverbs_transport", "exit");
 
     return rc;
@@ -341,8 +352,6 @@ cleanup:
 /**
  * @brief Indicates if a transport has been initialized.
  *
- * \param[in]  trans_id  The ID of the transport to test.
- * \param[out] is_init   1 if the transport is initialized, 0 otherwise.
  * \return A result code (NNTI_OK or an error)
  *
  */
@@ -597,12 +606,12 @@ ibverbs_transport::eq_wait(
 
     log_debug("eq_wait", "enter");
 
-    for (int i=0;i<eq_count;i++) {
+    for (uint32_t i=0;i<eq_count;i++) {
         nnti::datatype::nnti_event_queue *eq = nnti::datatype::nnti_event_queue::to_obj(eq_list[i]);
         rc = eq->pop(e);
         if (rc) {
             uint32_t dummy=0;
-            ssize_t bytes_read=read(eq->read_fd(), &dummy, 4);
+            read(eq->read_fd(), &dummy, 4);
 
             *which = i;
             *event = *e;
@@ -612,7 +621,7 @@ ibverbs_transport::eq_wait(
         }
     }
 
-    for (int i=0;i<eq_count;i++) {
+    for (uint32_t i=0;i<eq_count;i++) {
         nnti::datatype::nnti_event_queue *eq = nnti::datatype::nnti_event_queue::to_obj(eq_list[i]);
         poll_fds[i].fd      = eq->read_fd();
         poll_fds[i].events  = POLLIN;
@@ -647,11 +656,11 @@ ibverbs_transport::eq_wait(
         goto cleanup;
     } else {
         log_debug("eq_wait", "polled on %d file descriptor(s).  events occurred on %d file descriptor(s).", poll_fds.size(), poll_rc);
-        for (int i=0;i<eq_count;i++) {
+        for (uint32_t i=0;i<eq_count;i++) {
             log_debug("eq_wait", "poll success: poll_rc=%d ; poll_fds[%d].revents=%d",
                       poll_rc, i, poll_fds[i].revents);
         }
-        for (int i=0;i<eq_count;i++) {
+        for (uint32_t i=0;i<eq_count;i++) {
             if (poll_fds[i].revents == POLLIN) {
                 log_debug("eq_wait", "poll() events on eq[%d]", i);
                 ssize_t bytes_read=0;
@@ -688,7 +697,7 @@ cleanup:
  *
  * \param[in]  dst_hdl        Buffer where the message is delivered.
  * \param[in]  dst_offset     Offset into dst_hdl where the message is delivered.
- * \param[out] reseult_event  Event describing the message delivered to dst_hdl.
+ * \param[out] result_event   Event describing the message delivered to dst_hdl.
  * \return A result code (NNTI_OK or an error)
  */
 NNTI_result_t
@@ -698,13 +707,13 @@ ibverbs_transport::next_unexpected(
     NNTI_event_t  *result_event)
 {
     NNTI_result_t rc = NNTI_OK;
-    uint64_t actual_offset;
+    uint64_t actual_offset=0;
     nnti::datatype::ibverbs_buffer *b = (nnti::datatype::ibverbs_buffer *)dst_hdl;
 
     log_debug("next_unexpected", "enter");
 
     if (unexpected_msgs_.size() == 0) {
-        log_debug("ibverbs_transport", "next_unexpected - unexpected_msgs_ list is empty");
+        log_debug("next_unexpected", "next_unexpected - unexpected_msgs_ list is empty");
         return NNTI_ENOENT;
     }
 
@@ -740,24 +749,24 @@ ibverbs_transport::next_unexpected(
 
         print_send_wr(&sq_wr);
         if (ibv_post_send(conn->long_get_qp(), &sq_wr, &bad_wr)) {
-            log_error("ibverbs_transport", "failed to post send: %s", strerror(errno));
+            log_error("next_unexpected", "failed to post send: %s", strerror(errno));
             rc = NNTI_EIO;
         }
 
         struct ibv_wc long_get_wc;
         memset(&long_get_wc, 0, sizeof(struct ibv_wc));
         while ((rc = poll_cq(long_get_cq_, &long_get_wc)) == NNTI_ENOENT) {
-            log_debug("ibverbs_transport", "long get not done yet");
+            log_debug("next_unexpected", "long get not done yet");
         }
         if (rc != NNTI_OK) {
-            log_error("ibverbs_transport", "long get failed");
+            log_error("next_unexpected", "long get failed");
         }
 
-        log_debug("poll_cmd_cqs", "sending ACK");
+        log_debug("next_unexpected", "sending ACK");
         nnti::core::ibverbs_cmd_op *ack_op  = nullptr;
         rc = create_ack_op(unexpected_msg->src_op_id(), &ack_op);
         rc = execute_ack_op(peer, ack_op);
-        log_debug("poll_cmd_cqs", "ACK sent");
+        log_debug("next_unexpected", "ACK sent");
 
         NNTI_FAST_STAT(stats_->long_recvs++;)
     }
@@ -784,10 +793,10 @@ ibverbs_transport::next_unexpected(
 /**
  * @brief Retrieves a specific message from the unexpected list.
  *
- * \param[in]  unexpect_event  Event describing the message to retrieve.
- * \param[in]  dst_hdl         Buffer where the message is delivered.
- * \param[in]  dst_offset      Offset into dst_hdl where the message is delivered.
- * \param[out] reseult_event   Event describing the message delivered to dst_hdl.
+ * \param[in]  unexpected_event  Event describing the message to retrieve.
+ * \param[in]  dst_hdl           Buffer where the message is delivered.
+ * \param[in]  dst_offset        Offset into dst_hdl where the message is delivered.
+ * \param[out] result_event      Event describing the message delivered to dst_hdl.
  * \return A result code (NNTI_OK or an error)
  */
 NNTI_result_t
@@ -797,8 +806,6 @@ ibverbs_transport::get_unexpected(
     uint64_t       dst_offset,
     NNTI_event_t  *result_event)
 {
-    nnti::datatype::nnti_buffer *b = (nnti::datatype::nnti_buffer *)dst_hdl;
-
     return NNTI_OK;
 }
 
@@ -987,8 +994,8 @@ ibverbs_transport::unregister_memory(
 /**
  * @brief Convert an NNTI peer to an NNTI_process_id_t.
  *
- * \param[in]   peer  A handle to a peer that can be used for network operations.
- * \param[out]  pid   Compact binary representation of a process's location on the network.
+ * \param[in]   peer_hdl  A handle to a peer that can be used for network operations.
+ * \param[out]  pid       Compact binary representation of a process's location on the network.
  * \return A result code (NNTI_OK or an error)
  */
 NNTI_result_t
@@ -1004,8 +1011,8 @@ ibverbs_transport::dt_peer_to_pid(
 /**
  * @brief Convert an NNTI_process_id_t to an NNTI peer.
  *
- * \param[in]   pid   Compact binary representation of a process's location on the network.
- * \param[out]  peer  A handle to a peer that can be used for network operations.
+ * \param[in]   pid       Compact binary representation of a process's location on the network.
+ * \param[out]  peer_hdl  A handle to a peer that can be used for network operations.
  * \return A result code (NNTI_OK or an error)
  */
 NNTI_result_t
@@ -1224,8 +1231,6 @@ NNTI_result_t
 ibverbs_transport::cancel(
     NNTI_work_id_t wid)
 {
-    nnti::datatype::nnti_work_id *work_id = (nnti::datatype::nnti_work_id *)wid;
-
     return NNTI_OK;
 }
 
@@ -1272,8 +1277,6 @@ ibverbs_transport::wait(
     const int64_t   timeout,
     NNTI_status_t  *status)
 {
-    nnti::datatype::nnti_work_id *work_id = (nnti::datatype::nnti_work_id *)wid;
-
     return NNTI_OK;
 }
 
@@ -1332,14 +1335,13 @@ bool
 ibverbs_transport::have_odp(void)
 {
 #if (NNTI_HAVE_IBV_EXP_QUERY_DEVICE && NNTI_HAVE_IBV_EXP_DEVICE_ATTR_ODP)
-    int ibv_rc=0;
     struct ibv_exp_device_attr exp_dev_attr;
     if (ctx_ == nullptr) {
         // the IB device is not open
         return false;
     }
     exp_dev_attr.comp_mask = IBV_EXP_DEVICE_ATTR_ODP | IBV_EXP_DEVICE_ATTR_EXP_CAP_FLAGS;
-    ibv_rc = ibv_exp_query_device(ctx_, &exp_dev_attr);
+    ibv_exp_query_device(ctx_, &exp_dev_attr);
     if (exp_dev_attr.exp_device_cap_flags & IBV_EXP_DEVICE_ODP) {
         return true;
     }
@@ -1351,14 +1353,13 @@ bool
 ibverbs_transport::have_implicit_odp(void)
 {
 #if (NNTI_HAVE_IBV_EXP_QUERY_DEVICE && NNTI_HAVE_IBV_EXP_DEVICE_ATTR_ODP && NNTI_HAVE_IBV_EXP_ODP_SUPPORT_IMPLICIT)
-    int ibv_rc=0;
     struct ibv_exp_device_attr exp_dev_attr;
     if (ctx_ == nullptr) {
         // the IB device is not open
         return false;
     }
     exp_dev_attr.comp_mask = IBV_EXP_DEVICE_ATTR_ODP | IBV_EXP_DEVICE_ATTR_EXP_CAP_FLAGS;
-    ibv_rc = ibv_exp_query_device(ctx_, &exp_dev_attr);
+    ibv_exp_query_device(ctx_, &exp_dev_attr);
 
     if ((exp_dev_attr.exp_device_cap_flags & IBV_EXP_DEVICE_ODP) &&
         (exp_dev_attr.odp_caps.per_transport_caps.rc_odp_caps & IBV_EXP_ODP_SUPPORT_SEND)) {
@@ -1797,8 +1798,15 @@ ibverbs_transport::is_port_active(struct ibv_device *dev, int port)
     open_ib_device(dev);
     ibv_rc = ibv_query_port(ctx_, port, &dev_port_attr);
     if (ibv_rc == 0) {
-        if (dev_port_attr.state == IBV_PORT_ACTIVE) {
-            log_debug("ibverbs_transport", "port (%d) is active", port);
+        if ((dev_port_attr.state == IBV_PORT_ACTIVE) &&
+            (dev_port_attr.link_layer == IBV_LINK_LAYER_INFINIBAND)) {
+            this->is_roce_ = false;
+            log_debug("ibverbs_transport", "found active Infiniband port (%d)", port);
+            rc = true;
+        } else if ((dev_port_attr.state == IBV_PORT_ACTIVE) &&
+            (dev_port_attr.link_layer == IBV_LINK_LAYER_ETHERNET)) {
+            this->is_roce_ = true; 
+            log_debug("ibverbs_transport", "found active Ethernet port (%d)", port);
             rc = true;
         }
     } else {
@@ -1831,7 +1839,14 @@ ibverbs_transport::find_active_ib_device(struct ibv_device **dev_list, int dev_c
                     if ((dev_port_attr.state == IBV_PORT_ACTIVE) &&
                         (dev_port_attr.link_layer == IBV_LINK_LAYER_INFINIBAND)) {
                         *port = j+1;
-                        log_debug("ibverbs_transport", "found device (%s|%s) with active port (%d)", dev->name, dev->dev_name, *port);
+                        this->is_roce_ = false;
+                        log_debug("ibverbs_transport", "found Infiniband device (%s|%s) with active port (%d)", dev->name, dev->dev_name, *port);
+                        goto done;
+                    } else if ((dev_port_attr.state == IBV_PORT_ACTIVE) &&
+                        (dev_port_attr.link_layer == IBV_LINK_LAYER_ETHERNET)) {
+                        *port = j+1;
+                        this->is_roce_ = true;
+                        log_debug("ibverbs_transport", "found Ethernet device (%s|%s) with active port (%d)", dev->name, dev->dev_name, *port);
                         goto done;
                     }
                 } else {
@@ -1871,7 +1886,6 @@ ibverbs_transport::select_ib_device(struct ibv_device **dev_list, int dev_count,
         int rc;
         struct stat sbuf;
         std::string uverbs_dev;
-        uint32_t ib_port;
 
         std::vector<std::string> interface_device_list = faodel::Split(interface_dev_list_, ',', true);
         for ( std::string ifdev : interface_device_list ) {
@@ -1960,11 +1974,26 @@ ibverbs_transport::connect_cb(const std::map<std::string,std::string> &args, std
     nthread_lock(&new_connection_lock_);
 
     nnti::core::nnti_url peer_url = nnti::core::nnti_url(args.at("hostname"), args.at("port"));
+    std::string fingerprint = args.at("fingerprint");
 
-    log_debug("ibverbs_transport", "Looking for connection with pid=%016lx", peer_url.pid());
+    log_debug("ibverbs_transport", "Looking for connection with pid=%016lx fingerprint=%s", peer_url.pid(), fingerprint.c_str());
     conn = (nnti::core::ibverbs_connection*)conn_map_.get(peer_url.pid());
     if (conn != nullptr) {
-        log_debug("ibverbs_transport", "Found connection with pid=%016lx", peer_url.pid());
+        if (conn->fingerprint() == fingerprint) {
+            log_debug("ibverbs_transport", "Found matching connection with pid=%016lx fingerprint=%s", peer_url.pid(), fingerprint.c_str());
+        } else if (conn->fingerprint().empty()) {
+            log_debug("ibverbs_transport", "Found connection with matching pid=%016lx and empty fingerprint=%s", peer_url.pid(), conn->fingerprint().c_str());
+        } else {
+            log_debug("ibverbs_transport", "Found mismatched connection with pid=%016lx fingerprint=%s", peer_url.pid(), conn->fingerprint().c_str());
+
+            conn_map_.remove(conn);
+            delete conn;
+
+            conn = new nnti::core::ibverbs_connection(this, cmd_msg_size_, cmd_msg_count_, args);
+            conn_map_.insert(conn);
+
+            conn->transition_to_ready();
+        }
     } else {
         log_debug("ibverbs_transport", "Couldn't find connection with pid=%016lx", peer_url.pid());
 
@@ -1976,10 +2005,16 @@ ibverbs_transport::connect_cb(const std::map<std::string,std::string> &args, std
 
     nthread_unlock(&new_connection_lock_);
 
-    results << "hostname=" << url_.hostname() << std::endl;
-    results << "addr="     << url_.addr()     << std::endl;
-    results << "port="     << url_.port()     << std::endl;
-    results << "lid="      << nic_lid_        << std::endl;
+    uint64_t *gid1 = (uint64_t *)&(gid_.raw[0]);
+    uint64_t *gid2 = (uint64_t *)&(gid_.raw[8]);
+
+    results << "hostname="    << url_.hostname() << std::endl;
+    results << "addr="        << url_.addr()     << std::endl;
+    results << "port="        << url_.port()     << std::endl;
+    results << "gid1="        << *gid1           << std::endl;
+    results << "gid2="        << *gid2           << std::endl;
+    results << "fingerprint=" << fingerprint_    << std::endl;
+    results << "lid="         << nic_lid_        << std::endl;
     results << conn->reply_string();
 }
 
@@ -2053,11 +2088,17 @@ ibverbs_transport::build_whookie_path(
 {
     std::stringstream wh_url;
 
-    wh_url << "/nnti/ib/" << service;
-    wh_url << "&hostname=" << url_.hostname();
-    wh_url << "&addr="     << url_.addr();
-    wh_url << "&port="     << url_.port();
-    wh_url << "&lid="      << nic_lid_;
+    uint64_t *gid1 = (uint64_t *)&(gid_.raw[0]);
+    uint64_t *gid2 = (uint64_t *)&(gid_.raw[8]);
+
+    wh_url << "/nnti/ib/"     << service;
+    wh_url << "&hostname="    << url_.hostname();
+    wh_url << "&addr="        << url_.addr();
+    wh_url << "&port="        << url_.port();
+    wh_url << "&gid1="        << *gid1;
+    wh_url << "&gid2="        << *gid2;
+    wh_url << "&fingerprint=" << fingerprint_;
+    wh_url << "&lid="         << nic_lid_;
     wh_url << conn->query_string();
 
     return wh_url.str();
@@ -2195,8 +2236,9 @@ ibverbs_transport::execute_ack_op(
     print_send_wr(cmd_op->sq_wr());
 
     log_debug("ibverbs_transport", "posting cmd_op(%s)", cmd_op->toString().c_str());
-    if (ibv_post_send(conn->cmd_qp(), cmd_op->sq_wr(), &bad_wr)) {
-        log_error("ibverbs_transport", "failed to post send: %s", strerror(errno));
+    int ibv_rc = ibv_post_send(conn->cmd_qp(), cmd_op->sq_wr(), &bad_wr);
+    if (ibv_rc) {
+        log_error("ibverbs_transport", "failed to post send (ibv_rc=%d): %s", ibv_rc, strerror(errno));
         rc = NNTI_EIO;
     }
 
@@ -2261,8 +2303,10 @@ ibverbs_transport::execute_rdma_op(
     print_send_wr(rdma_op->sq_wr());
 
     log_debug("ibverbs_transport", "posting rdma_op(%s) to rdma_qp(%p)", rdma_op->toString().c_str(), conn->rdma_qp());
-    if (ibv_post_send(conn->rdma_qp(), rdma_op->sq_wr(), &bad_wr)) {
-        log_error("ibverbs_transport", "failed to post send: %s", strerror(errno));
+    int ibv_rc = ibv_post_send(conn->rdma_qp(), rdma_op->sq_wr(), &bad_wr);
+    if (ibv_rc) {
+        log_error("ibverbs_transport", "failed to post send (ibv_rc=%d): %s", ibv_rc, strerror(errno));
+        print_error_wr(rdma_op->sq_wr());
         rc = NNTI_EIO;
     }
 
@@ -2327,8 +2371,9 @@ ibverbs_transport::execute_atomic_op(
     print_send_wr(atomic_op->sq_wr());
 
     log_debug("ibverbs_transport", "posting atomic_op(%s)", atomic_op->toString().c_str());
-    if (ibv_post_send(conn->rdma_qp(), atomic_op->sq_wr(), &bad_wr)) {
-        log_error("ibverbs_transport", "failed to post send: %s", strerror(errno));
+    int ibv_rc = ibv_post_send(conn->rdma_qp(), atomic_op->sq_wr(), &bad_wr);
+    if (ibv_rc) {
+        log_error("ibverbs_transport", "failed to post send (ibv_rc=%d): %s", ibv_rc, strerror(errno));
         rc = NNTI_EIO;
     }
 
@@ -2510,18 +2555,63 @@ NNTI_result_t
 ibverbs_transport::poll_cmd_cq(void)
 {
     NNTI_result_t nnti_rc = NNTI_OK;
-    int           ibv_rc  = 0;
+//    int           ibv_rc  = 0;
 
     struct ibv_wc wc;
 
     nnti_rc = poll_cq(cmd_cq_, &wc);
     if ((nnti_rc != NNTI_EIO) && (nnti_rc != NNTI_ENOENT)) {
+        if (wc.status != IBV_WC_SUCCESS) {
+            // this is an error event
+            // wr_id is the address of the cmd_op that issued the put
+            nnti::core::ibverbs_cmd_op        *cmd_op        = (nnti::core::ibverbs_cmd_op *)wc.wr_id;
+            nnti::datatype::nnti_work_request &wr             = cmd_op->wid()->wr();
+            nnti::datatype::nnti_event_queue  *alt_q          = nnti::datatype::nnti_event_queue::to_obj(wr.alt_eq());
+            nnti::datatype::nnti_event_queue  *buf_q          = nullptr;
+            NNTI_event_t                      *e              = create_event(cmd_op, nnti_rc);
+            bool                               event_complete = false;
+            bool                               release_event  = true;
+
+            if (wr.invoke_cb(e) == NNTI_OK) {
+                event_complete = true;
+            }
+            if (!event_complete && alt_q && alt_q->invoke_cb(e) == NNTI_OK) {
+                event_complete = true;
+            }
+            if (!event_complete) {
+                nnti::datatype::nnti_buffer *b = nnti::datatype::nnti_buffer::to_obj(wr.local_hdl());
+
+                buf_q = nnti::datatype::nnti_event_queue::to_obj(b->eq());
+                if (buf_q && buf_q->invoke_cb(e) == NNTI_OK) {
+                    event_complete = true;
+                }
+            }
+            if (!event_complete && alt_q) {
+                alt_q->push(e);
+                alt_q->notify();
+                event_complete = true;
+                release_event = false;
+            }
+            if (!event_complete && buf_q) {
+                buf_q->push(e);
+                buf_q->notify();
+                event_complete = true;
+                release_event = false;
+            }
+            if (release_event) {
+                event_freelist_->push(e);
+            }
+
+            cmd_op_freelist_->push(cmd_op);
+
+            NNTI_FAST_STAT(stats_->errors++;)
+        }
         // found a work completion
         if (wc.opcode & IBV_WC_RECV) {
             nnti::core::ibverbs_cmd_msg *cmd_msg = (nnti::core::ibverbs_cmd_msg *)wc.wr_id;
             cmd_msg->unpack();
             if (cmd_msg->ack()) {
-                log_debug("poll_cmd_cqs", "ACK received");
+                log_debug("poll_cmd_cq", "ACK received");
 
                 nnti::core::ibverbs_cmd_op *cmd_op = (nnti::core::ibverbs_cmd_op*)op_vector_.at(cmd_msg->src_op_id());
 
@@ -2532,15 +2622,15 @@ ibverbs_transport::poll_cmd_cq(void)
                 bool                               event_complete = false;
                 bool                               release_event  = true;
 
-                log_debug("poll_cmd_cqs", "considering WR callback");
+                log_debug("poll_cmd_cq", "considering WR callback");
                 if (wr.invoke_cb(e) == NNTI_OK) {
                     event_complete = true;
                 }
-                log_debug("poll_cmd_cqs", "considering alt EQ callback");
+                log_debug("poll_cmd_cq", "considering alt EQ callback");
                 if (!event_complete && alt_q && alt_q->invoke_cb(e) == NNTI_OK) {
                     event_complete = true;
                 }
-                log_debug("poll_cmd_cqs", "considering buf EQ callback");
+                log_debug("poll_cmd_cq", "considering buf EQ callback");
                 if (!event_complete) {
                     nnti::datatype::nnti_buffer *b = nnti::datatype::nnti_buffer::to_obj(wr.local_hdl());
 
@@ -2549,14 +2639,14 @@ ibverbs_transport::poll_cmd_cq(void)
                         event_complete = true;
                     }
                 }
-                log_debug("poll_cmd_cqs", "considering alt EQ push");
+                log_debug("poll_cmd_cq", "considering alt EQ push");
                 if (!event_complete && alt_q) {
                     alt_q->push(e);
                     alt_q->notify();
                     event_complete = true;
                     release_event = false;
                 }
-                log_debug("poll_cmd_cqs", "considering buf EQ push");
+                log_debug("poll_cmd_cq", "considering buf EQ push");
                 if (!event_complete && buf_q) {
                     buf_q->push(e);
                     buf_q->notify();
@@ -2580,7 +2670,7 @@ ibverbs_transport::poll_cmd_cq(void)
 
             } else {
                 if (cmd_msg->unexpected()) {
-                    log_debug("poll_cmd_cqs", "unexpected received");
+                    log_debug("poll_cmd_cq", "unexpected received");
 
                     if (unexpected_queue_ == nullptr) {
                         // If there is no unexpected queue, then there is no way
@@ -2599,7 +2689,7 @@ ibverbs_transport::poll_cmd_cq(void)
                         NNTI_FAST_STAT(stats_->unexpected_recvs++;)
                     }
                 } else {
-                    log_debug("poll_cmd_cqs", "expected received");
+                    log_debug("poll_cmd_cq", "expected received");
 
                     nnti::datatype::ibverbs_buffer   *tgt_buf       = cmd_msg->target_buffer();
                     assert(tgt_buf != nullptr);
@@ -2609,7 +2699,7 @@ ibverbs_transport::poll_cmd_cq(void)
                     uint64_t                          actual_offset = 0;
 
                     if (cmd_msg->eager()) {
-                        log_debug("poll_cmd_cqs", "expected eager received");
+                        log_debug("poll_cmd_cq", "expected eager received");
 
                         nnti_rc = tgt_buf->copy_in(cmd_msg->target_offset(), cmd_msg->eager_payload(), cmd_msg->payload_length(), &actual_offset);
 
@@ -2636,7 +2726,7 @@ ibverbs_transport::poll_cmd_cq(void)
                         cmd_msg->post_recv();
                         NNTI_FAST_STAT(stats_->short_recvs++;)
                     } else {
-                        log_debug("poll_cmd_cqs", "expected long received");
+                        log_debug("poll_cmd_cq", "expected long received");
 
                         nnti::datatype::ibverbs_peer   *peer     = cmd_msg->initiator_peer();
                         nnti::core::ibverbs_connection *conn     = (nnti::core::ibverbs_connection *)peer->conn();
@@ -2673,11 +2763,11 @@ ibverbs_transport::poll_cmd_cq(void)
                             log_error("ibverbs_transport", "long get failed");
                         }
 
-                        log_debug("poll_cmd_cqs", "sending ACK");
+                        log_debug("poll_cmd_cq", "sending ACK");
                         nnti::core::ibverbs_cmd_op *ack_op  = nullptr;
                         nnti_rc = create_ack_op(cmd_msg->src_op_id(), &ack_op);
                         nnti_rc = execute_ack_op(peer, ack_op);
-                        log_debug("poll_cmd_cqs", "ACK sent");
+                        log_debug("poll_cmd_cq", "ACK sent");
 
                         e  = create_event(cmd_msg, nnti_rc);
                         if (tgt_buf->invoke_cb(e) != NNTI_OK) {
@@ -2698,20 +2788,19 @@ ibverbs_transport::poll_cmd_cq(void)
             }
         }
         if (wc.opcode == IBV_WC_SEND) {
-            bool need_event = true;
 
             // wr_id is the address of the cmd_op that issued the send
             nnti::core::ibverbs_cmd_op *cmd_op = (nnti::core::ibverbs_cmd_op *)wc.wr_id;
 
             if (cmd_op->ack()) {
-                log_debug("poll_cmd_cqs", "ACK send complete");
+                log_debug("poll_cmd_cq", "ACK send complete");
                 cmd_op_freelist_->push(cmd_op);
                 NNTI_FAST_STAT(stats_->ack_sends++;)
             } else if (!cmd_op->eager()) {
                 // this is a long send.  wait for the ACK.
-                log_debug("poll_cmd_cqs", "long send complete");
+                log_debug("poll_cmd_cq", "long send complete");
             } else {
-                log_debug("poll_cmd_cqs", "eager send complete");
+                log_debug("poll_cmd_cq", "eager send complete");
                 nnti::datatype::nnti_work_request &wr             = cmd_op->wid()->wr();
                 nnti::datatype::nnti_event_queue  *alt_q          = nnti::datatype::nnti_event_queue::to_obj(wr.alt_eq());
                 nnti::datatype::nnti_event_queue  *buf_q          = nullptr;
@@ -2763,7 +2852,7 @@ ibverbs_transport::poll_cmd_cq(void)
             }
         }
         if (wc.opcode == IBV_WC_RDMA_READ) {
-            log_debug("poll_cmd_cqs", "long send GET complete");
+            log_debug("poll_cmd_cq", "long send GET complete");
             // if there is a READ event on the cmd_qp, then this is a long send/recv.
 
             // wr_id is the address of the cmd_op that issued the get
@@ -2797,16 +2886,58 @@ NNTI_result_t
 ibverbs_transport::poll_rdma_cq(void)
 {
     NNTI_result_t nnti_rc = NNTI_OK;
-    int           ibv_rc  = 0;
 
     struct ibv_wc wc;
 
     nnti_rc = poll_cq(rdma_cq_, &wc);
     if ((nnti_rc != NNTI_EIO) && (nnti_rc != NNTI_ENOENT)) {
+        if (wc.status != IBV_WC_SUCCESS) {
+            // this is an error event
+            // wr_id is the address of the rdma_op that issued the put
+            nnti::core::ibverbs_rdma_op         *rdma_op        = (nnti::core::ibverbs_rdma_op *)wc.wr_id;
+            nnti::datatype::nnti_work_request   &wr             = rdma_op->wid()->wr();
+            nnti::datatype::nnti_event_queue    *alt_q          = nnti::datatype::nnti_event_queue::to_obj(wr.alt_eq());
+            nnti::datatype::nnti_event_queue    *buf_q          = nullptr;
+            NNTI_event_t                        *e              = create_event(rdma_op, nnti_rc);
+            bool                                 event_complete = false;
+            bool                                 release_event  = true;
+
+            if (wr.invoke_cb(e) == NNTI_OK) {
+                event_complete = true;
+            }
+            if (!event_complete && alt_q && alt_q->invoke_cb(e) == NNTI_OK) {
+                event_complete = true;
+            }
+            if (!event_complete) {
+                nnti::datatype::nnti_buffer *b = nnti::datatype::nnti_buffer::to_obj(wr.local_hdl());
+
+                buf_q = nnti::datatype::nnti_event_queue::to_obj(b->eq());
+                if (buf_q && buf_q->invoke_cb(e) == NNTI_OK) {
+                    event_complete = true;
+                }
+            }
+            if (!event_complete && alt_q) {
+                alt_q->push(e);
+                alt_q->notify();
+                event_complete = true;
+                release_event = false;
+            }
+            if (!event_complete && buf_q) {
+                buf_q->push(e);
+                buf_q->notify();
+                event_complete = true;
+                release_event = false;
+            }
+            if (release_event) {
+                event_freelist_->push(e);
+            }
+
+            rdma_op_freelist_->push(rdma_op);
+
+            NNTI_FAST_STAT(stats_->errors++;)
+        }
         // found a work completion
         if (wc.opcode == IBV_WC_RDMA_WRITE) {
-            bool need_event = true;
-
             // wr_id is the address of the rdma_op that issued the put
             nnti::core::ibverbs_rdma_op         *rdma_op        = (nnti::core::ibverbs_rdma_op *)wc.wr_id;
             nnti::datatype::nnti_work_request   &wr             = rdma_op->wid()->wr();
@@ -2851,8 +2982,6 @@ ibverbs_transport::poll_rdma_cq(void)
             NNTI_FAST_STAT(stats_->puts++;)
         }
         if (wc.opcode == IBV_WC_RDMA_READ) {
-            bool need_event = true;
-
             // wr_id is the address of the rdma_op that issued the get
             nnti::core::ibverbs_rdma_op         *rdma_op        = (nnti::core::ibverbs_rdma_op *)wc.wr_id;
             nnti::datatype::nnti_work_request   &wr             = rdma_op->wid()->wr();
@@ -2897,8 +3026,6 @@ ibverbs_transport::poll_rdma_cq(void)
             NNTI_FAST_STAT(stats_->gets++;)
         }
         if (wc.opcode == IBV_WC_FETCH_ADD) {
-            bool need_event = true;
-
             // wr_id is the address of the rdma_op that issued the get
             nnti::core::ibverbs_atomic_op       *atomic_op      = (nnti::core::ibverbs_atomic_op *)wc.wr_id;
             nnti::datatype::nnti_work_request   &wr             = atomic_op->wid()->wr();
@@ -2951,8 +3078,6 @@ ibverbs_transport::poll_rdma_cq(void)
             NNTI_FAST_STAT(stats_->fadds++;)
         }
         if (wc.opcode == IBV_WC_COMP_SWAP) {
-            bool need_event = true;
-
             // wr_id is the address of the rdma_op that issued the get
             nnti::core::ibverbs_atomic_op       *atomic_op      = (nnti::core::ibverbs_atomic_op *)wc.wr_id;
             nnti::datatype::nnti_work_request   &wr             = atomic_op->wid()->wr();
@@ -3246,6 +3371,24 @@ ibverbs_transport::print_send_wr(
     const struct ibv_send_wr *wr)
 {
     log_debug("print_wr", "wr=%p, wr.opcode=%d, wr.send_flags=%d, wr.wr_id=%lx, wr.next=%p, wr.num_sge=%d, wr.rdma.remote_addr=%lu, wr.sge.rkey=%X, wr.sge.addr=%lu, wr.sge.length=%u, wr.sge.lkey=%X",
+        wr,
+        wr->opcode,
+        wr->send_flags,
+        wr->wr_id,
+        wr->next,
+        wr->num_sge,
+        wr->wr.rdma.remote_addr,
+        wr->wr.rdma.rkey,
+        wr->sg_list[0].addr,
+        wr->sg_list[0].length,
+        wr->sg_list[0].lkey);
+}
+
+void
+ibverbs_transport::print_error_wr(
+    const struct ibv_send_wr *wr)
+{
+    log_error("print_wr", "wr=%p, wr.opcode=%d, wr.send_flags=%d, wr.wr_id=%lx, wr.next=%p, wr.num_sge=%d, wr.rdma.remote_addr=%lu, wr.sge.rkey=%X, wr.sge.addr=%lu, wr.sge.length=%u, wr.sge.lkey=%X",
         wr,
         wr->opcode,
         wr->send_flags,

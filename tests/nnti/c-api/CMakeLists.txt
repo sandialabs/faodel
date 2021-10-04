@@ -7,8 +7,6 @@ include_directories(
    ${CMAKE_SOURCE_DIR}/src/nnti
    ${CMAKE_BINARY_DIR}/src/nnti
 )
-SET(EXTRA_TEST_LIBS "-lz")
-
 
 # Build the test support lib-------------------------------------------------
 add_library(ctestutils
@@ -21,9 +19,9 @@ target_link_libraries( ctestutils PUBLIC nnti )
 
 set(SERIAL_TEST_LIBS 
   ctestutils
+  ZLIB::ZLIB
   GTest::GTest
   GTest::Main
-  ${EXTRA_TEST_LIBS}
 )
 
 set(MPI_TEST_LIBS 
@@ -34,6 +32,7 @@ set(MPI_TEST_LIBS
 #--------------+-----------------------------+----------------------------------+---------+
 # Format:      |  Name                       |  Directory                       | Autorun |
 #--------------+-----------------------------+----------------------------------+---------+
+if( Faodel_HAVE_CRC32 )
 add_serial_test( NntiAllocFreeTest           .  true  )
 add_serial_test( NntiInitTest1               .  true  )
 add_serial_test( NntiInitTest2               .  true  )
@@ -42,3 +41,4 @@ add_serial_test( NntiInitTest4               .  true  )
 add_serial_test( NntiLoggerTest1             .  true  )
 add_serial_test( NntiLoggerTest2             .  true  )
 add_serial_test( NntiLoggerTest3             .  true  )
+endif( Faodel_HAVE_CRC32 )

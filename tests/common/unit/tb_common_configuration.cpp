@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 
 #include <string>
@@ -56,9 +56,6 @@ TEST_F(FaodelConfiguration, constConfig){
   s=""; c1.GetString(&s, "config.additional_files.env_name.if_defined"); EXPECT_EQ("FAODEL_CONFIG", s);
   s=""; c2.GetString(&s, "config.additional_files.env_name.if_defined"); EXPECT_EQ("MY_ENV_VAR", s);
 
-
-
-
 }
 
 
@@ -85,8 +82,27 @@ TEST_F(FaodelConfiguration, appendString) {
   EXPECT_EQ("nextval", s);
   EXPECT_EQ(0,rc);
 
+  //Try appending when value doesn't exist
+  s="";
+  rc = c.GetString(&s, "nothere");
+  EXPECT_EQ(ENOENT,rc);
+  EXPECT_EQ("",s);
+  rc = c.AppendIfUnset("nothere", "set-by-first-aiu");
+  rc = c.GetString(&s, "nothere");
+  EXPECT_EQ(0,rc);
+  EXPECT_EQ("set-by-first-aiu", s);
+
+
+
+  //Try conditional appending when value does exist
+  rc = c.AppendIfUnset("nothere", "should-not-overwrite");
+  rc = c.GetString(&s, "nothere");
+  EXPECT_EQ(0, rc);
+  EXPECT_EQ("set-by-first-aiu", s);
+
 
 }
+
 TEST_F(FaodelConfiguration, tabs_vs_spaces) {
   Configuration c;
   c.Append("thing1 value1");
@@ -125,7 +141,7 @@ TEST_F(FaodelConfiguration, from_env_and_file) {
   memset(namebuf,0,sizeof(namebuf));
   strncpy(namebuf,"/tmp/ktst-XXXXXX",16);
   int fd = mkstemp(namebuf);
-  write(fd, ss.str().c_str(), ss.str().length());
+  ssize_t wlen = write(fd, ss.str().c_str(), ss.str().length());
   close(fd);
 
   rc_t rc;
@@ -159,7 +175,7 @@ TEST_F(FaodelConfiguration, filename_expansion1) {
   memset(namebuf,0,sizeof(namebuf));
   strncpy(namebuf,"/tmp/ktst-XXXXXX",16);
   int fd = mkstemp(namebuf);
-  write(fd, ss.str().c_str(), ss.str().length());
+  auto wlen = write(fd, ss.str().c_str(), ss.str().length());
   close(fd);
 
   // put TEST_TMP in the environment
@@ -197,7 +213,7 @@ TEST_F(FaodelConfiguration, filename_expansion2) {
   memset(namebuf,0,sizeof(namebuf));
   strncpy(namebuf,"/tmp/ktst-XXXXXX",16);
   int fd = mkstemp(namebuf);
-  write(fd, ss1.str().c_str(), ss1.str().length());
+  auto wlen = write(fd, ss1.str().c_str(), ss1.str().length());
   close(fd);
 
   // create a Configuration that will read an external file after substituting $TEST_TMP
@@ -430,8 +446,7 @@ TEST_F(FaodelConfiguration, parseStringblock) {
   string default_config = R"EOF(
 default.kelpie.core_type nonet
 
-#lkv settings for the server
-server.max_capacity 32M
+server.my_capacity 32M
 
 #Client only one specified
 client.fake_thing   bob
@@ -461,7 +476,7 @@ node_role server
   rc = c.GetString(&val, "fake_thing","frank"); EXPECT_EQ(2,rc); EXPECT_EQ("frank", val);
   rc = c.GetString(&val, "client.fake_thing");  EXPECT_EQ(0,rc); EXPECT_EQ("bob", val);
 
-  rc = c.GetInt(&ival, "max_capacity"); EXPECT_EQ(0,rc); EXPECT_EQ(32*1024*1024, ival);
+  rc = c.GetInt(&ival, "my_capacity"); EXPECT_EQ(0,rc); EXPECT_EQ(32*1024*1024, ival);
 
 }
 
@@ -569,7 +584,7 @@ default.iom.path /this/is/path2
   char fname[] = "/tmp/mytestXXXXXX";
   int fd = mkstemp(fname);
   //cout <<"File Name is "<<fname<<endl;
-  write(fd, config2.c_str(), config2.size());
+  auto wlen = write(fd, config2.c_str(), config2.size());
   close(fd);
 
   Configuration t1(config1);

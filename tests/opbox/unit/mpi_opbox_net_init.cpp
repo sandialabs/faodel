@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 // Test:    mpi_opbox_net_init
 // Purpose: Basic checks on opbox net (mtus are ok, nbr will serialize)
@@ -11,7 +11,7 @@
 #include "gtest/gtest.h"
 
 #include "faodel-common/Common.hh"
-#include "faodel-common/SerializationHelpers.hh"
+#include "faodel-common/SerializationHelpersBoost.hh"
 #include "lunasa/Lunasa.hh"
 #include "opbox/OpBox.hh"
 
@@ -41,8 +41,8 @@ TEST_F(OpboxInitTest, Constants) {
 
   opbox::net::Attrs attrs;
   opbox::net::GetAttrs(&attrs);
-  EXPECT_GT(attrs.max_eager_size, 512); //Verify net can get message-sized data
-  EXPECT_GT(attrs.mtu, 512); //Verify net has usable packet sizes
+  EXPECT_GT(attrs.max_eager_size, 512UL); //Verify net can get message-sized data
+  EXPECT_GT(attrs.mtu, 512UL); //Verify net has usable packet sizes
 }
 
 
@@ -73,7 +73,7 @@ TEST_F(OpboxInitTest, NBRSimpleSerialize) {
 
   opbox::net::NetBufferRemote nbr2 = faodel::BoostUnpack<opbox::net::NetBufferRemote>(s);
 
-  for(char i = 0; i<MAX_NET_BUFFER_REMOTE_SIZE; i++) {
+  for(uint8_t i = 0; i<MAX_NET_BUFFER_REMOTE_SIZE; i++) {
     EXPECT_EQ(i, nbr2.data[i]);
   }
 

@@ -1,0 +1,36 @@
+# Script 05: Self Contained Pool
+#
+# salloc -N 4 --ntasks-per-node 1  
+# srun faodel -v play s05_self_contained_pool.play
+#
+
+# Purpose: This script launches everything you need to host a kelpie pool on
+#          a collection of nodes launched by mpi. It does the following:
+#
+#          1. Runs a dirman on rank 0
+#          2. Writes the dirman id to ./.faodel-dirman for cli to find
+#          3. It defines a dht hosted on all mpi ranks
+#          4. It launches the kelpie nodes on all ranks to host the pool
+#          5. It haults so it stays live until you kill it
+#
+# Note: This currently uses bootstrap halt to hang. Needs a proper halt cmd
+#
+#
+config dirman.root_node_mpi 0
+config dirman.resources_mpi[] dht:/ioss/dht ALL
+config dirman.write_root.file ./.faodel-dirman
+
+config bootstrap.debug              true
+config bootstrap.halt_on_shutdown   true
+
+print == Starting Kelpie node ==
+
+barrier
+
+
+# Once this is running, you should be able to put/get items from the cli. Make
+# sure you use srun on the Cray platforms to prevent drc issues. 
+# 
+#   echo "Hello" | srun faodel kput -p /ioss/dht -k mystuff
+#   srun faodel kget -p /ioss/dht -k mystuff
+#

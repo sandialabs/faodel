@@ -20,6 +20,7 @@ function( make_nnti_cpp_example   item  extra_cxx_flags extra_linker_flags )
     add_executable(        ${target} ${source} )
     target_link_libraries( ${target}
         cppexampleutils
+        ZLIB::ZLIB
         ${extra_linker_flags}
     )
 
@@ -46,6 +47,8 @@ target_link_libraries(${cppexampleutils_target} Faodel::nnti )
 set_target_properties(${cppexampleutils_target} PROPERTIES LINKER_LANGUAGE  CXX )
 
 
-if (IBVerbs_FOUND)
-make_nnti_cpp_example( cpp/PingPong  "" "-lz -lpthread"  )
-endif()
+if( Faodel_HAVE_CRC32 )
+if( IBVerbs_FOUND )
+make_nnti_cpp_example( cpp/PingPong  "" ""  )
+endif( IBVerbs_FOUND )
+endif( Faodel_HAVE_CRC32 )

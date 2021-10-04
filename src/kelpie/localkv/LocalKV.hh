@@ -1,11 +1,11 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #ifndef KELPIE_LOCALKV_HH
 #define KELPIE_LOCALKV_HH
 
-#include <inttypes.h>
+#include <cinttypes>
 #include <string>
 #include <sstream>
 #include <memory>
@@ -17,6 +17,7 @@
 #include "faodel-common/ReplyStream.hh"
 
 #include "kelpie/Key.hh"
+#include "kelpie/localkv/LocalKVTypes.hh"
 #include "kelpie/localkv/LocalKVRow.hh"
 #include "kelpie/pools/Pool.hh"
 
@@ -55,7 +56,6 @@ class LocalKV :
 
 public:
   LocalKV();
-
   ~LocalKV() override;
 
   //One-time configure the lkv
@@ -66,69 +66,68 @@ public:
   rc_t put(faodel::bucket_t bucket, const Key &key,
                     const lunasa::DataObject &new_ldo,
                     pool_behavior_t behavior_flags,
-                    kv_row_info_t *row_info,
-                    kv_col_info_t *col_info);
+                    internal::IomBase *iom,
+                    object_info_t *info);
 
   //Get local reference. Do nothing if unavailable
   rc_t get(faodel::bucket_t bucket, const Key &key,
                     lunasa::DataObject *ext_ldo,
-                    kv_row_info_t *row_info,
-                    kv_col_info_t *col_info);
+                    object_info_t *info);
 
-  #if 0
-  //Get local reference. Leave node dependency if unavailable
-  rc_t get(faodel::bucket_t bucket, const Key &key,
-                    faodel::nodeid_t requesting_node_id_if_missing,  //Use localhost unless remote
-                    lunasa::DataObject *ext_ldo,
-                    kv_row_info_t *row_info,
-                    kv_col_info_t *col_info);
-  #endif
+  //Get multiple references. Do nothing if unavailable
+  rc_t getAvailable(faodel::bucket_t bucket, const Key &key,
+                    std::map<Key, lunasa::DataObject> &ldos);
 
   //Get local reference. Leave OpBox mailbox dependency if unavailable
-  rc_t get(faodel::bucket_t bucket, const Key &key,
+  rc_t getForOp(faodel::bucket_t bucket, const Key &key,
                     opbox::mailbox_t op_mailbox_if_missing,
+                    pool_behavior_t behavior_flags,
+                    iom_hash_t iom_hash,
                     lunasa::DataObject *ext_ldo,
-                    kv_row_info_t *row_info,
-                    kv_col_info_t *col_info);
+                    object_info_t *info);
 
 
   //Copy the data out of the store and into the new struct
   rc_t getData(faodel::bucket_t bucket, const Key &key,
                     void *mem_ptr, size_t max_size,
                     size_t *copied_size,
-                    kv_row_info_t *row_info,
-                    kv_col_info_t *col_info);
+                    object_info_t *info);
 
   //Request a callback be made when an item becomes available
-  rc_t want(faodel::bucket_t bucket, const Key &key,
-                    faodel::nodeid_t requesting_node_id_if_missing,
+  rc_t wantLocal(faodel::bucket_t bucket, const Key &key,
                     bool caller_will_fetch_if_missing,
                     fn_want_callback_t callback);
 
   //Drop a particular item
-  rc_t drop(faodel::bucket_t bucket, const Key &key);
+  rc_t drop(faodel::bucket_t bucket, const Key &key_prefix);
 
   //Locate info about one or more keys
   rc_t list(faodel::bucket_t bucket, const Key &key_prefix,
+                    internal::IomBase *iom,
                     ObjectCapacities *object_capacities);
 
+
+  //Fetch local objects from row, perform computation, return ldo result
+  rc_t doCompute(const std::string &function_name, const std::string &args,
+                    faodel::bucket_t bucket, const Key &key,
+                    lunasa::DataObject *ext_ldo);
+
   //Get info for a particular item
-  rc_t getColInfo(faodel::bucket_t bucket, const Key &key, kv_col_info_t *col_info);
-  rc_t getRowInfo(faodel::bucket_t bucket, const Key &key, kv_row_info_t *row_info);
+  rc_t getInfo(faodel::bucket_t bucket, const Key &key, object_info_t *info);
 
   //Workhorse: Does all the work of finding a column and doing a lambda on it
   rc_t doColOp(faodel::bucket_t bucket, const Key &key,
-                    bool create_if_missing,
-                    bool trigger_dependency_check,
-                    kv_row_info_t *row_info,
-                    kv_col_info_t *col_info,
+                    lkv::lambda_flags_t flags,
+                    object_info_t *info,
                     fn_column_op_t func);
 
   //Workhorse: Does all the work of finding a row and doing a lambda on it
   rc_t doRowOp(faodel::bucket_t bucket, const Key &key,
-                    bool create_if_missing,
-                    kv_row_info_t *row_info,
+                    lkv::lambda_flags_t flags,
+                    object_info_t *info,
                     fn_row_op_t func);
+
+
 
   //Internal: Delete everything
   void wipeAll(faodel::internal_use_only_t iuo);
@@ -140,18 +139,18 @@ public:
   void whookieInfo(faodel::ReplyStream &rs, bool detailed=false);
 
   //InfoInterface function
-  void sstr(std::stringstream &ss, int depth=0, int indent=0) const override;
+  void sstr(std::stringstream &ss, int depth, int indent) const override;
 
 private:
   faodel::MutexWrapperTypeID row_mutex_type_id;  //!< The mutex type to use for creating new rows
   bool configured;                               //!< Whether LovalKV has been Configured yet
-  int64_t max_capacity;                          //!< Max amount of space the lkv can hold
 
   std::map<std::string, LocalKVRow *> rows;      //!< Map for storing each row's LocalKVRow
   faodel::MutexWrapper *table_mutex;             //!< Mutex needed for controlling single-access to the top-level row map
 
   std::string makeRowname(faodel::bucket_t bucket, const Key &key);
-  LocalKVRow * getRow(std::string full_row_name);
+  LocalKVRow * getRow(const std::string &full_row_name);
+
 
 
 };

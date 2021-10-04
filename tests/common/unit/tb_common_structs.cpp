@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 // This aggregates tests for basic structures including:
 //
@@ -78,7 +78,6 @@ TEST_F(BucketTest, Copies) {
 }
 
 TEST_F(BucketTest, BadHexNode) {
-  uint64_t x;
   string s;
 
   //If we already computed the hash, we can pass it around
@@ -223,7 +222,7 @@ TEST_F(NodeIDTest, BadUrls) {
       nodeid_t node_id(urls[i]);
       cout <<node_id.GetHex()<<endl;
       EXPECT_TRUE(false);
-    } catch (exception e) {
+    } catch (exception &e) {
       EXPECT_TRUE(true);
     }
   }
@@ -233,7 +232,6 @@ TEST_F(NodeIDTest, BadUrls) {
 
 TEST_F(NodeIDTest, BadHexNode) {
   uint64_t x;
-  string s;
 
   //Previously had a check here for transport valid. Not and issue now.
   EXPECT_NO_THROW( nodeid_t nid("0xf000000000000000") );

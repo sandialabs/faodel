@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #include <unistd.h>
 #include <iostream>
@@ -10,7 +10,7 @@
 #include "faodel-common/Common.hh"
 #include "opbox/OpBox.hh"
 
-#include "Globals.hh"
+#include "../../opbox-example-support/Globals.hh"
 #include "OpBenchmarkMsgRdma.hh"
 
 //The Globals class just holds basic communication vars we use in these
@@ -105,6 +105,12 @@ int main(int argc, char **argv)
     config.AppendFromReferences();
 
     G.StartAll(argc, argv, config);
+
+    if(G.mpi_size<2) {
+      cerr<<"This example should be run with at least two mpi ranks. Exiting.\n";
+      G.StopAll();
+      return -1;
+    }
 
     //For this example, the master node is going to create a new Op and
     //launch it. The flow of operation is as follows:

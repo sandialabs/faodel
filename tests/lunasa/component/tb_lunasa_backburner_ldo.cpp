@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 // This test is here just to verify that we don't screw up
 // refcounts when we pass ldo's through backburner.
@@ -66,7 +66,7 @@ TEST_F(BackBurnerLDO, PassLDO) {
 
   lunasa::DataObject ldo1(0, 1024, lunasa::DataObject::AllocatorType::eager);
   int *x = (int *) ldo1.GetDataPtr();
-  for(int i = 0; i<1024/sizeof(int); i++)
+  for(int i = 0; i < static_cast<int>(1024/sizeof(int)); i++)
     x[i] = i;
 
   cout << "Launch: Ldo1 size " << ldo1.GetDataSize() << " refcount " << ldo1.internal_use_only.GetRefCount() << endl;

@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 // Whookie Bootstrap Example
 //
@@ -37,17 +37,6 @@ whookie.debug true
 
 int main(int argc, char* argv[]) {
 
-  
-  //The simplest hook is just a static web page. We can encode all
-  //the information needed for the page inside of a lambda. More
-  //sophisticated handlers should call out to functions in order to make
-  //the core more readable.
-  whookie::Server::registerHook("/bob", [] (const map<string,string> &args, stringstream &results){
-      html::mkHeader(results, "Bob's Page");
-      html::mkTable(results, args, "Bobs args");
-      html::mkFooter(results);
-    });
-
 
   //In this example, whookie is all we need from the FAODEL
   //stack. We need to tell bootstrap that it should launch whookie
@@ -55,7 +44,23 @@ int main(int argc, char* argv[]) {
   faodel::bootstrap::Init(faodel::Configuration(default_config),
                            whookie::bootstrap);
 
-  //Once it's started, you can retrieve our node id
+  //After initialization you can start registering web page handlers with
+  //whookie. The simplest hook is just a static web page. We can encode all
+  //the information needed for the page inside of a lambda. More
+  //sophisticated handlers should call out to functions in order to make
+  //the core more readable.
+  whookie::Server::registerHook("/bob", [] (const map<string,string> &args, stringstream &results){
+      html::mkHeader(results, "Bob's Page");
+      html::mkTable(results, args, "Bobs args");
+      html::mkFooter(results);
+  });
+
+  //You should register other handlers after init, but (preferably) before start.
+  //The whookie service is a little different than other services because it is
+  //functional after Init instead of Start. This is because some services need to
+  //know the local node id during their init.
+
+  //eg, we haven't run start yet, but we can get the whookie node id
   faodel::nodeid_t nid = whookie::Server::GetNodeID();
 
   //You should be able to browse to the web page now.

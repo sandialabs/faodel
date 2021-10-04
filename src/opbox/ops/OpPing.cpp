@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #include <iostream>
 #include <chrono>
@@ -74,7 +74,7 @@ std::future<std::string> OpPing::GetFuture() {
  */
 WaitingType OpPing::smo_Start(){
 
-  kassert(peer!=nullptr, "Didn't get a proper peer?");
+  F_ASSERT(peer != nullptr, "Didn't get a proper peer?");
 
   opbox::net::SendMsg(peer, std::move(ldo_msg), AllEventsCallback(this) );
 
@@ -162,7 +162,7 @@ WaitingType OpPing::UpdateOrigin(OpArgs *args) {
   case State::done:                    return WaitingType::done_and_destroy;
   default: ;
   }
-  KFAIL(); //Should never reach here
+  F_FAIL(); //Should never reach here
   return WaitingType::error;
 }
 
@@ -178,7 +178,7 @@ WaitingType OpPing::UpdateTarget(OpArgs *args){
   case State::done:                    return WaitingType::done_and_destroy;
   default: ;
   }
-  KFAIL(); //Should never reach here
+  F_FAIL(); //Should never reach here
   return WaitingType::error;
 }
 

@@ -28,10 +28,13 @@ endif()
 
 SET( CEREAL_INCLUDES "${CMAKE_CURRENT_SOURCE_DIR}/include" PARENT_SCOPE )
 
-add_library(cereal INTERFACE)
-target_include_directories(cereal INTERFACE
+add_library(tpl-cereal INTERFACE)
+target_include_directories(tpl-cereal INTERFACE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
 )
-install(TARGETS cereal 
+install(TARGETS tpl-cereal
     EXPORT FaodelTargets
-    DESTINATION lib) # ignored
+    INCLUDES DESTINATION "${INCLUDE_INSTALL_DIR}/faodel/tpl-cereal" )
+install( DIRECTORY ${CMAKE_CURRENT_LIST_DIR}/include/cereal
+        DESTINATION ${INCLUDE_INSTALL_DIR}/faodel/tpl-cereal)
+

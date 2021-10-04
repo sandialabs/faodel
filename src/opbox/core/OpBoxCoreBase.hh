@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #ifndef OPBOX_OPBOXCOREBASE_HH
 #define OPBOX_OPBOXCOREBASE_HH
@@ -27,7 +27,7 @@ public:
 
   ~OpBoxCoreBase() override;
 
-  //Boostrap calls are handled by the singleton, which then calls these functions
+  //Bootstrap calls are handled by the singleton, which then calls these functions
   virtual void init(const faodel::Configuration &config)=0;
   virtual void start()=0;
   virtual void finish()=0;
@@ -35,13 +35,10 @@ public:
   virtual int LaunchOp(Op *op, mailbox_t *resulting_mailbox)=0;
   virtual int TriggerOp(mailbox_t mailbox, std::shared_ptr<OpArgs> args) = 0;
 
-  //virtual int QueueTriggerOp(mailbox_t mailbox, std::shared_ptr<OpArgs> args) = 0;
-
-  
   virtual int HandleIncomingMessage(opbox::net::peer_ptr_t peer, message_t *incoming_message) = 0;
   virtual int UpdateOp(Op *op, OpArgs *args)=0;
 
-
+  virtual int GetNumberOfActiveOps(unsigned int op_id=0) = 0;
 
 
 
@@ -53,8 +50,6 @@ public:
 protected:
 
 };
-
-
 
 } // namespace internal
 } // namespace opbox

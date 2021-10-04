@@ -1,11 +1,12 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #ifndef KELPIE_OPKELPIELIST_HH
 #define KELPIE_OPKELPIELIST_HH
 
 #include <condition_variable>
+#include <future>
 
 #include "opbox/OpBox.hh"
 #include "opbox/ops/OpHelpers.hh"
@@ -38,12 +39,12 @@ public:
           const std::vector<std::pair<faodel::nodeid_t, net::peer_ptr_t>> targets,
           const faodel::bucket_t bucket,
           const Key &search_key,
+          const iom_hash_t &iom_hash,
           ObjectCapacities *object_capacities,
-          std::condition_variable *cv,
-          int *num_targets_left);
+          std::promise<bool> *caller_promise);
 
   //A target starts off the same way no matter what command
-  OpKelpieList(Op::op_create_as_target_t t);
+  explicit OpKelpieList(Op::op_create_as_target_t t);
 
   ~OpKelpieList() override;
 
@@ -67,7 +68,7 @@ private:
 
   //todo: put this in a standard form so it can be reused
   #if Faodel_LOGGINGINTERFACE_DISABLED==0
-  void dbg(std::string s) const {
+  void dbg(const std::string &s) const {
       if(OpKelpieList::debug_enabled) {
         std::cout << "\033[1;31mD " << op_name << ":\033[0m " << (s) << std::endl;
       }
@@ -84,10 +85,11 @@ private:
   std::vector<std::pair<faodel::nodeid_t, net::peer_ptr_t>> targets;
   faodel::bucket_t bucket;
   Key search_key;
+  iom_hash_t iom_hash;
 
   ObjectCapacities *user_object_capacities;
-  std::condition_variable *user_cv; //FIXME
-  int *user_num_targets_left;
+  std::promise<bool> *caller_promise;
+  int num_targets_left;
 
 
   State state;

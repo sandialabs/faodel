@@ -1,8 +1,7 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
-#include <assert.h>
 #include <string.h>
 
 #include "lunasa/core/LunasaCoreBase.hh"
@@ -23,7 +22,7 @@ LunasaCoreBase::~LunasaCoreBase()
 
 void LunasaCoreBase::init(const faodel::Configuration &config)
 {
-  assert(!configured && "Attempted to Init() LunasaCore multiple times");
+  F_ASSERT(!configured,"Attempted to Init() LunasaCore multiple times");
 
   //Use tcmalloc by default, but automatically switch to malloc if no build support
   #ifdef Faodel_ENABLE_TCMALLOC

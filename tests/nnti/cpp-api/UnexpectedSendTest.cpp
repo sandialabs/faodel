@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 
 #include "nnti/nnti_pch.hpp"
@@ -115,7 +115,7 @@ TEST_F(NntiUnexpectedSendTest, start1) {
 
         MPI_Barrier(MPI_COMM_WORLD);
 
-        for (int j=0;j<outer_iters;j++) {
+        for (uint32_t j=0;j<outer_iters;j++) {
             uint32_t msgs_received=0;
             while (true) {
                 rc = t->eq_wait(&eq, 1, 1000, &which, &event);
@@ -158,7 +158,7 @@ TEST_F(NntiUnexpectedSendTest, start1) {
         base_wr.remote_offset = 0;
         base_wr.length        = 320;
 
-        for (int j=0;j<outer_iters;j++) {
+        for (uint32_t j=0;j<outer_iters;j++) {
             for (int i=0;i<10;i++) {
                 base_wr.local_offset = i * 320;
 
@@ -231,7 +231,7 @@ TEST_F(NntiUnexpectedSendTest, start1) {
             log_fatal("IBRdmaOpTest", "dt_pack() failed: %d", rc);
         }
 
-        for (int j=0;j<outer_iters;j++) {
+        for (uint32_t j=0;j<outer_iters;j++) {
             for (int i=0;i<10;i++) {
                 *(uint32_t*)(payload+4) = i;
 
@@ -266,7 +266,7 @@ TEST_F(NntiUnexpectedSendTest, start1) {
         char          *dst_base=nullptr;
         t->alloc(3200, NNTI_BF_LOCAL_WRITE, (NNTI_event_queue_t)0, null_cb, nullptr, &dst_base, &dst_buf);
 
-        for (int j=0;j<outer_iters;j++) {
+        for (uint32_t j=0;j<outer_iters;j++) {
             uint32_t msgs_received=0;
             while (true) {
                 log_debug("UnexpectedSendTest", "msgs_received == %d", msgs_received);

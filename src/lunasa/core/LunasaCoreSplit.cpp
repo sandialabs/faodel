@@ -1,8 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
-
-#include <assert.h>
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #include "lunasa/Lunasa.hh"
 #include "lunasa/allocators/Allocators.hh"
@@ -35,6 +33,7 @@ void LunasaCoreSplit::init(string lmm_name, string emm_name, bool use_whookie,
                            const faodel::Configuration &config) {
   dbg("LunasaCoreSplit init. Lazy: "+lmm_name+" Eager: "+emm_name);
   
+  //May cause throws!
   AllocatorBase *new_lazy_allocator = createAllocator(config, lmm_name, false);
   AllocatorBase *new_eager_allocator = createAllocator(config, emm_name, true);
 

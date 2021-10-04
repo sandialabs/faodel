@@ -1,6 +1,9 @@
-// Copyright 2021 National Technology & Engineering Solutions of Sandia,
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,
-// the U.S. Government retains certain rights in this software.
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
+
+#include <vector>
+#include <algorithm>
 
 #include "kelpie/common/Types.hh"
 
@@ -8,7 +11,7 @@ using namespace std;
 
 namespace kelpie {
 
-/// Append a key/capacity to this ObjectCapacities. Does NOT dedupe
+/// Append a ket/capacity to this ObjectCapacities. Does NOT dedupe
 void ObjectCapacities::Append(const kelpie::Key &key, size_t capacity) {
   keys.emplace_back(key);
   capacities.emplace_back(capacity);

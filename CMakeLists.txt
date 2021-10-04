@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.8.0)
 project( Faodel
   LANGUAGES CXX C
-  VERSION 1.1906.2
+  VERSION 1.2108.1
   )
 
 
@@ -40,7 +40,7 @@ endif()
 include( FindPkgConfig )
 include( FindPackageHandleStandardArgs )
 include( CMakePackageConfigHelpers )
-
+include( CheckFunctionExists )
 
 # Macros
 
@@ -114,21 +114,24 @@ endfunction()
 
 # Options
 option( BUILD_SHARED_LIBS           "Build Faodel as shared libs"  OFF )
-option( BUILD_TESTS                 "Faodel testing gtest and ctest" ON )
+option( BUILD_TESTS                 "Faodel testing gtest and ctest" OFF )
+option( BUILD_EXAMPLES              "Build examples" OFF)
 option( BUILD_DOCS                  "Generate documentation using Doxygen" ON )
 
-option( Faodel_ENABLE_CEREAL        "Enable use of Cereal for serialization in NNTI (disables XDR)" OFF )
 option( Faodel_ENABLE_MPI_SUPPORT   "Enable use of MPI communication" ON )
 option( Faodel_ENABLE_TCMALLOC      "Use tcmalloc from gperftools in Lunasa, potentially other places" ON )
 option( Faodel_ENABLE_IOM_HDF5      "Build the HDF5-based IOM in Kelpie" OFF )
 option( Faodel_ENABLE_IOM_LEVELDB   "Build the LevelDB-based IOM in Kelpie" OFF )
 option( Faodel_ENABLE_IOM_CASSANDRA "Build the Cassandra-based IOM in Kelpie" OFF )
+option( Faodel_ENABLE_DEBUG_TIMERS  "Enable timers for debug purposed" OFF )
+
+mark_as_advanced(Faodel_ENABLE_DEBUG_TIMERS)
 
 set( Faodel_NETWORK_LIBRARY   "nnti" CACHE STRING "RDMA Network library to use for low-level communication" )
 set_property(CACHE Faodel_NETWORK_LIBRARY PROPERTY STRINGS nnti libfabric)
 
-
-
+set( Faodel_NNTI_SERIALIZATION_METHOD "XDR" CACHE STRING "Serialization library for use in NNTI <XDR|CEREAL>" )
+set_property(CACHE Faodel_NNTI_SERIALIZATION_METHOD PROPERTY STRINGS XDR CEREAL )
 
 # Configure the world
 
@@ -197,18 +200,18 @@ set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS Debug Pedantic Release RelW
 # Set the build type in case a project doesn't. This can be overridden by providing e.g. -DCMAKE_BUILD_TYPE=Release at
 #  cmake time.
 if( NOT CMAKE_BUILD_TYPE )
-  set( CMAKE_BUILD_TYPE Debug )
+  set( CMAKE_BUILD_TYPE Debug CACHE STRING "Specify a build configuration" FORCE )
 endif()
 
 
-if( ${CMAKE_SYSTEM_NAME} MATCHES "CrayLinuxEnvironment" )
-  if( BUILD_SHARED_LIBS )
-    message( FATAL_ERROR
-    "Faodel does not support shared libraies on Cray compute nodes.  Please set BUILD_SHARED_LIBS=OFF."
-    )
-  endif()
-  set( Boost_USE_STATIC_LIBS ON )
-endif()
+#if( ${CMAKE_SYSTEM_NAME} MATCHES "CrayLinuxEnvironment" )
+#  if( BUILD_SHARED_LIBS )
+#    message( FATAL_ERROR
+#    "Faodel does not support shared libraies on Cray compute nodes.  Please set BUILD_SHARED_LIBS=OFF."
+#    )
+#  endif()
+#  set( Boost_USE_STATIC_LIBS ON )
+#endif()
 
 macro( disable_isystem_flag )
   # Disable use of the -isystem compiler flag by telling CMake to use -I instead
@@ -240,6 +243,29 @@ if( ${CMAKE_CXX_COMPILER_ID} STREQUAL "GNU" )
   endif()
     
 endif()
+
+####
+#
+# Handle asserts in debugging
+#
+####
+set( Faodel_ASSERT_METHOD     "cassert" CACHE STRING "Mechanism for dealing with asserts in Faodel")
+set_property(CACHE Faodel_ASSERT_METHOD PROPERTY STRINGS cassert debugExit debugHalt debugWarn none)
+mark_as_advanced(Faodel_ASSERT_METHOD)
+if(     Faodel_ASSERT_METHOD             MATCHES "cassert")
+   set( Faodel_ASSERT_METHOD_CASSERT     TRUE)
+elseif( Faodel_ASSERT_METHOD             MATCHES "debugExit")
+   set( Faodel_ASSERT_METHOD_DEBUG_EXIT  TRUE)
+elseif( Faodel_ASSERT_METHOD             MATCHES "debugHalt")
+   set( Faodel_ASSERT_METHOD_DEBUG_HALT  TRUE)
+elseif( Faodel_ASSERT_METHOD             MATCHES "debugWarn")
+   set( Faodel_ASSERT_METHOD_DEBUG_WARN  TRUE)
+elseif( Faodel_ASSERT_METHOD             MATCHES "none")
+   set( Faodel_ASSERT_METHOD_NONE        TRUE)
+endif()
+
+
+
 
 ####
 #
@@ -275,6 +301,19 @@ else()
           )
 endif()
 
+## Handle crc32()
+## Some tests use crc32() to validate network transfers.
+## Assume that crc32() is in zlib and make sure we can find it.
+find_package(ZLIB)
+if (ZLIB_FOUND)
+  set (CMAKE_REQUIRED_LIBRARIES ${ZLIB_LIBRARIES})
+  check_function_exists(crc32 Faodel_HAVE_CRC32)
+  set (CMAKE_REQUIRED_LIBRARIES "")
+endif(ZLIB_FOUND)
+if (NOT Faodel_HAVE_CRC32)
+  message(STATUS "crc32() not found - some tests will not be built")
+endif (NOT Faodel_HAVE_CRC32)
+
 ## Handle logging
 set( Faodel_LOGGING_METHOD "stdout" CACHE STRING "Select where logging interface output is routed" )
 set_property(CACHE Faodel_LOGGING_METHOD PROPERTY STRINGS stdout sbl disabled)
@@ -305,9 +344,21 @@ set( CMAKE_NO_SYSTEM_FROM_IMPORTED TRUE )
 
 include( ${CMAKE_CURRENT_LIST_DIR}/cmake/FaodelTPLs.cmake )
 
+include( ${CMAKE_CURRENT_LIST_DIR}/cmake/FaodelRpathHelpers.cmake )
+set_faodel_install_rpath()
+set_cmake_install_rpath()
+# The CMake Cray system module does not define the RPATH flags (probably
+# because Cray has historically only supported static linking).  Now that
+# dynamic linking is supported, we define them ourselves.
+if( ${CMAKE_SYSTEM_NAME} MATCHES "CrayLinuxEnvironment" )
+  if( BUILD_SHARED_LIBS )
+    set_cmake_rpath_flags()
+  endif()
+endif()
+
 ##############################
 #
-# Stanza 4 : Locate optional TPLs and services
+# Stanza 3 : Locate optional TPLs and services
 #
 ##############################
 
@@ -336,7 +387,7 @@ set( CMAKE_NO_SYSTEM_FROM_IMPORTED ${savevar} )
 
 ################################
 ##
-## Stanza 5 : Define Faodel build and install targets
+## Stanza 4 : Define Faodel build and install targets
 ##
 ################################
 if( Faodel_ENABLE_TCMALLOC )
@@ -402,6 +453,7 @@ endif()
 
 # Build tools
 add_subdirectory( tools/faodel-cli )
+add_subdirectory( tools/faodel-stress )
 add_subdirectory( tools/kelpie-server )
 
 
@@ -422,6 +474,18 @@ if( BUILD_TESTS )
   add_subdirectory( tests/dirman )
   add_subdirectory( tests/kelpie )
   
+endif()
+
+if( BUILD_EXAMPLES )
+  # Optional: add the examples. Examples are scoped to only use libs from a certain
+  # point down. Currently missing the nnti examples.
+  foreach(ex_lib common dirman kelpie lunasa opbox services)
+      set(EXAMPLE_LIBS ${ex_lib})
+      add_subdirectory( examples/${ex_lib} )
+  endforeach(ex_lib)
+
+  set(EXAMPLE_LIBS whookie common)
+  add_subdirectory( examples/whookie )
 endif()
 
 export( EXPORT FaodelTargets FILE FaodelTargets.cmake )
@@ -489,6 +553,8 @@ if( BUILD_DOCS )
       WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
       COMMENT "Generating API documentation with Doxygen" VERBATIM
       )
+    add_custom_target(docs)
+    add_dependencies( docs doc)
     
     add_custom_target( install-doc
       COMMAND mkdir -p ${CMAKE_INSTALL_PREFIX}/share/doc/${PROJECT_NAME} && cp -R docs/ ${CMAKE_INSTALL_PREFIX}/share/doc/${PROJECT_NAME}
@@ -518,110 +584,12 @@ endif( BUILD_DOCS )
 ## Stanza 5 : Any status reporting or cleanup items
 ##
 ################################
-function( found_status )
-  if( ${${ARGV1}} )
-    set( found_str "Found" )
-    if( ${ARGC} EQUAL 4 AND NOT ${ARGV3} EQUAL "" )
-      set( version_str "(${ARGV2}${ARGV3})" )
-    elseif( ${ARGC} EQUAL 3 AND NOT ${ARGV2} EQUAL "" )
-      set( version_str "(${ARGV2})" )
-    endif()
-  else()
-    set( found_str "Not Found" )
-  endif()
-  set( fill_len   25 )
-  set( padded_len 25 )
-  string( RANDOM LENGTH ${fill_len} ALPHABET " " fill_str )
-  string( SUBSTRING "${ARGV0}:${fill_str}" 0 ${padded_len} padded_str )
-  message( STATUS "   ${padded_str}${found_str} ${version_str}" )
-endfunction()
+include( ${CMAKE_CURRENT_LIST_DIR}/cmake/FaodelSummary.cmake )
+print_faodel_config_summary()
 
-function( message_status )
-  set( fill_len   25 )
-  set( padded_len 25 )
-  string( RANDOM LENGTH ${fill_len} ALPHABET " " fill_str )
-  string( SUBSTRING "${ARGV0}:${fill_str}" 0 ${padded_len} padded_str )
-  message( STATUS "   ${padded_str}${ARGV1}" )
-endfunction()
-
-message( STATUS "" )
-message( STATUS "======================================================================" )
-message( STATUS "" )
-message( STATUS "Configured to build Faodel with ${CMAKE_MAKE_PROGRAM}" )
-if( CMAKE_INSTALL_PREFIX )
-  message( STATUS "Installation prefix is ${CMAKE_INSTALL_PREFIX}" )
-endif()
-message( STATUS "" )
-message( STATUS "External Programs:" )
-message_status( "compiler"  "${CMAKE_CXX_COMPILER_ID} (${CMAKE_CXX_COMPILER_VERSION})" )
-found_status( "doxygen"     DOXYGEN_FOUND "v" "${DOXYGEN_VERSION}" )
-message( STATUS "" )
-message( STATUS "TPLs:" )
-found_status( "Boost"       Boost_FOUND "v" "${Boost_MAJOR_VERSION}.${Boost_MINOR_VERSION}.${Boost_SUBMINOR_VERSION}" )
-found_status( "MPI"         MPI_FOUND "implements MPI-" "${MPI_C_VERSION}" )
-found_status( "googletest"  GTest_FOUND )
-if (Faodel_NETWORK_LIBRARY STREQUAL "libfabric")
-  found_status( "libfabric"   LIBFABRIC_FOUND "v" "${Libfabric_pc_VERSION}" )
-endif()
-if (Faodel_NETWORK_LIBRARY STREQUAL "nnti")
-  found_status( "libugni"     UGNI_FOUND "v" "${UGNI_PC_VERSION}" )
-  found_status( "Cray DRC"    DRC_FOUND )
-  found_status( "ibverbs"     IBVerbs_FOUND )
-endif()
-message( STATUS "" )
-message( STATUS "Faodel Common Config:" )
-message( STATUS "   Threading Model:         ${Faodel_THREADING_MODEL}" )
-message( STATUS "   Logging Method:          ${Faodel_LOGGING_METHOD}" )
-message( STATUS "" )
-message( STATUS "Lunasa Config:" )
-if ( ${Faodel_ENABLE_TCMALLOC} )
-  message( STATUS "   Building with tcmalloc from gperftools" )
-endif()
-message( STATUS "" )
-message( STATUS "NNTI Config:" )
-if( ${NNTI_BUILD_IBVERBS} )
-  if( ${NNTI_HAVE_VERBS_EXP_H} )
-    message( STATUS "   Building the IBVerbs Transport with the libverbs expanded API (mlx4 or mlx5)" )
-  else()
-    message( STATUS "   Building the IBVerbs Transport with the libverbs standard API (mlx4 ONLY)" )
-  endif()
-else()
-  if( ${NNTI_DISABLE_IBVERBS_TRANSPORT} )
-    message( STATUS "   IBVerbs Transport explicitly disabled" )
-  else()
-    message( STATUS "   Not building the IBVerbs Transport" )
-  endif()
-endif()
-if( ${NNTI_BUILD_UGNI} )
-  message( STATUS "   Building the UGNI Transport" )
-else()
-  if( ${NNTI_DISABLE_UGNI_TRANSPORT} )
-    message( STATUS "   UGNI Transport explicitly disabled" )
-  else()
-    message( STATUS "   Not building the UGNI Transport" )
-  endif()
-endif()
-if( ${NNTI_BUILD_MPI} )
-  message( STATUS "   Building the MPI Transport" )
-else()
-  if( ${NNTI_DISABLE_MPI_TRANSPORT} )
-    message( STATUS "   MPI Transport explicitly disabled" )
-  else()
-    message( STATUS "   Not building the MPI Transport" )
-  endif()
-endif()
-if( ${NNTI_USE_XDR} )
-  message( STATUS "   Using XDR for serialization" )
-else()
-  if( ${NNTI_USE_CEREAL} )
-    message( STATUS "   Using Cereal for serialization" )
-  else()
-    message( STATUS "   ERROR - Couldn't find a serialization library" )
-  endif()
-endif()
-message( STATUS "" )
-message( STATUS "Opbox Config:" )
-message( STATUS "   Network Library:         ${Faodel_NETWORK_LIBRARY}" )
-message( STATUS "" )
-message( STATUS "======================================================================" )
-message( STATUS "" )
+##
+## Next we check for disabled NNTI transports that seem like 
+## they could be errors or unintended misconfigurations.
+##
+include( ${CMAKE_CURRENT_LIST_DIR}/cmake/FaodelCheckTransports.cmake )
+check_preferred_transports()

@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 
 #include "nnti/nntiConfig.h"
@@ -35,8 +35,6 @@ namespace core {
       cmd_msg_count_(cmd_msg_count),
       smsg_waitlisted(false)
     {
-        int rc;
-
         setup_mailbox();
         setup_rdma();
     }
@@ -47,17 +45,17 @@ namespace core {
         const std::map<std::string,std::string> &peer)
     : nnti_connection(),
       transport_(transport),
+      peer_params_(peer),
       cmd_msg_size_(cmd_msg_size),
       cmd_msg_count_(cmd_msg_count),
-      peer_params_(peer),
       smsg_waitlisted(false)
     {
-        int rc;
-
         nnti::core::nnti_url url = nnti::core::nnti_url(peer_params_.hostname, peer_params_.port);
         peer_pid_ = url.pid();
         peer_     = new nnti::datatype::nnti_peer(transport, url);
         peer_->conn(this);
+
+        fingerprint_ = peer_params_.fingerprint;
 
         setup_mailbox();
         setup_rdma();
@@ -65,6 +63,7 @@ namespace core {
         log_debug("", "hostname           = %s",   peer_params_.hostname.c_str());
         log_debug("", "addr               = %lu",  peer_params_.addr);
         log_debug("", "port               = %d",   peer_params_.port);
+        log_debug("", "fingerprint        = %s",   peer_params_.fingerprint.c_str());
         log_debug("", "local_addr         = %d",   peer_params_.local_addr);
         log_debug("", "instance           = %d",   peer_params_.instance);
         log_debug("", "smsg_msg_buffer    = %llu",  peer_params_.smsg_msg_buffer);
@@ -84,16 +83,17 @@ namespace core {
     ugni_connection::peer_params(
         const std::map<std::string,std::string> &params)
     {
-        int rc;
-
         peer_params_ = connection_params(params);
 
         nnti::core::nnti_url url = nnti::core::nnti_url(peer_params_.hostname, peer_params_.port);
         peer_pid_ = url.pid();
 
+        fingerprint_ = peer_params_.fingerprint;
+
         log_debug("", "hostname           = %s",   peer_params_.hostname.c_str());
         log_debug("", "addr               = %lu",  peer_params_.addr);
         log_debug("", "port               = %d",   peer_params_.port);
+        log_debug("", "fingerprint        = %s",   peer_params_.fingerprint.c_str());
         log_debug("", "local_addr         = %d",   peer_params_.local_addr);
         log_debug("", "instance           = %d",   peer_params_.instance);
         log_debug("", "smsg_msg_buffer    = %llu",  peer_params_.smsg_msg_buffer);
@@ -106,7 +106,6 @@ namespace core {
     ugni_connection::peer_params(
         const std::string &params)
     {
-        int rc;
         std::map<std::string,std::string> param_map;
 
         std::istringstream iss(params);
@@ -121,9 +120,12 @@ namespace core {
         nnti::core::nnti_url url = nnti::core::nnti_url(peer_params_.hostname, peer_params_.port);
         peer_pid_ = url.pid();
 
+        fingerprint_ = peer_params_.fingerprint;
+
         log_debug("", "hostname           = %s",   peer_params_.hostname.c_str());
         log_debug("", "addr               = %lu",  peer_params_.addr);
         log_debug("", "port               = %d",   peer_params_.port);
+        log_debug("", "fingerprint        = %s",   peer_params_.fingerprint.c_str());
         log_debug("", "local_addr         = %d",   peer_params_.local_addr);
         log_debug("", "instance           = %d",   peer_params_.instance);
         log_debug("", "smsg_msg_buffer    = %llu",  peer_params_.smsg_msg_buffer);
@@ -207,11 +209,11 @@ namespace core {
         log_debug("ugni_connection", "rdma_ep_hdl_(%llu) bound to instance(%llu) at local_addr(%llu)", rdma_ep_hdl_, peer_params_.instance, peer_params_.local_addr);
 
         nthread_lock(&transport_->ugni_lock_);
-        gni_rc = GNI_CqCreate (transport_->nic_hdl_, 64, 0, GNI_CQ_BLOCKING, NULL, NULL, &unexpected_ep_cq_hdl_);
-        if (gni_rc != GNI_RC_SUCCESS) {
-            log_error("ugni_transport", "CqCreate(unexpected_ep_cq_hdl_) failed: %d", gni_rc);
-        }
-        gni_rc = GNI_EpCreate(transport_->nic_hdl_, unexpected_ep_cq_hdl_, &unexpected_ep_hdl_);
+//        gni_rc = GNI_CqCreate (transport_->nic_hdl_, 64, 0, GNI_CQ_BLOCKING, NULL, NULL, &unexpected_ep_cq_hdl_);
+//        if (gni_rc != GNI_RC_SUCCESS) {
+//            log_error("ugni_transport", "CqCreate(unexpected_ep_cq_hdl_) failed: %d", gni_rc);
+//        }
+        gni_rc = GNI_EpCreate(transport_->nic_hdl_, transport_->unexpected_long_get_ep_cq_hdl_, &unexpected_ep_hdl_);
         if (gni_rc != GNI_RC_SUCCESS) {
             log_error("ugni_mailbox", "EpCreate(unexpected_ep_hdl_) failed: %d", gni_rc);
         }
@@ -258,7 +260,7 @@ namespace core {
     gni_cq_handle_t
     ugni_connection::unexpected_cq_hdl(void)
     {
-        return unexpected_ep_cq_hdl_;
+        return 0; //unexpected_ep_cq_hdl_;
     }
 
     bool
@@ -273,6 +275,7 @@ namespace core {
         std::lock_guard<std::mutex> lock(smsg_waitlist_lock_);
         smsg_waitlist_.push_back(op);
         smsg_waitlisted = true;
+        return 0;
     }
 
     int

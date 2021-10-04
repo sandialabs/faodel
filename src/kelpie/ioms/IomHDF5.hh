@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #ifndef KELPIE_IOMHDF_HH
 #define KELPIE_IOMHDF_HH
@@ -26,17 +26,17 @@ public:
 
   ~IomHDF5();
 
-  rc_t GetInfo(faodel::bucket_t bucket, const kelpie::Key &key, kv_col_info_t *col_info) override;
+  rc_t GetInfo(faodel::bucket_t bucket, const kelpie::Key &key, object_info_t *info) override;
 
-  void WriteObject(faodel::bucket_t, const kelpie::Key &key, const lunasa::DataObject &ldo) override;
-
-  void WriteObjects(faodel::bucket_t, const std::vector<kvpair> &kvpairs);
+  rc_t WriteObject(faodel::bucket_t, const kelpie::Key &key, const lunasa::DataObject &ldo) override;
+  void internal_WriteObject(faodel::bucket_t bucket,
+                            const std::vector<kvpair> &kvpairs);
 
   rc_t ReadObject(faodel::bucket_t, const kelpie::Key &key, lunasa::DataObject *ldo) override;
 
-  rc_t ReadObjects(faodel::bucket_t, std::vector<kelpie::Key> &keys,
-                   std::vector<kvpair> *found_keys,
-                   std::vector<kelpie::Key> *missing_keys);
+//  rc_t ReadObjects(faodel::bucket_t, std::vector<kelpie::Key> &keys,
+//                   std::vector<kvpair> *found_keys,
+//                   std::vector<kelpie::Key> *missing_keys);
 
   constexpr static char type_str[] = "HDF5";
 
@@ -44,6 +44,14 @@ public:
 
   void AppendWebInfo(faodel::ReplyStream rs, std::string reference_link,
                      const std::map<std::string, std::string> &args) override;
+
+  /// Return a list of all the setting names this IOM accepts at construction and provide a brief description for each
+  static const std::vector<std::pair<std::string,std::string>> ValidSettingNamesAndDescriptions() {
+    return {
+          {"path",   "The path that the IOM writer should use for storing data"},
+          {"unique", "An additional marker appended to path to make this instance unique"}
+    };
+  }
 
   void sstr(std::stringstream &ss, int depth = 0, int indent = 0) const override;
 

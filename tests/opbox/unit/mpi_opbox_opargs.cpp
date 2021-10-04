@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 // Test:    mpi_opbox_opargs
 // Purpose: Test passing arg objects around (verify types and recast)
@@ -62,9 +62,7 @@ TEST_F(OpBoxOpArgsTest, Recasts) {
   OpArgs args_start(UpdateType::start);
   OpArgs args_success(UpdateType::send_success);
   OpArgs args_msg(0, &header);
-  OpArgs *args_msg_ptr = &args_msg;
 
-  OpArgs *args;
   EXPECT_FALSE(args_start.IsIncomingMessage());
   EXPECT_TRUE(args_msg.IsIncomingMessage());
 

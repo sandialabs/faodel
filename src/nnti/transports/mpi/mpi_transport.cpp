@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 
 #include "nnti/nnti_pch.hpp"
@@ -53,9 +53,7 @@ namespace transports {
 /**
  * @brief Initialize NNTI to use a specific transport.
  *
- * \param[in]  trans_id  The ID of the transport the client wants to use.
- * \param[in]  my_url    A string that describes the transport parameters.
- * \param[out] trans_hdl A handle to the activated transport.
+ * \param[in]  config    A Configuration object that NNTI should use to configure itself.
  * \return A result code (NNTI_OK or an error)
  *
  */
@@ -207,7 +205,6 @@ mpi_transport::stop(void)
         MPI_Finalize();
     }
 
-cleanup:
     log_debug("mpi_transport", "exit");
 
     return rc;
@@ -216,8 +213,6 @@ cleanup:
 /**
  * @brief Indicates if a transport has been initialized.
  *
- * \param[in]  trans_id  The ID of the transport to test.
- * \param[out] is_init   1 if the transport is initialized, 0 otherwise.
  * \return A result code (NNTI_OK or an error)
  *
  */
@@ -487,12 +482,12 @@ mpi_transport::eq_wait(
 
     log_debug("eq_wait", "enter");
 
-    for (int i=0;i<eq_count;i++) {
+    for (uint32_t i=0;i<eq_count;i++) {
         nnti::datatype::nnti_event_queue *eq = nnti::datatype::nnti_event_queue::to_obj(eq_list[i]);
         rc = eq->pop(e);
         if (rc) {
             uint32_t dummy=0;
-            ssize_t bytes_read=read(eq->read_fd(), &dummy, 4);
+            read(eq->read_fd(), &dummy, 4);
 
             *which = i;
             *event = *e;
@@ -502,7 +497,7 @@ mpi_transport::eq_wait(
         }
     }
 
-    for (int i=0;i<eq_count;i++) {
+    for (uint32_t i=0;i<eq_count;i++) {
         nnti::datatype::nnti_event_queue *eq = nnti::datatype::nnti_event_queue::to_obj(eq_list[i]);
         poll_fds[i].fd      = eq->read_fd();
         poll_fds[i].events  = POLLIN;
@@ -537,11 +532,11 @@ mpi_transport::eq_wait(
         goto cleanup;
     } else {
         log_debug("eq_wait", "polled on %d file descriptor(s).  events occurred on %d file descriptor(s).", poll_fds.size(), poll_rc);
-        for (int i=0;i<eq_count;i++) {
+        for (uint32_t i=0;i<eq_count;i++) {
             log_debug("eq_wait", "poll success: poll_rc=%d ; poll_fds[%d].revents=%d",
                       poll_rc, i, poll_fds[i].revents);
         }
-        for (int i=0;i<eq_count;i++) {
+        for (uint32_t i=0;i<eq_count;i++) {
             if (poll_fds[i].revents == POLLIN) {
                 log_debug("eq_wait", "poll() events on eq[%d]", i);
                 ssize_t bytes_read=0;
@@ -578,7 +573,7 @@ cleanup:
  *
  * \param[in]  dst_hdl        Buffer where the message is delivered.
  * \param[in]  dst_offset     Offset into dst_hdl where the message is delivered.
- * \param[out] reseult_event  Event describing the message delivered to dst_hdl.
+ * \param[out] result_event   Event describing the message delivered to dst_hdl.
  * \return A result code (NNTI_OK or an error)
  */
 NNTI_result_t
@@ -588,8 +583,7 @@ mpi_transport::next_unexpected(
     NNTI_event_t  *result_event)
 {
     NNTI_result_t rc = NNTI_OK;
-    int mpi_rc;
-    uint64_t actual_offset;
+    uint64_t actual_offset=0;
     nnti::datatype::nnti_buffer *b = (nnti::datatype::nnti_buffer *)dst_hdl;
 
     log_debug("next_unexpected", "enter");
@@ -618,14 +612,14 @@ mpi_transport::next_unexpected(
         log_debug("mpi_transport", "unexpected long send Irecv()");
 
         std::unique_lock<std::mutex> mpi_lock(mpi_mutex_);
-        mpi_rc = MPI_Irecv((char*)b->payload() + dst_offset,
+        MPI_Irecv((char*)b->payload() + dst_offset,
                            unexpected_msg->payload_length(),
                            MPI_BYTE,
                            peer->rank(),
                            initiator_buffer->cmd_tag(),
                            MPI_COMM_WORLD,
                            &req);
-        mpi_rc = MPI_Wait(&req, &status);
+        MPI_Wait(&req, &status);
         mpi_lock.unlock();
 
         log_debug("mpi_transport", "unexpected long send Wait() complete");
@@ -657,10 +651,10 @@ mpi_transport::next_unexpected(
 /**
  * @brief Retrieves a specific message from the unexpected list.
  *
- * \param[in]  unexpect_event  Event describing the message to retrieve.
- * \param[in]  dst_hdl         Buffer where the message is delivered.
- * \param[in]  dst_offset      Offset into dst_hdl where the message is delivered.
- * \param[out] reseult_event   Event describing the message delivered to dst_hdl.
+ * \param[in]  unexpected_event  Event describing the message to retrieve.
+ * \param[in]  dst_hdl           Buffer where the message is delivered.
+ * \param[in]  dst_offset        Offset into dst_hdl where the message is delivered.
+ * \param[out] result_event      Event describing the message delivered to dst_hdl.
  * \return A result code (NNTI_OK or an error)
  */
 NNTI_result_t
@@ -670,8 +664,6 @@ mpi_transport::get_unexpected(
     uint64_t       dst_offset,
     NNTI_event_t  *result_event)
 {
-    nnti::datatype::nnti_buffer *b = (nnti::datatype::nnti_buffer *)dst_hdl;
-
     return NNTI_OK;
 }
 
@@ -859,8 +851,8 @@ mpi_transport::unregister_memory(
 /**
  * @brief Convert an NNTI peer to an NNTI_process_id_t.
  *
- * \param[in]   peer  A handle to a peer that can be used for network operations.
- * \param[out]  pid   Compact binary representation of a process's location on the network.
+ * \param[in]   peer_hdl  A handle to a peer that can be used for network operations.
+ * \param[out]  pid       Compact binary representation of a process's location on the network.
  * \return A result code (NNTI_OK or an error)
  */
 NNTI_result_t
@@ -876,8 +868,8 @@ mpi_transport::dt_peer_to_pid(
 /**
  * @brief Convert an NNTI_process_id_t to an NNTI peer.
  *
- * \param[in]   pid   Compact binary representation of a process's location on the network.
- * \param[out]  peer  A handle to a peer that can be used for network operations.
+ * \param[in]   pid       Compact binary representation of a process's location on the network.
+ * \param[out]  peer_hdl  A handle to a peer that can be used for network operations.
  * \return A result code (NNTI_OK or an error)
  */
 NNTI_result_t
@@ -1100,8 +1092,6 @@ NNTI_result_t
 mpi_transport::cancel(
     NNTI_work_id_t wid)
 {
-    nnti::datatype::nnti_work_id *work_id = (nnti::datatype::nnti_work_id *)wid;
-
     return NNTI_OK;
 }
 
@@ -1148,8 +1138,6 @@ mpi_transport::wait(
     const int64_t   timeout,
     NNTI_status_t  *status)
 {
-    nnti::datatype::nnti_work_id *work_id = (nnti::datatype::nnti_work_id *)wid;
-
     return NNTI_OK;
 }
 
@@ -1368,11 +1356,24 @@ mpi_transport::connect_cb(
     }
 
     nnti::core::nnti_url peer_url = nnti::core::nnti_url(args.at("hostname"), args.at("port"));
+    std::string fingerprint = args.at("fingerprint");
 
-    log_debug("mpi_transport", "Looking for connection with pid=%016lx", peer_url.pid());
+    log_debug("mpi_transport", "Looking for connection with pid=%016lx fingerprint=%s", peer_url.pid(), fingerprint.c_str());
     conn = (nnti::core::mpi_connection*)conn_map_.get(peer_url.pid());
     if (conn != nullptr) {
-        log_debug("mpi_transport", "Found connection with pid=%016lx", peer_url.pid());
+        if (conn->fingerprint() == fingerprint) {
+            log_debug("mpi_transport", "Found matching connection with pid=%016lx fingerprint=%s", peer_url.pid(), fingerprint.c_str());
+        } else if (conn->fingerprint().empty()) {
+            log_debug("mpi_transport", "Found connection with matching pid=%016lx and empty fingerprint=%s", peer_url.pid(), conn->fingerprint().c_str());
+        } else {
+            log_debug("mpi_transport", "Found mismatched connection with pid=%016lx fingerprint=%s", peer_url.pid(), conn->fingerprint().c_str());
+
+            conn_map_.remove(conn);
+            delete conn;
+
+            conn = new nnti::core::mpi_connection(this, args);
+            conn_map_.insert(conn);
+        }
     } else {
         log_debug("mpi_transport", "Couldn't find connection with pid=%016lx", peer_url.pid());
 
@@ -1387,10 +1388,11 @@ mpi_transport::connect_cb(
 
     nthread_unlock(&new_connection_lock_);
 
-    results << "hostname=" << url_.hostname() << std::endl;
-    results << "addr="     << url_.addr()     << std::endl;
-    results << "port="     << url_.port()     << std::endl;
-    results << "rank="     << nnti_comm_rank_ << std::endl;
+    results << "hostname="    << url_.hostname() << std::endl;
+    results << "addr="        << url_.addr()     << std::endl;
+    results << "port="        << url_.port()     << std::endl;
+    results << "fingerprint=" << fingerprint_    << std::endl;
+    results << "rank="        << nnti_comm_rank_ << std::endl;
 
     log_debug("mpi_transport", "connect_cb - results=%s", results.str().c_str());
 }
@@ -1466,11 +1468,12 @@ mpi_transport::build_whookie_path(
 {
     std::stringstream wh_url;
 
-    wh_url << "/nnti/mpi/" << service;
-    wh_url << "&hostname=" << url_.hostname();
-    wh_url << "&addr="     << url_.addr();
-    wh_url << "&port="     << url_.port();
-    wh_url << "&rank="     << nnti_comm_rank_;
+    wh_url << "/nnti/mpi/"    << service;
+    wh_url << "&hostname="    << url_.hostname();
+    wh_url << "&addr="        << url_.addr();
+    wh_url << "&port="        << url_.port();
+    wh_url << "&fingerprint=" << fingerprint_;
+    wh_url << "&rank="        << nnti_comm_rank_;
 
     return wh_url.str();
 }
@@ -1694,14 +1697,12 @@ mpi_transport::execute_cmd_op(
     nnti::core::mpi_cmd_op   *cmd_op)
 {
     NNTI_result_t rc = NNTI_OK;
-    int mpi_rc=0;
 
     log_debug("mpi_transport", "execute_cmd_op() - enter");
 
     log_debug("mpi_transport", "looking up connection for peer pid=%016lX", work_id->wr().peer_pid());
 
     nnti::datatype::mpi_peer   *peer = (nnti::datatype::mpi_peer *)work_id->wr().peer();
-    nnti::core::mpi_connection *conn = (nnti::core::mpi_connection *)peer->conn();
 
     nnti::datatype::mpi_buffer *local_buffer = (nnti::datatype::mpi_buffer *)work_id->wr().local_hdl();
     uint64_t                    local_offset = work_id->wr().local_offset();
@@ -1735,7 +1736,7 @@ mpi_transport::execute_cmd_op(
                   cmd_op->toString().c_str(), local_buffer->payload(), local_offset, op_length, peer->rank(), local_buffer->cmd_tag());
 
         std::unique_lock<std::mutex> mpi_lock(mpi_mutex_);
-        mpi_rc = MPI_Issend((char*)local_buffer->payload() + local_offset,
+        MPI_Issend((char*)local_buffer->payload() + local_offset,
                             op_length,
                             MPI_BYTE,
                             peer->rank(),
@@ -1750,7 +1751,7 @@ mpi_transport::execute_cmd_op(
               cmd_op->toString().c_str(), cmd_op->cmd_msg(), cmd_op->cmd_msg_size(), peer->rank(), NNTI_MPI_CMD_TAG);
 
     std::unique_lock<std::mutex> mpi_lock(mpi_mutex_);
-    mpi_rc=MPI_Issend(cmd_op->cmd_msg(),
+    MPI_Issend(cmd_op->cmd_msg(),
                       cmd_op->cmd_msg_size(),
                       MPI_BYTE,
                       peer->rank(),
@@ -1821,7 +1822,6 @@ mpi_transport::execute_rdma_op(
     std::unique_lock<std::mutex> mpi_lock(mpi_mutex_, std::defer_lock);
 
     nnti::datatype::mpi_peer   *peer = (nnti::datatype::mpi_peer *)work_id->wr().peer();
-    nnti::core::mpi_connection *conn = (nnti::core::mpi_connection *)peer->conn();
 
     nnti::datatype::mpi_buffer *local_buffer = (nnti::datatype::mpi_buffer *)work_id->wr().local_hdl();
     uint64_t                    local_offset = work_id->wr().local_offset();
@@ -1953,12 +1953,10 @@ mpi_transport::execute_atomic_op(
     nnti::core::mpi_cmd_op       *atomic_op)
 {
     NNTI_result_t rc = NNTI_OK;
-    int mpi_rc = MPI_SUCCESS;
 
     log_debug("mpi_transport", "execute_atomic_op() - enter");
 
     nnti::datatype::mpi_peer   *peer = (nnti::datatype::mpi_peer *)work_id->wr().peer();
-    nnti::core::mpi_connection *conn = (nnti::core::mpi_connection *)peer->conn();
 
     nnti::datatype::mpi_buffer *local_buffer = (nnti::datatype::mpi_buffer *)work_id->wr().local_hdl();
     uint64_t                    local_offset = work_id->wr().local_offset();
@@ -1985,7 +1983,7 @@ mpi_transport::execute_atomic_op(
     }
 
     std::unique_lock<std::mutex> mpi_lock(mpi_mutex_);
-    mpi_rc = MPI_Irecv((char*)local_buffer->payload() + local_offset,
+    MPI_Irecv((char*)local_buffer->payload() + local_offset,
                        sizeof(int64_t),
                        MPI_BYTE,
                        peer->rank(),
@@ -1999,7 +1997,7 @@ mpi_transport::execute_atomic_op(
     log_debug("mpi_transport", "posting atomic_op(%s)", atomic_op->toString().c_str());
 
     mpi_lock.lock();
-    mpi_rc = MPI_Issend(atomic_op->cmd_msg(),
+    MPI_Issend(atomic_op->cmd_msg(),
                         atomic_op->cmd_msg_size(),
                         MPI_BYTE,
                         peer->rank(),
@@ -2020,7 +2018,6 @@ mpi_transport::execute_atomic_op(
 NNTI_result_t
 mpi_transport::complete_send_command(nnti::core::mpi_cmd_msg *cmd_msg)
 {
-    int mpi_rc = MPI_SUCCESS;
     NNTI_result_t nnti_rc = NNTI_OK;
 
     log_debug("mpi_transport", "complete_send_command() - enter");
@@ -2088,14 +2085,14 @@ mpi_transport::complete_send_command(nnti::core::mpi_cmd_msg *cmd_msg)
             log_debug("mpi_transport", "long send Irecv()");
 
             std::unique_lock<std::mutex> mpi_lock(mpi_mutex_);
-            mpi_rc = MPI_Irecv((char*)target_buffer->payload() + cmd_msg->target_offset(),
+            MPI_Irecv((char*)target_buffer->payload() + cmd_msg->target_offset(),
                                cmd_msg->payload_length(),
                                MPI_BYTE,
                                peer->rank(),
                                initiator_buffer->cmd_tag(),
                                MPI_COMM_WORLD,
                                &req);
-            mpi_rc = MPI_Wait(&req, &status);
+            MPI_Wait(&req, &status);
             mpi_lock.unlock();
             log_debug("mpi_transport", "long send Wait() complete");
 
@@ -2128,16 +2125,12 @@ NNTI_result_t
 mpi_transport::complete_get_command(nnti::core::mpi_cmd_msg *cmd_msg)
 {
     int mpi_rc = MPI_SUCCESS;
-    NNTI_result_t nnti_rc = NNTI_OK;
 
     log_debug("mpi_transport", "complete_get_command() - enter");
 
     nnti::datatype::mpi_buffer *initiator_buffer = cmd_msg->initiator_buffer();
     nnti::datatype::mpi_buffer *target_buffer    = cmd_msg->target_buffer();
     nnti::datatype::mpi_peer   *peer             = cmd_msg->initiator_peer();
-
-    MPI_Request req;
-    MPI_Status  status;
 
     std::unique_lock<std::mutex> mpi_lock(mpi_mutex_);
     mpi_rc = MPI_Ssend((char*)target_buffer->payload() + cmd_msg->target_offset(),
@@ -2162,12 +2155,8 @@ mpi_transport::complete_get_command(nnti::core::mpi_cmd_msg *cmd_msg)
 NNTI_result_t
 mpi_transport::complete_put_command(nnti::core::mpi_cmd_msg *cmd_msg)
 {
-    int mpi_rc = MPI_SUCCESS;
-    NNTI_result_t nnti_rc = NNTI_OK;
-
     log_debug("mpi_transport", "complete_put_command() - enter");
 
-    nnti::datatype::mpi_buffer *initiator_buffer = cmd_msg->initiator_buffer();
     nnti::datatype::mpi_buffer *target_buffer    = cmd_msg->target_buffer();
     nnti::datatype::mpi_peer   *peer             = cmd_msg->initiator_peer();
 
@@ -2175,14 +2164,14 @@ mpi_transport::complete_put_command(nnti::core::mpi_cmd_msg *cmd_msg)
     MPI_Status  status;
 
     std::unique_lock<std::mutex> mpi_lock(mpi_mutex_);
-    mpi_rc = MPI_Irecv((char*)target_buffer->payload() + cmd_msg->target_offset(),
+    MPI_Irecv((char*)target_buffer->payload() + cmd_msg->target_offset(),
                         cmd_msg->payload_length(),
                         MPI_BYTE,
                         peer->rank(),
                         target_buffer->put_tag(),
                         MPI_COMM_WORLD,
                         &req);
-    mpi_rc = MPI_Wait(&req, &status);
+    MPI_Wait(&req, &status);
     mpi_lock.unlock();
 
     cmd_msg->post_recv();
@@ -2202,9 +2191,6 @@ mpi_transport::complete_fadd_command(nnti::core::mpi_cmd_msg *cmd_msg)
     };
     struct atomic_header *h = (struct atomic_header *)cmd_msg->eager_payload();
 
-    int mpi_rc = MPI_SUCCESS;
-    NNTI_result_t nnti_rc = NNTI_OK;
-
     log_debug("mpi_transport", "complete_fadd_command() - enter");
 
     nnti::datatype::mpi_buffer *initiator_buffer = cmd_msg->initiator_buffer();
@@ -2223,14 +2209,14 @@ mpi_transport::complete_fadd_command(nnti::core::mpi_cmd_msg *cmd_msg)
     log_debug("mpi_transport", "sending old value back ; current=%ld ; atomic_tag=%d", current, initiator_buffer->atomic_tag());
 
     std::unique_lock<std::mutex> mpi_lock(mpi_mutex_);
-    mpi_rc = MPI_Issend(&current,
+    MPI_Issend(&current,
                         sizeof(int64_t),
                         MPI_BYTE,
                         peer->rank(),
                         initiator_buffer->atomic_tag(),
                         MPI_COMM_WORLD,
                         &req);
-    mpi_rc = MPI_Wait(&req, &status);
+    MPI_Wait(&req, &status);
     mpi_lock.unlock();
 
     cmd_msg->post_recv();
@@ -2252,9 +2238,6 @@ mpi_transport::complete_cswap_command(nnti::core::mpi_cmd_msg *cmd_msg)
     };
     struct atomic_header *h = (struct atomic_header *)cmd_msg->eager_payload();
 
-    int mpi_rc = MPI_SUCCESS;
-    NNTI_result_t nnti_rc = NNTI_OK;
-
     log_debug("mpi_transport", "complete_cswap_command() - enter");
 
     nnti::datatype::mpi_buffer *initiator_buffer = cmd_msg->initiator_buffer();
@@ -2275,14 +2258,14 @@ mpi_transport::complete_cswap_command(nnti::core::mpi_cmd_msg *cmd_msg)
     log_debug("mpi_transport", "sending old value back ; current=%ld ; atomic_tag=%d", current, initiator_buffer->atomic_tag());
 
     std::unique_lock<std::mutex> mpi_lock(mpi_mutex_);
-    mpi_rc = MPI_Issend(&current,
+    MPI_Issend(&current,
                         sizeof(int64_t),
                         MPI_BYTE,
                         peer->rank(),
                         initiator_buffer->atomic_tag(),
                         MPI_COMM_WORLD,
                         &req);
-    mpi_rc = MPI_Wait(&req, &status);
+    MPI_Wait(&req, &status);
     mpi_lock.unlock();
 
     cmd_msg->post_recv();
@@ -2437,8 +2420,6 @@ mpi_transport::progress_op_requests(void)
             log_debug("mpi_transport", "\ttag     = %d", event.MPI_TAG);
             log_debug("mpi_transport", "\terror   = %d", event.MPI_ERROR);
             log_debug("mpi_transport", "}");
-
-            bool need_event = true;
 
             std::unique_lock<std::mutex> mpi_lock(mpi_mutex_, std::defer_lock);
             nnti::datatype::nnti_work_request &wr = cmd_op->wid()->wr();

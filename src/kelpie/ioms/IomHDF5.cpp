@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #include <cstring>
 #include <string>
@@ -54,12 +54,18 @@ IomHDF5::~IomHDF5() {
 }
 
 
-void IomHDF5::WriteObject(faodel::bucket_t bucket, const Key &key, const lunasa::DataObject &ldo) {
-  WriteObjects(bucket, {kvpair(key, ldo)});
+rc_t IomHDF5::WriteObject(faodel::bucket_t bucket, const Key &key, const lunasa::DataObject &ldo) {
+  try {
+    internal_WriteObject(bucket, {kvpair(key, ldo)});
+    return 0;
+  }
+  catch (std::runtime_error &e) {
+    return 1;
+  }
 }
 
-void IomHDF5::WriteObjects(faodel::bucket_t bucket,
-                      const std::vector<kvpair> &kvpairs) {
+void IomHDF5::internal_WriteObject(faodel::bucket_t bucket,
+                                   const std::vector<kvpair> &kvpairs) {
   hid_t ldo_dset;
   hvl_t dset_descriptor;
 
@@ -135,22 +141,22 @@ void IomHDF5::WriteObjects(faodel::bucket_t bucket,
 }
 
 
-rc_t IomHDF5::ReadObjects(faodel::bucket_t bucket,
-                     std::vector<kelpie::Key> &keys,
-                     std::vector<kvpair> *found_keys,
-                     std::vector<kelpie::Key> *missing_keys) {
-  for(auto &&k : keys) {
-    lunasa::DataObject ldo;
-    rc_t each_rc = ReadObject(bucket, k, &ldo);
-    if(each_rc == KELPIE_OK) {
-      found_keys->push_back({kvpair(k, ldo)});
-    } else {
-      missing_keys->push_back(k);
-    }
-  }
-
-  return KELPIE_OK;
-}
+//rc_t IomHDF5::ReadObjects(faodel::bucket_t bucket,
+//                     std::vector<kelpie::Key> &keys,
+//                     std::vector<kvpair> *found_keys,
+//                     std::vector<kelpie::Key> *missing_keys) {
+//  for(auto &&k : keys) {
+//    lunasa::DataObject ldo;
+//    rc_t each_rc = ReadObject(bucket, k, &ldo);
+//    if(each_rc == KELPIE_OK) {
+//      found_keys->push_back({kvpair(k, ldo)});
+//    } else {
+//      missing_keys->push_back(k);
+//    }
+//  }
+//
+//  return KELPIE_OK;
+//}
 
 rc_t IomHDF5::ReadObject(faodel::bucket_t bucket,
                     const kelpie::Key &key,
@@ -347,11 +353,10 @@ void IomHDF5::AppendWebInfo(faodel::ReplyStream rs,
 }
 
 
-rc_t IomHDF5::GetInfo(faodel::bucket_t bucket, const kelpie::Key &key, kv_col_info_t *col_info) {
+rc_t IomHDF5::GetInfo(faodel::bucket_t bucket, const kelpie::Key &key, object_info_t *info) {
   rc_t rc;
 
-  if(col_info not_eq nullptr)
-    col_info->Wipe();
+  if(info) info->Wipe();
 
   std::string target = "/" + bucket.GetHex() + "/" + key.str();
 
@@ -360,8 +365,8 @@ rc_t IomHDF5::GetInfo(faodel::bucket_t bucket, const kelpie::Key &key, kv_col_in
 
   if(meta_attr_id<0 || data_attr_id<0) {
 
-    if(col_info not_eq nullptr) {
-      col_info->availability = kelpie::Availability::Unavailable;
+    if(info not_eq nullptr) {
+      info->col_availability = kelpie::Availability::Unavailable;
     }
     rc = KELPIE_ENOENT;
 
@@ -373,9 +378,9 @@ rc_t IomHDF5::GetInfo(faodel::bucket_t bucket, const kelpie::Key &key, kv_col_in
     H5Aread(meta_attr_id, H5T_NATIVE_USHORT, &ldo_meta_size);
     H5Aread(data_attr_id, H5T_NATIVE_ULONG, &ldo_data_size);
 
-    if(col_info not_eq nullptr) {
-      col_info->num_bytes = ldo_meta_size + ldo_data_size;
-      col_info->availability = kelpie::Availability::InDisk;
+    if(info) {
+      info->col_user_bytes = ldo_meta_size + ldo_data_size;
+      info->col_availability = kelpie::Availability::InDisk;
     }
     rc = KELPIE_OK;
 
@@ -387,6 +392,7 @@ rc_t IomHDF5::GetInfo(faodel::bucket_t bucket, const kelpie::Key &key, kv_col_in
   return rc;
 
 }
+
 
 } // namespace internal
 } // namespace kelpie

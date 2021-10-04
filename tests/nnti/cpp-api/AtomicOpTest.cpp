@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 
 #include "nnti/nnti_pch.hpp"
@@ -101,13 +101,9 @@ TEST_F(NntiAtomicOpTest, start1) {
 
     if (i_am_server) {
         NNTI_event_queue_t  eq;
-        NNTI_event_t        event;
-        NNTI_event_t        result_event;
-        uint32_t            which;
         NNTI_buffer_t       buf_hdl;
         char               *buf_base=nullptr;
         uint32_t            buf_size=3200;
-        NNTI_work_request_t base_wr = NNTI_WR_INITIALIZER;
 
         rc = t->eq_create(128, NNTI_EQF_UNEXPECTED, &eq);
         t->alloc(3200,
@@ -168,16 +164,12 @@ TEST_F(NntiAtomicOpTest, start1) {
 
     } else {
         NNTI_event_queue_t  eq;
-        NNTI_event_t        event;
-        NNTI_event_t        result_event;
-        uint32_t            which;
         NNTI_buffer_t       buf_hdl;
         NNTI_buffer_t       ack_hdl;
         char               *buf_base=nullptr;
         char               *ack_base=nullptr;
         uint32_t            buf_size=3200;
         uint32_t            ack_size=320;
-        NNTI_work_request_t base_wr = NNTI_WR_INITIALIZER;
 
         // give the server a chance to startup
 //        nnti::util::sleep(1000);
@@ -201,7 +193,6 @@ TEST_F(NntiAtomicOpTest, start1) {
                       &ack_base,
                       &ack_hdl);
 
-        NNTI_buffer_t target_hdl;
         NNTI_peer_t   recv_peer;
 
         rc = send_hdl(t, buf_hdl, buf_base, buf_size, peer_hdl, eq);

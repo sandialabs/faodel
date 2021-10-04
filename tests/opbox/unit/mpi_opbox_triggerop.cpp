@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #include <limits.h>
 #include <string>
@@ -13,7 +13,7 @@
 #include "gtest/gtest.h"
 
 #include "faodel-common/Common.hh"
-#include "faodel-common/SerializationHelpers.hh"
+#include "faodel-common/SerializationHelpersBoost.hh"
 
 #include "whookie/Server.hh"
 #include "lunasa/Lunasa.hh"
@@ -68,7 +68,7 @@ public:
 class OpTrigger1 : public opbox::Op {
 public:
 
-  OpTrigger1(int value) : value(value), state(0), Op(true) {}
+  OpTrigger1(int value) : Op(true), state(0), value(value) {}
 
   OpTrigger1(op_create_as_target_t t) : Op(t) {}
 
@@ -160,7 +160,7 @@ WaitingType OpTrigger1::UpdateOrigin(OpArgs *args) {
 TEST_F(OpBoxTriggerOpTest, SimplePoke) {
 
   mailbox_t mb;
-  uint64_t expected_val = 5;
+  int64_t expected_val = 5;
 
   opbox::LaunchOp(new OpTrigger1(expected_val), &mb);
 

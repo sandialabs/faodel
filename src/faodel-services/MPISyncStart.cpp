@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #include <vector>
 #include <iostream>
@@ -44,7 +44,6 @@ void MPISyncStart::InitAndModifyConfiguration(Configuration *config) {
   int64_t dirman_root_mpi;
 
   config->GetBool(&needs_patch, "mpisyncstart.enable", "false");
-  //needs_patch |= (ENOENT != config->GetInt(&dirman_root_mpi, "dirman.root_node_mpi", "-1"));
   needs_patch |= (ENOENT != config->GetString(&dirman_root_mpi_string, "dirman.root_node_mpi", "-1")); //Finalize in mpi section
 
   config->GetStringVector(&dirman_resources_mpi, "dirman.resources_mpi");
@@ -58,17 +57,30 @@ void MPISyncStart::InitAndModifyConfiguration(Configuration *config) {
     throw std::invalid_argument("Configuration contained an mpi update, but FAODEL not configured with MPI.");
   #else
 
-    int mpi_rank, mpi_size;
-  
+    int mpi_rank, mpi_size, initialized=-1;
+    MPI_Initialized(&initialized);
+    if(initialized != 1) {
+      throw std::runtime_error("Faodel requested mpisyncstart, but MPI has not been initialized. You must call MPI_Init before starting Faodel.");
+    }
     MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank);
     MPI_Comm_size(MPI_COMM_WORLD, &mpi_size);
 
+    config->Append("observed_mpi_info", std::to_string(mpi_rank) + "/"+std::to_string(mpi_size) );
+
+
     //Convert to an root string to integer. User may have passed in first/middle/last token to parse
-    if(dirman_root_mpi_string == "-1") dirman_root_mpi = -1;
+    if(dirman_root_mpi_string == "-1") {
+      dbg("dirman_root_node_mpi was not found in config.");
+      dirman_root_mpi = -1;
+    }
     else {
       auto ids = ExtractIDs(dirman_root_mpi_string, mpi_size);
-      kassert(ids.size()==1, "dirman.root_node_mpi can only have one value. Observed:"+dirman_root_mpi_string);
+      F_ASSERT(ids.size() == 1, "dirman.root_node_mpi can only have one value. Observed:"+dirman_root_mpi_string);
       dirman_root_mpi = *ids.begin(); //Should be first value
+      if(dirman_root_mpi == mpi_rank){
+        dbg("Detected rank "+std::to_string(dirman_root_mpi)+" is the dirman root. Setting to host root");
+        config->Append("dirman.host_root true");
+      }
     }
 
 
@@ -76,7 +88,7 @@ void MPISyncStart::InitAndModifyConfiguration(Configuration *config) {
 
     //See if we just need a barrier
     if((dirman_root_mpi==-1) && (dirman_resources_mpi.empty())) {
-      dbg("mpi_sync_start requested, but no specific needs spedified. Performing Barrier");
+      dbg("mpi_sync_start requested, but no specific needs specified. Performing Barrier");
       MPI_Barrier(MPI_COMM_WORLD);
       dbg("Barrier completed.");
     }
@@ -85,7 +97,7 @@ void MPISyncStart::InitAndModifyConfiguration(Configuration *config) {
     //An MPI rank specified for the dirman root. Find the ID of the node
     if(dirman_root_mpi != -1) {
       dbg("Dirman Root specified as rank "+std::to_string(dirman_root_mpi)+". Perform bcast to learn whookie root.");
-      kassert(dirman_root_mpi < mpi_size, "dirman.root_node_mpi value is larger than mpi ranks");
+      F_ASSERT(dirman_root_mpi < mpi_size, "dirman.root_node_mpi value is larger than mpi ranks");
       nodeid_t root_node = my_id;
       MPI_Bcast(&root_node, sizeof(nodeid_t), MPI_CHAR, dirman_root_mpi, MPI_COMM_WORLD);
       config->Append("dirman.root_node", root_node.GetHex());
@@ -93,7 +105,12 @@ void MPISyncStart::InitAndModifyConfiguration(Configuration *config) {
     }
 
     //One or more dirman resources were specified with mpi ranks. Update them in the config.
-    if(!dirman_resources_mpi.empty()){
+    if(!dirman_resources_mpi.empty()) {
+
+      if((mpi_rank == 0) && (dirman_root_mpi<0)) {
+        F_WARN("Faodel configuration contained "+std::to_string(dirman_resources_mpi.size())+
+               " dirman.resources_mpi[], but dirman.root_node_mpi was not set. Ignoring.");
+      }
 
       //TODO: narrow the scope to only be necessary nodes
       auto nodes = new faodel::nodeid_t[mpi_size];
@@ -105,6 +122,8 @@ void MPISyncStart::InitAndModifyConfiguration(Configuration *config) {
       if(mpi_rank == dirman_root_mpi) {
         //Only load up resources on the root node
         for (const auto &line : dirman_resources_mpi) {
+          //dbg("Working on line: "+line);
+
           //Pull out the url and list of MPI nodes
           vector<string> tokens;
           Split(tokens, line, ' ', true);
@@ -125,15 +144,12 @@ void MPISyncStart::InitAndModifyConfiguration(Configuration *config) {
           }
 
           //Add back to the config
-          config->Append("dirman.resources[]", ss.str());
-
           dbg("Adding new resource: " + ss.str());
+          config->Append("dirman.resources[]", ss.str());
 
         }
       }
-
-      delete[] nodes; //TOOD: Could cache this?
-
+      delete[] nodes;
     }
 
   #endif

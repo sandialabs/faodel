@@ -1,10 +1,10 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
-// info_interface
+// info-interface
 //
-// The info_interface is a simple way to dump debug info for a class. It
+// The info-interface is a simple way to dump debug info for a class. It
 // is meant for hierarchical class structures, and has a depth option
 // to allow you to control how deep a dump goes.
 

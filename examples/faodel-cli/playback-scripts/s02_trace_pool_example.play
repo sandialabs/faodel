@@ -1,0 +1,51 @@
+# Script 02 Simple trace pool example
+#
+#   faodel -v play s02_trace_pool_example.txt
+#
+# FAODEL's trace pool provides a way to record the activities that happen
+# during the lifetime of a pool. The trace for each rank's pool gets
+# written out to a separate file so you can then combine results and
+# replay them.
+#
+# The trace pool can be connected to another pool handle to ensure
+# that data gets routed properly after going through the trace. By
+# default this pool is the null: pool, which just drops data. You
+# can override that pool though by specifying the "next_pool" option
+# in the trace url.
+#
+# In this example, we make a few different objects land in different
+# namespaces that are colocated in the local pool. The namespaces
+# are squares, trianngle, secret, and default. We want to intercept
+# data that's going into the squares pool and route it to the
+# secret pool.
+#
+
+# Define the resources in config to make the messages easier
+config dirman.resources[]  trace:[squares]/my/place&next_pool=[secret]/my/secret/place
+config dirman.resources[]  local:[triangles]/other/place
+config dirman.resources[]  local:[secret]/my/secret/place
+
+#config bootstrap.debug true
+#config dirman.debug true
+
+
+
+print == Create Data =================================================
+kput -p [squares]/my/place -M 63k -D 2k  -k put-into-trace1
+kput -p [squares]/my/place -M 63k -D 2k  -k put-into-trace2
+
+kput -p local:/           -M 1k -D 1k  -k put-into-default
+kput -p local:[squares]/  -M 1k -D 1k  -k put-into-squares
+kput -p local:[hexes]/    -M 1k -D 1k  -k put-into-hexes
+
+print
+print == Local should have just put-into-default =====================
+klist -p local: -k *
+
+print
+print == Squares should only have put-into-squares ===================
+klist -p local:[squares] -k *
+
+print
+print == Secret should have put-into-trace1&2 ========================
+klist -p [secret]/my/secret/place -k *

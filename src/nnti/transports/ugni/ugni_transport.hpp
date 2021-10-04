@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 
 #ifndef UGNI_TRANSPORT_HPP_
@@ -66,6 +66,9 @@ namespace transports {
 #define NNTI_SMSG_TAG_REQUEST       1
 #define NNTI_SMSG_TAG_CREDIT        2
 #define NNTI_SMSG_TAG_LONG_GET_ACK  3
+
+// UGNI requires alignment for some RDMA ops
+#define NNTI_UGNI_RDMA_ALIGNMENT 4
 
 class ugni_transport
 : public base_transport {
@@ -143,6 +146,8 @@ private:
     uint64_t   apid_;
     drc_info_t drc_info_;
 
+    gni_nic_device_t dev_type_;
+
     gni_cdm_handle_t cdm_hdl_;
     gni_nic_handle_t nic_hdl_;
     NNTI_instance_id instance_;
@@ -158,6 +163,9 @@ private:
     gni_cq_handle_t long_get_ep_cq_hdl_;
     gni_cq_handle_t long_get_mem_cq_hdl_;
 
+    gni_cq_handle_t unexpected_long_get_ep_cq_hdl_;
+    gni_cq_handle_t unexpected_long_get_mem_cq_hdl_;
+    
     gni_cq_handle_t rdma_ep_cq_hdl_;
     gni_cq_handle_t rdma_mem_cq_hdl_;
 
@@ -204,8 +212,6 @@ private:
     /**
      * @brief Initialize NNTI to use a specific transport.
      *
-     * \param[in]  my_url    A string that describes the transport parameters.
-     * \param[out] trans_hdl A handle to the activated transport.
      * \return A result code (NNTI_OK or an error)
      *
      */
@@ -218,24 +224,22 @@ public:
      *
      * \return A result code (NNTI_OK or an error)
      */
-    ~ugni_transport();
+    ~ugni_transport() override;
 
     NNTI_result_t
-    start(void);
+    start(void) override;
 
     NNTI_result_t
-    stop(void);
+    stop(void) override;
 
     /**
      * @brief Indicates if a transport has been initialized.
      *
-     * \param[in]  trans_id  The ID of the transport to test.
-     * \param[out] is_init   1 if the transport is initialized, 0 otherwise.
      * \return A result code (NNTI_OK or an error)
      *
      */
     bool
-    initialized(void);
+    initialized(void) override;
 
     /**
      * @brief Return the URL field of this transport.
@@ -247,7 +251,7 @@ public:
     NNTI_result_t
     get_url(
         char           *url,
-        const uint64_t  maxlen);
+        const uint64_t  maxlen) override;
 
     /**
      * @brief Get the process ID of this process.
@@ -257,7 +261,7 @@ public:
      *
      */
     NNTI_result_t
-    pid(NNTI_process_id_t *pid);
+    pid(NNTI_process_id_t *pid) override;
 
     /**
      * @brief Get attributes of the transport.
@@ -267,7 +271,7 @@ public:
      *
      */
     NNTI_result_t
-    attrs(NNTI_attrs_t *attrs);
+    attrs(NNTI_attrs_t *attrs) override;
 
     /**
      * @brief Prepare for communication with the peer identified by url.
@@ -281,7 +285,7 @@ public:
     connect(
         const char  *url,
         const int    timeout,
-        NNTI_peer_t *peer_hdl);
+        NNTI_peer_t *peer_hdl) override;
 
     /**
      * @brief Terminate communication with this peer.
@@ -291,7 +295,7 @@ public:
      */
     NNTI_result_t
     disconnect(
-        NNTI_peer_t peer_hdl);
+        NNTI_peer_t peer_hdl) override;
 
     /**
      * @brief Create an event queue.
@@ -305,7 +309,7 @@ public:
     eq_create(
         uint64_t            size,
         NNTI_eq_flags_t     flags,
-        NNTI_event_queue_t *eq);
+        NNTI_event_queue_t *eq) override;
 
     NNTI_result_t
     eq_create(
@@ -313,7 +317,7 @@ public:
         NNTI_eq_flags_t                      flags,
         nnti::datatype::nnti_event_callback  cb,
         void                                *cb_context,
-        NNTI_event_queue_t                  *eq);
+        NNTI_event_queue_t                  *eq) override;
 
     /**
      * @brief Destroy an event queue.
@@ -323,7 +327,7 @@ public:
      */
     NNTI_result_t
     eq_destroy(
-        NNTI_event_queue_t eq);
+        NNTI_event_queue_t eq) override;
 
     /**
      * @brief Wait for an event to arrive on an event queue.
@@ -340,29 +344,29 @@ public:
         const uint32_t      eq_count,
         const int           timeout,
         uint32_t           *which,
-        NNTI_event_t       *event);
+        NNTI_event_t       *event) override;
 
     /**
      * @brief Retrieves the next message from the unexpected list.
      *
      * \param[in]  dst_hdl        Buffer where the message is delivered.
      * \param[in]  dst_offset     Offset into dst_hdl where the message is delivered.
-     * \param[out] reseult_event  Event describing the message delivered to dst_hdl.
+     * \param[out] result_event   Event describing the message delivered to dst_hdl.
      * \return A result code (NNTI_OK or an error)
      */
     NNTI_result_t
     next_unexpected(
         NNTI_buffer_t  dst_hdl,
         uint64_t       dst_offset,
-        NNTI_event_t  *result_event);
+        NNTI_event_t  *result_event) override;
 
     /**
      * @brief Retrieves a specific message from the unexpected list.
      *
-     * \param[in]  unexpect_event  Event describing the message to retrieve.
-     * \param[in]  dst_hdl         Buffer where the message is delivered.
-     * \param[in]  dst_offset      Offset into dst_hdl where the message is delivered.
-     * \param[out] reseult_event   Event describing the message delivered to dst_hdl.
+     * \param[in]  unexpected_event  Event describing the message to retrieve.
+     * \param[in]  dst_hdl           Buffer where the message is delivered.
+     * \param[in]  dst_offset        Offset into dst_hdl where the message is delivered.
+     * \param[out] result_event      Event describing the message delivered to dst_hdl.
      * \return A result code (NNTI_OK or an error)
      */
     NNTI_result_t
@@ -370,7 +374,7 @@ public:
         NNTI_event_t  *unexpected_event,
         NNTI_buffer_t  dst_hdl,
         uint64_t       dst_offset,
-        NNTI_event_t  *result_event);
+        NNTI_event_t  *result_event) override;
 
     /**
      * @brief Marks a send operation as complete.
@@ -380,7 +384,7 @@ public:
      */
     NNTI_result_t
     event_complete(
-        NNTI_event_t *event);
+        NNTI_event_t *event) override;
 
     /**
      * @brief Decode an array of bytes into an NNTI datatype.
@@ -394,7 +398,7 @@ public:
     dt_unpack(
         void           *nnti_dt,
         char           *packed_buf,
-        const uint64_t  packed_len);
+        const uint64_t  packed_len) override;
 
     /**
      * @brief Allocate a block of memory and prepare it for network operations.
@@ -416,7 +420,7 @@ public:
         nnti::datatype::nnti_event_callback  cb,
         void                                *cb_context,
         char                               **reg_ptr,
-        NNTI_buffer_t                       *reg_buf);
+        NNTI_buffer_t                       *reg_buf) override;
 
     /**
      * @brief Disables network operations on the block of memory and frees it.
@@ -426,7 +430,7 @@ public:
      */
     NNTI_result_t
     free(
-        NNTI_buffer_t reg_buf);
+        NNTI_buffer_t reg_buf) override;
 
     /**
      * @brief Prepare a block of memory for network operations.
@@ -448,7 +452,7 @@ public:
         NNTI_event_queue_t                   eq,
         nnti::datatype::nnti_event_callback  cb,
         void                                *cb_context,
-        NNTI_buffer_t                       *reg_buf);
+        NNTI_buffer_t                       *reg_buf) override;
 
     /**
      * @brief Disables network operations on a memory buffer.
@@ -458,31 +462,31 @@ public:
      */
     NNTI_result_t
     unregister_memory(
-        NNTI_buffer_t reg_buf);
+        NNTI_buffer_t reg_buf) override;
 
     /**
      * @brief Convert an NNTI peer to an NNTI_process_id_t.
      *
-     * \param[in]   peer  A handle to a peer that can be used for network operations.
-     * \param[out]  pid   Compact binary representation of a process's location on the network.
+     * \param[in]   peer_hdl  A handle to a peer that can be used for network operations.
+     * \param[out]  pid       Compact binary representation of a process's location on the network.
      * \return A result code (NNTI_OK or an error)
      */
     NNTI_result_t
     dt_peer_to_pid(
         NNTI_peer_t        peer_hdl,
-        NNTI_process_id_t *pid);
+        NNTI_process_id_t *pid) override;
 
     /**
      * @brief Convert an NNTI_process_id_t to an NNTI peer.
      *
-     * \param[in]   pid   Compact binary representation of a process's location on the network.
-     * \param[out]  peer  A handle to a peer that can be used for network operations.
+     * \param[in]   pid       Compact binary representation of a process's location on the network.
+     * \param[out]  peer_hdl  A handle to a peer that can be used for network operations.
      * \return A result code (NNTI_OK or an error)
      */
     NNTI_result_t
     dt_pid_to_peer(
         NNTI_process_id_t  pid,
-        NNTI_peer_t       *peer_hdl);
+        NNTI_peer_t       *peer_hdl) override;
 
     /**
      * @brief Send a message to a peer.
@@ -494,7 +498,7 @@ public:
     NNTI_result_t
     send(
         nnti::datatype::nnti_work_request *wr,
-        NNTI_work_id_t                    *wid);
+        NNTI_work_id_t                    *wid) override;
 
     /**
      * @brief Transfer data to a peer.
@@ -506,7 +510,7 @@ public:
     NNTI_result_t
     put(
         nnti::datatype::nnti_work_request *wr,
-        NNTI_work_id_t                    *wid);
+        NNTI_work_id_t                    *wid) override;
 
     /**
      * @brief Transfer data from a peer.
@@ -518,7 +522,7 @@ public:
     NNTI_result_t
     get(
         nnti::datatype::nnti_work_request *wr,
-        NNTI_work_id_t                    *wid);
+        NNTI_work_id_t                    *wid) override;
 
     /**
      * perform a 64-bit atomic operation with GET semantics
@@ -530,7 +534,7 @@ public:
     NNTI_result_t
     atomic_fop(
         nnti::datatype::nnti_work_request *wr,
-        NNTI_work_id_t                    *wid);
+        NNTI_work_id_t                    *wid) override;
 
     /**
      * perform a 64-bit compare-and-swap operation
@@ -542,7 +546,7 @@ public:
     NNTI_result_t
     atomic_cswap(
         nnti::datatype::nnti_work_request *wr,
-        NNTI_work_id_t                    *wid);
+        NNTI_work_id_t                    *wid) override;
 
     /**
      * @brief Attempts to cancel an NNTI operation.
@@ -552,7 +556,7 @@ public:
      */
     NNTI_result_t
     cancel(
-        NNTI_work_id_t wid);
+        NNTI_work_id_t wid) override;
 
 
     /**
@@ -565,7 +569,7 @@ public:
     NNTI_result_t
     cancelall(
         NNTI_work_id_t *wid_list,
-        const uint32_t  wid_count);
+        const uint32_t  wid_count) override;
 
 
     /**
@@ -574,7 +578,7 @@ public:
      * \return A result code (NNTI_OK or an error)
      */
     NNTI_result_t
-    interrupt();
+    interrupt() override;
 
 
     /**
@@ -589,7 +593,7 @@ public:
     wait(
         NNTI_work_id_t  wid,
         const int64_t   timeout,
-        NNTI_status_t  *status);
+        NNTI_status_t  *status) override;
 
     /**
      * @brief Wait for any operation (wid_list) in the list to complete.
@@ -607,7 +611,7 @@ public:
         const uint32_t  wid_count,
         const int64_t   timeout,
         uint32_t       *which,
-        NNTI_status_t  *status);
+        NNTI_status_t  *status) override;
 
     /**
      * @brief Waits for all the operations (wid_list) in the list to complete.
@@ -623,7 +627,7 @@ public:
         NNTI_work_id_t *wid_list,
         const uint32_t  wid_count,
         const int64_t   timeout,
-        NNTI_status_t  *status);
+        NNTI_status_t  *status) override;
 
 public:
     static ugni_transport*
@@ -775,6 +779,9 @@ private:
 
     NNTI_result_t
     get_drc_info(
+        drc_info_t *drc_info);
+    NNTI_result_t
+    free_drc_info(
         drc_info_t *drc_info);
 //    void
 //    print_wc(

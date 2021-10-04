@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #ifndef KELPIE_OPKELPIEPUBLISH_HH
 #define KELPIE_OPKELPIEPUBLISH_HH
@@ -43,12 +43,14 @@ public:
                     fn_publish_callback_t callback);
 
   //A target starts off the same way no matter what command
-  OpKelpiePublish(Op::op_create_as_target_t t);
+  explicit OpKelpiePublish(Op::op_create_as_target_t t);
   ~OpKelpiePublish() override;
 
   //Unique name and id for this op
   const static unsigned int op_id;
   const static std::string  op_name;
+  static bool debug_enabled; //!< Dump debug messages
+
   unsigned int getOpID() const override { return op_id; }
   std::string  getOpName() const override { return op_name; }
 
@@ -58,9 +60,22 @@ public:
 
   std::string GetStateName() const override;
 
-  static void configure(faodel::internal_use_only_t iuo, LocalKV *new_lkv);
+  static void configure(faodel::internal_use_only_t iuo, const faodel::Configuration *config, LocalKV *new_lkv);
 
 private:
+
+  //todo: put this in a standard form so it can be reused
+  #if Faodel_LOGGINGINTERFACE_DISABLED==0
+  void dbg(const std::string &s) const {
+    if(OpKelpiePublish::debug_enabled) {
+      std::cout << "\033[1;93mD " << op_name << ": ["<<GetStateName()<<"]:\033[0m\t" << (s) << std::endl;
+    }
+  }
+  #else
+  void dbg(std::string s) const {}
+  #endif
+
+
   static LocalKV *lkv;  //Pointer back to the lkv, set at start time
 
   State state;

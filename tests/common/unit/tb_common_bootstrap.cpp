@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 
 #include <string>
@@ -9,7 +9,9 @@
 #include <sstream>
 #include <stdexcept>
 
-#include "gtest/gtest.h"
+#include <mpi.h>
+
+#include <gtest/gtest.h>
 
 
 #include "faodel-common/Common.hh"
@@ -278,21 +280,27 @@ TEST_F(FaodelBootstrap, missingDep) {
 }
 
 
-class A : public bootstrap::BootstrapInterface {
+class A
+  : public bootstrap::BootstrapInterface,
+    public LoggingInterface {
 public:
   int state;
   faodel::bootstrap::internal::Bootstrap *bs;
 
-  A(faodel::bootstrap::internal::Bootstrap *bs) : state(0),bs(bs) {}
+  A(faodel::bootstrap::internal::Bootstrap *bs) : LoggingInterface("A"), state(0), bs(bs) {}
   void Init(const Configuration &config) override {
+    ConfigureLogging(config);
+    dbg("Init");
     EXPECT_EQ(0, state);
     state=1;
   };
   void Start() override {
+    dbg("Start");
     EXPECT_EQ(1, state);
     state=2;
   }
   void Finish() override {
+    dbg("Finish");
     EXPECT_EQ(2, state);
     state=3;
   }
@@ -308,19 +316,27 @@ public:
   }
 };
 
-class B : public bootstrap::BootstrapInterface {
+class B
+  : public bootstrap::BootstrapInterface,
+    public LoggingInterface {
 public:
   int state;
+  int num_times_init;
+  int num_times_finish;
   faodel::bootstrap::internal::Bootstrap *bs;
 
-  B(faodel::bootstrap::internal::Bootstrap *bs) : state(0), bs(bs) {}
+  B(faodel::bootstrap::internal::Bootstrap *bs)
+  : LoggingInterface("B"), state(0), num_times_init(0), num_times_finish(0), bs(bs) {}
   void Init(const Configuration &config) override {
+    ConfigureLogging(config);
+    num_times_init++;
     EXPECT_EQ(0, state);
 
     //Get a pointer to A
     BootstrapInterface *bsc = bs->GetComponentPointer("A");
     EXPECT_NE(nullptr, bsc);
     if(bsc!=nullptr) {
+      dbg("Init got valid a pointer");
       A *aptr = static_cast<A *>(bsc);
       int tmp = aptr->GetState();
       EXPECT_EQ(1,tmp); //A should be init'd
@@ -333,6 +349,7 @@ public:
     state=2;
   }
   void Finish() override {
+    num_times_finish++;
     EXPECT_EQ(2, state);
     state=3;
   }
@@ -349,8 +366,6 @@ public:
 
 TEST_F(FaodelBootstrap, simpleClassInterfaces) {
 
-
-  //A a; B b;
   B *b = new B(bs);
   A *a = new A(bs);
 
@@ -362,15 +377,35 @@ TEST_F(FaodelBootstrap, simpleClassInterfaces) {
   vector<string> names_exp = {"A","B"};
   EXPECT_EQ(names_exp, names);
 
-  Configuration config("");
+  Configuration config(""); //("bootstrap.debug true\nA.debug true\nB.debug true");
   config.AppendFromReferences();
 
   bs->Start(config);
   bs->Finish(true);
   EXPECT_EQ(3, a->state);
-  //EXPECT_EQ(3, b->state);
+
+  delete b;
+  delete a;
+}
+
+TEST_F(FaodelBootstrap, allowMultipleStarts) {
+  A *a = new A(bs);
+  B *b = new B(bs);
+
+  bs->RegisterComponent(a,true); //static_cast<bootstrap::BootstrapInterface *>(&a));
+  bs->RegisterComponent(b,true);
+
+  Configuration config("bootstrap.debug true"); //("bootstrap.debug true\nA.debug true\nB.debug true");
+  config.AppendFromReferences();
+
+  bs->Start(config);  EXPECT_EQ(1, b->num_times_init); EXPECT_EQ(0, b->num_times_finish);
+  bs->Start(config);  EXPECT_EQ(1, b->num_times_init); EXPECT_EQ(0, b->num_times_finish);
+  EXPECT_EQ(2, bs->GetNumberOfUsers());
+  bs->Finish(true);   EXPECT_EQ(1, b->num_times_init); EXPECT_EQ(0, b->num_times_finish);
+  bs->Finish(true);   EXPECT_EQ(1, b->num_times_init); EXPECT_EQ(1, b->num_times_finish);
 
 }
+
 
 //==============================================================================
 // Modify Configuration tests: verify a bootstrap can modify the config
@@ -466,7 +501,7 @@ default.iom.path /this/is/path2
   char fname[] = "/tmp/mytestXXXXXX";
   int fd = mkstemp(fname);
   //cout <<"Name is "<<fname<<endl;
-  write(fd, config2.c_str(), config2.size());
+  auto wlen = write(fd, config2.c_str(), config2.size());
   close(fd);
 
   Configuration t1(config1);
@@ -543,4 +578,22 @@ default.iom.path /this/is/path2
 
   unlink(fname);
 
+}
+
+
+int main(int argc, char **argv)
+{
+  ::testing::InitGoogleTest(&argc, argv);
+
+  int mpi_rank, mpi_size;
+  MPI_Init(&argc, &argv);
+  MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank);
+  MPI_Comm_size(MPI_COMM_WORLD, &mpi_size);
+
+  if(mpi_rank==0) cout <<"Beginning tests.\n";
+  int rc = RUN_ALL_TESTS();
+
+  MPI_Finalize();
+  if(mpi_rank==0) cout <<"All complete. Exiting.\n";
+  return rc;
 }

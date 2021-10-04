@@ -277,7 +277,7 @@ class PERFTOOLS_DLL_DECL MallocExtension {
   // system allocators.
   virtual void SetSystemAllocator(SysAllocator *a);
 
-  // Try to release num_bytes of free memory back to the operating
+  // Try to release num_user_bytes of free memory back to the operating
   // system for reuse.  Use this extension with caution -- to get this
   // memory back may require faulting pages back in by the OS, and
   // that may be slow.  (Currently only implemented in tcmalloc.)

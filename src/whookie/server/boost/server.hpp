@@ -73,7 +73,9 @@ public:
   ~server() override;
 
   //Bootstrap standard apis
-  void Init(const faodel::Configuration &config) override;
+  //void Init(const faodel::Configuration &config) override;
+  void Init(const faodel::Configuration &config) override {}
+  void InitAndModifyConfiguration(faodel::Configuration *config) override;
   void Start() override;
   void Finish() override;
   void GetBootstrapDependencies(std::string &name,
@@ -118,8 +120,7 @@ private:
   faodel::nodeid_t my_nodeid = faodel::NODE_UNSPECIFIED;
   
   bool configured_;
-  std::vector<std::pair<std::string,std::string>> config_entries;
-
+  faodel::Configuration *bootstrap_config_ptr;
 
   unsigned int port_;
   std::mutex configured_mutex_;

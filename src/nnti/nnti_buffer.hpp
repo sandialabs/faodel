@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 
 #ifndef NNTI_BUFFER_HPP_
@@ -75,9 +75,9 @@ public:
     nnti_buffer()
     : nnti_datatype(NNTI_dt_buffer),
       free_in_dtor_(false),
-      payload_(nullptr),
-      payload_size_(0),
       flags_(NNTI_BF_UNSET),
+      payload_size_(0),
+      payload_(nullptr),
       next_read_offset_(0),
       next_write_offset_(0),
       eq_(0),
@@ -93,9 +93,9 @@ public:
     : nnti_datatype(transport,
                     NNTI_dt_buffer),
       free_in_dtor_(false),
-      payload_(nullptr),
-      payload_size_(0),
       flags_(NNTI_BF_UNSET),
+      payload_size_(0),
+      payload_(nullptr),
       next_read_offset_(0),
       next_write_offset_(0),
       eq_(0),
@@ -116,9 +116,9 @@ public:
     : nnti_datatype(transport,
                     NNTI_dt_buffer),
       free_in_dtor_(true),
-      payload_(nullptr),
-      payload_size_(size),
       flags_(flags),
+      payload_size_(size),
+      payload_(nullptr),
       next_read_offset_(0),
       next_write_offset_(0),
       eq_(eq),
@@ -142,9 +142,9 @@ public:
     : nnti_datatype(transport,
                     NNTI_dt_buffer),
       free_in_dtor_(false),
-      payload_(buffer),
-      payload_size_(size),
       flags_(flags),
+      payload_size_(size),
+      payload_(buffer),
       next_read_offset_(0),
       next_write_offset_(0),
       eq_(eq),
@@ -162,9 +162,9 @@ public:
     : nnti_datatype(transport,
                     NNTI_dt_buffer),
       free_in_dtor_(false),
-      payload_(nullptr),
-      payload_size_(0),
       flags_(NNTI_BF_UNSET),
+      payload_size_(0),
+      payload_(nullptr),
       next_read_offset_(0),
       next_write_offset_(0),
       eq_(0),
@@ -257,11 +257,9 @@ public:
         char           *packed_buf,
         const uint64_t  packed_buflen)
     {
-        NNTI_result_t rc;
-
         packed_size_ = packed_buflen;
         memcpy(&packed_[0], &packed_buf[0], packed_buflen);
-        rc = nnti::serialize::unpack_buffer(&packable_, &packed_buf[0], packed_buflen);
+        nnti::serialize::unpack_buffer(&packable_, &packed_buf[0], packed_buflen);
         flags_       = (NNTI_buffer_flags_t)packable_.flags;
         return NNTI_OK;
     }
@@ -353,21 +351,21 @@ public:
 
     static inline nnti_buffer*
     to_obj(
-        NNTI_buffer_t buffer_hdl)
+        const NNTI_buffer_t buffer_hdl)
     {
         return (nnti_buffer *)buffer_hdl;
     }
 
     static inline NNTI_buffer_t
     to_hdl(
-        nnti_buffer *buffer)
+        const nnti_buffer *buffer)
     {
         return (NNTI_buffer_t)buffer;
     }
 
 
-  std::string
-    toString() override {
+    virtual std::string
+    toString() const override {
         std::stringstream out;
         out << "nnti_buffer.to_hdl(this)="        << to_hdl(this)
             << " | nnti_buffer.id_="               << this->id_

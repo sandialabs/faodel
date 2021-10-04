@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 
 #ifndef IBVERBS_ATOMIC_OP_HPP_
@@ -35,15 +35,13 @@ namespace core {
 class ibverbs_atomic_op
 : public nnti_op {
 private:
-    nnti::transports::ibverbs_transport *transport_;
     struct ibv_sge                       sge_;
     struct ibv_send_wr                   sq_wr_;
 
 public:
     ibverbs_atomic_op(
         nnti::transports::ibverbs_transport *transport)
-    : nnti_op(),
-      transport_(transport)
+    : nnti_op()
     {
         sq_wr_.wr_id      = (uint64_t)this;
         sq_wr_.next       = nullptr;
@@ -57,8 +55,7 @@ public:
     ibverbs_atomic_op(
         nnti::transports::ibverbs_transport *transport,
         nnti::datatype::nnti_work_id        *wid)
-    : nnti_op(wid),
-      transport_(transport)
+    : nnti_op(wid)
     {
         const nnti::datatype::ibverbs_work_request &wr = (const nnti::datatype::ibverbs_work_request &)wid->wr();
 

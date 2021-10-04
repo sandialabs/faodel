@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #ifndef FAODEL_COMMON_RESOURCEURL_HH
 #define FAODEL_COMMON_RESOURCEURL_HH
@@ -47,10 +47,13 @@ class ResourceURL : public InfoInterface {
 
 public:
   ResourceURL() = default; //Necessary for placeholders
-  explicit ResourceURL(std::string url);
-  ResourceURL(std::string resource_type, nodeid_t reference_node,
+  explicit ResourceURL(const std::string &url);
+  ResourceURL(const std::string &resource_type,
+              nodeid_t reference_node,
               bucket_t bucket,
-              std::string path, std::string name, std::string options)
+              const std::string &path,
+              const std::string &name,
+              const std::string &options)
     : reference_node(reference_node),
       bucket(bucket), path((path.empty())?"/":path), name(name),
       options(options),
@@ -72,11 +75,13 @@ public:
   bool IsEmpty() const;
   bool IsReference() const { return resource_type.empty(); } //!< True if this is a reference to a resource (ie ref:)
 
-  rc_t SetURL( const std::string& url );
+  rc_t SetURL(const std::string &url);
   std::string GetURL(bool include_type=false, bool include_node=false, bool include_bucket=false, bool include_options=false) const;
   std::string GetPathName()       const { return GetURL(false,false,false,false); } //!< Get the path/name: /root/rack0/mydht
   std::string GetBucketPathName() const { return GetURL(false,false,true,false); }  //!< Get Bucket/path name: [a23]/root/rack0/mydht
   std::string GetFullURL()        const { return GetURL(true,true,true,true); }     //!< Get full encoding "<dht><e2d123>[a23]/root/rack0/mydht&min_members=2&thing=4"
+
+  std::string Dashify() const;
 
   //Manipulate paths
   void PushDir(std::string next_dir);
@@ -87,9 +92,9 @@ public:
 
   int GetPathDepth() const;
 
-  void        SetOption(std::string option_name, std::string value);
-  std::string RemoveOption(std::string option_name);
-  std::string GetOption(std::string option_name) const;
+  void        SetOption(const std::string &option_name, const std::string &value);
+  std::string RemoveOption(const std::string &option_name);
+  std::string GetOption(const std::string &option_name, const std::string &default_value="") const;
   std::string GetSortedOptions() const;
   std::vector< std::pair<std::string,std::string> > GetOptions() const;
 

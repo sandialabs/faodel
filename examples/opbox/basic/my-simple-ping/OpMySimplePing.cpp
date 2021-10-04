@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #include <assert.h>
 #include "faodel-common/Debug.hh"
@@ -75,7 +75,7 @@ WaitingType OpMySimplePing::UpdateOrigin(OpArgs *args) {
     return WaitingType::done_and_destroy;
   }
   //Shouldn't be here
-  KFAIL();
+  F_FAIL();
   return WaitingType::error;
 }
 
@@ -105,7 +105,7 @@ WaitingType OpMySimplePing::UpdateTarget(OpArgs *args) {
   case State::done:
     return WaitingType::done_and_destroy;
   }
-  KHALT("Missing state");
+  F_HALT("Missing state");
   return WaitingType::done_and_destroy;
 }
 
@@ -115,5 +115,5 @@ string OpMySimplePing::GetStateName() const {
   case State::snd_wait_for_reply: return "Sender-WaitForReply";
   case State::done:               return "Done";
   }
-  KFAIL();
+  F_FAIL();
 }

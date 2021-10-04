@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 
 #ifndef IBVERBS_CMD_OP_HPP_
@@ -102,8 +102,8 @@ public:
     : nnti_op(wid),
       transport_(transport),
       cmd_msg_(transport, id_, wid),
-      cmd_mr_(nullptr),
-      is_ack_(false)
+      is_ack_(false),
+      cmd_mr_(nullptr)
     {
         sq_wr_.wr_id      = (uint64_t)this;
         sq_wr_.next       = nullptr;

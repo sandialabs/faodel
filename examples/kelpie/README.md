@@ -50,3 +50,11 @@ prod-con
 --------
 The prod-con is a networked example that uses a DHT pool to move data
 objects between producer and consumer ranks. 
+
+compute
+-------
+Starting in 1.2108.1, Kelpie allows users to create their own user-defined
+functions for processing data at remote nodes. The compute examples show
+how you can (1) use a built-in function to pick the column 
+to pick the first/last/smallest/largest item in a row and (2) define
+your own function for manipulating data before it is returned.

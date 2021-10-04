@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 
 #include "nnti/nnti_pch.hpp"
@@ -185,7 +185,6 @@ mpi_buffer::register_buffer(void)
         packable_.buffer.NNTI_remote_addr_p_t_u.mpi.put_data_tag,
         packable_.buffer.NNTI_remote_addr_p_t_u.mpi.atomic_data_tag);
 
-cleanup:
     return rc;
 }
 

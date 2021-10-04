@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #ifndef FAODEL_COMMON_REPLYSTREAM_HH
 #define FAODEL_COMMON_REPLYSTREAM_HH
@@ -34,6 +34,7 @@ public:
   
   void mkSection(std::string label, int heading_level=1);
   void mkText(std::string text);
+  void mkPlainText(std::string text);
   void mkTable(const std::vector<std::pair<std::string,std::string>> entries, std::string label="", bool highlight_top=true);
   void mkTable(const std::map<std::string,std::string> entries, std::string label="", bool highlight_top=true);
   void mkTable(const std::vector<std::vector<std::string>> entries, std::string label="", bool highlight_top=true);
@@ -51,6 +52,9 @@ public:
   std::string createBold(std::string text);
   
   void Finish();
+
+  bool IsHTML() { return (format==ReplyStreamType::HTML);}
+  bool IsText() { return (format==ReplyStreamType::TEXT);}
   
 private:
   ReplyStreamType format;

@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 
 #include "nnti/nnti_pch.hpp"
@@ -55,22 +55,19 @@ namespace transports {
 /**
  * @brief Initialize NNTI to use a specific transport.
  *
- * \param[in]  trans_id  The ID of the transport the client wants to use.
- * \param[in]  my_url    A string that describes the transport parameters.
- * \param[out] trans_hdl A handle to the activated transport.
+ * \param[in]  config    A Configuration object that NNTI should use to configure itself.
  * \return A result code (NNTI_OK or an error)
  *
  */
 ugni_transport::ugni_transport(
     faodel::Configuration &config)
-    : base_transport(NNTI_TRANSPORT_UGNI,
-                     config),
+    : base_transport(NNTI_TRANSPORT_UGNI, config),
       started_(false),
       event_freelist_size_(128),
       cmd_op_freelist_size_(128),
-      cmd_tgt_freelist_size_(128),
       rdma_op_freelist_size_(128),
-      atomic_op_freelist_size_(128)
+      atomic_op_freelist_size_(128),
+      cmd_tgt_freelist_size_(128)
 {
     faodel::rc_t rc = 0;
     uint64_t uint_value = 0;
@@ -127,7 +124,13 @@ ugni_transport::start(void)
 
     log_debug("ugni_transport", "initializing libugni");
 
-    get_drc_info(&drc_info_);
+    rc = get_drc_info(&drc_info_);
+    if (rc != NNTI_OK) {
+      log_error("ugni_transport", "get_drc_info() failed: %d", rc);
+      goto cleanup;
+    }
+    
+    gni_rc = GNI_GetDeviceType(&dev_type_);
 
     gni_rc = GNI_CdmGetNicAddress (drc_info_.device_id, &nic_addr, &gni_cpu_id);
     if (gni_rc != GNI_RC_SUCCESS) {
@@ -228,6 +231,17 @@ ugni_transport::start(void)
         goto cleanup;
     }
 
+    gni_rc = GNI_CqCreate (nic_hdl_, 8192, 0, GNI_CQ_BLOCKING, NULL, NULL, &unexpected_long_get_ep_cq_hdl_);
+    if (gni_rc != GNI_RC_SUCCESS) {
+        log_error("ugni_transport", "CqCreate(unexpected_long_get_ep_cq_hdl_) failed: %d", gni_rc);
+        goto cleanup;
+    }
+    gni_rc = GNI_CqCreate (nic_hdl_, 8192, 0, GNI_CQ_BLOCKING, NULL, NULL, &unexpected_long_get_mem_cq_hdl_);
+    if (gni_rc != GNI_RC_SUCCESS) {
+        log_error("ugni_transport", "CqCreate(unexpected_long_get_mem_cq_hdl_) failed: %d", gni_rc);
+        goto cleanup;
+    }
+
     gni_rc = GNI_CqCreate (nic_hdl_, 20, 0, GNI_CQ_BLOCKING, NULL, NULL, &interrupt_mem_cq_hdl_);
     if (gni_rc != GNI_RC_SUCCESS) {
         log_error("ugni_transport", "CqCreate(interrupt_cq_hdl_) failed: %d", gni_rc);
@@ -304,7 +318,7 @@ ugni_transport::start(void)
 cleanup:
     log_debug("ugni_transport", "exit");
 
-    return NNTI_OK;
+    return rc;
 }
 
 NNTI_result_t
@@ -317,6 +331,8 @@ ugni_transport::stop(void)
 
     started_ = false;
 
+    stop_progress_thread();
+
     // purge any remaining connections from the map
     // FIX: this will leak memory and IB resources - do it better
     nthread_lock(&new_connection_lock_);
@@ -328,8 +344,6 @@ ugni_transport::stop(void)
     nthread_unlock(&new_connection_lock_);
 
     unregister_whookie_cb();
-
-    stop_progress_thread();
 
     teardown_freelists();
 
@@ -347,10 +361,22 @@ ugni_transport::stop(void)
     GNI_CqDestroy (rdma_mem_cq_hdl_);
 
     GNI_CdmDestroy (cdm_hdl_);
+    
+    rc = free_drc_info(&drc_info_);
+    if (rc == NNTI_EPERM) {
+      /*
+       * drc_release() always fails on mutrino with -DRC_EPERM which we 
+       * translate to NNTI_EPERM.  Until this is fixed on the Cray side, 
+       * we will ignore this error.
+       */
+      log_debug("ugni_transport", "HACK: free_drc_info() returned bogus NNTI_EPERM.  Resetting to NNTI_OK.");
+      rc = NNTI_OK;
+    } else if (rc != NNTI_OK) {
+      log_error("ugni_transport", "free_drc_info() failed: %d", rc);
+    }
 
     nthread_lock_fini(&ugni_lock_);
 
-cleanup:
     log_debug("ugni_transport", "exit");
 
     return rc;
@@ -359,8 +385,6 @@ cleanup:
 /**
  * @brief Indicates if a transport has been initialized.
  *
- * \param[in]  trans_id  The ID of the transport to test.
- * \param[out] is_init   1 if the transport is initialized, 0 otherwise.
  * \return A result code (NNTI_OK or an error)
  *
  */
@@ -442,6 +466,13 @@ ugni_transport::connect(
     conn = (nnti::core::ugni_connection*)conn_map_.get(peer->pid());
     if (conn != nullptr) {
         log_debug("ugni_transport", "Found connection with pid=%016lx", peer->pid());
+
+        if (!conn->fingerprint().empty()) {
+            log_debug("ugni_transport", "Connection has fingerprint=%s", conn->fingerprint().c_str());
+        } else {
+            log_debug("ugni_transport", "Connection has empty fingerprint");
+        }
+
         // reuse an existing connection
         *peer_hdl = (NNTI_peer_t)conn->peer();
         nthread_unlock(&new_connection_lock_);
@@ -465,19 +496,29 @@ ugni_transport::connect(
     int retries = 5;
     wh_rc = whookie::retrieveData(peer_url.hostname(), peer_url.port(), wh_path, &reply);
     while (wh_rc != 0 && --retries) {
-        sleep(1);
+        log_debug("ugni_transport", "whookie::retrieveData() failed: %d", wh_rc);
+        sleep(5);
         wh_rc = whookie::retrieveData(peer_url.hostname(), peer_url.port(), wh_path, &reply);
     }
     if (wh_rc != 0) {
         log_debug("ugni_transport", "connect() timed out");
         return(NNTI_ETIMEDOUT);
     }
+    log_debug("ugni_transport", "connect() remaining retries is %d", retries);
 
     log_debug_stream("connect") << "reply=" << reply;
 
-    conn->peer_params(reply);
-
-    conn->transition_to_ready();
+    nthread_lock(&new_connection_lock_);
+    if (conn->fingerprint().empty()) {
+        // When this connection was created above, the peer's fingerprint was 
+        // left empty because we didn't know it.  If the fingerprint is now set, 
+        // it means that the peer also initiated a connection back to us and 
+        // won the race.  If it's still empty, then we won and need to 
+        // populate the peer parameters here.
+        conn->peer_params(reply);
+        conn->transition_to_ready();
+    }
+    nthread_unlock(&new_connection_lock_);
 
     *peer_hdl = (NNTI_peer_t)peer;
 
@@ -620,12 +661,12 @@ ugni_transport::eq_wait(
 
     log_debug("eq_wait", "enter");
 
-    for (int i=0;i<eq_count;i++) {
+    for (uint32_t i=0;i<eq_count;i++) {
         nnti::datatype::nnti_event_queue *eq = nnti::datatype::nnti_event_queue::to_obj(eq_list[i]);
         rc = eq->pop(e);
         if (rc) {
             uint32_t dummy=0;
-            ssize_t bytes_read=read(eq->read_fd(), &dummy, 4);
+            read(eq->read_fd(), &dummy, 4);
 
             *which = i;
             *event = *e;
@@ -635,7 +676,7 @@ ugni_transport::eq_wait(
         }
     }
 
-    for (int i=0;i<eq_count;i++) {
+    for (uint32_t i=0;i<eq_count;i++) {
         nnti::datatype::nnti_event_queue *eq = nnti::datatype::nnti_event_queue::to_obj(eq_list[i]);
         poll_fds[i].fd      = eq->read_fd();
         poll_fds[i].events  = POLLIN;
@@ -670,11 +711,11 @@ ugni_transport::eq_wait(
         goto cleanup;
     } else {
         log_debug("eq_wait", "polled on %d file descriptor(s).  events occurred on %d file descriptor(s).", poll_fds.size(), poll_rc);
-        for (int i=0;i<eq_count;i++) {
+        for (uint32_t i=0;i<eq_count;i++) {
             log_debug("eq_wait", "poll success: poll_rc=%d ; poll_fds[%d].revents=%d",
                       poll_rc, i, poll_fds[i].revents);
         }
-        for (int i=0;i<eq_count;i++) {
+        for (uint32_t i=0;i<eq_count;i++) {
             if (poll_fds[i].revents == POLLIN) {
                 log_debug("eq_wait", "poll() events on eq[%d]", i);
                 ssize_t bytes_read=0;
@@ -711,7 +752,7 @@ cleanup:
  *
  * \param[in]  dst_hdl        Buffer where the message is delivered.
  * \param[in]  dst_offset     Offset into dst_hdl where the message is delivered.
- * \param[out] reseult_event  Event describing the message delivered to dst_hdl.
+ * \param[out] result_event   Event describing the message delivered to dst_hdl.
  * \return A result code (NNTI_OK or an error)
  */
 NNTI_result_t
@@ -721,8 +762,6 @@ ugni_transport::next_unexpected(
     NNTI_event_t  *result_event)
 {
     NNTI_result_t rc = NNTI_OK;
-    int           gni_rc;
-    uint64_t actual_offset;
     nnti::datatype::nnti_buffer *b = (nnti::datatype::nnti_buffer *)dst_hdl;
 
     log_debug("next_unexpected", "enter");
@@ -763,10 +802,10 @@ ugni_transport::next_unexpected(
 /**
  * @brief Retrieves a specific message from the unexpected list.
  *
- * \param[in]  unexpect_event  Event describing the message to retrieve.
- * \param[in]  dst_hdl         Buffer where the message is delivered.
- * \param[in]  dst_offset      Offset into dst_hdl where the message is delivered.
- * \param[out] reseult_event   Event describing the message delivered to dst_hdl.
+ * \param[in]  unexpected_event  Event describing the message to retrieve.
+ * \param[in]  dst_hdl           Buffer where the message is delivered.
+ * \param[in]  dst_offset        Offset into dst_hdl where the message is delivered.
+ * \param[out] result_event      Event describing the message delivered to dst_hdl.
  * \return A result code (NNTI_OK or an error)
  */
 NNTI_result_t
@@ -776,8 +815,6 @@ ugni_transport::get_unexpected(
     uint64_t       dst_offset,
     NNTI_event_t  *result_event)
 {
-    nnti::datatype::nnti_buffer *b = (nnti::datatype::nnti_buffer *)dst_hdl;
-
     return NNTI_OK;
 }
 
@@ -965,8 +1002,8 @@ ugni_transport::unregister_memory(
 /**
  * @brief Convert an NNTI peer to an NNTI_process_id_t.
  *
- * \param[in]   peer  A handle to a peer that can be used for network operations.
- * \param[out]  pid   Compact binary representation of a process's location on the network.
+ * \param[in]   peer_hdl  A handle to a peer that can be used for network operations.
+ * \param[out]  pid       Compact binary representation of a process's location on the network.
  * \return A result code (NNTI_OK or an error)
  */
 NNTI_result_t
@@ -982,8 +1019,8 @@ ugni_transport::dt_peer_to_pid(
 /**
  * @brief Convert an NNTI_process_id_t to an NNTI peer.
  *
- * \param[in]   pid   Compact binary representation of a process's location on the network.
- * \param[out]  peer  A handle to a peer that can be used for network operations.
+ * \param[in]   pid       Compact binary representation of a process's location on the network.
+ * \param[out]  peer_hdl  A handle to a peer that can be used for network operations.
  * \return A result code (NNTI_OK or an error)
  */
 NNTI_result_t
@@ -1053,13 +1090,20 @@ ugni_transport::put(
     nnti::core::ugni_rdma_op     *put_op  = nullptr;
 
 #ifdef NNTI_ENABLE_ARGS_CHECKING
+    //
+    // Do a sanity check on base addresses, offsets and lengths.
+    //
     const nnti::datatype::ugni_work_request &gni_wr = (const nnti::datatype::ugni_work_request &)work_id->wr();
     if (gni_wr.local_offset() + gni_wr.length() > gni_wr.local_length()) {
-        log_error("ugni_transport", "PUT length extends beyond the end of local buffer");
+        log_error("ugni_transport", 
+                  "PUT: length extends beyond the end of local buffer (local offset=%lu, xfer length=%lu, local length=%lu)",
+                  gni_wr.local_offset(), gni_wr.length(), gni_wr.local_length());
         return NNTI_EMSGSIZE;
     }
     if (gni_wr.remote_offset() + gni_wr.length() > gni_wr.remote_length()) {
-        log_error("ugni_transport", "PUT length extends beyond the end of remote buffer");
+        log_error("ugni_transport", 
+                  "PUT: length extends beyond the end of remote buffer (remote offset=%lu, xfer length=%lu, remote length=%lu)",
+                  gni_wr.remote_offset(), gni_wr.length(), gni_wr.remote_length());
         return NNTI_EMSGSIZE;
     }
 #endif
@@ -1099,14 +1143,52 @@ ugni_transport::get(
     nnti::core::ugni_rdma_op     *get_op  = nullptr;
 
 #ifdef NNTI_ENABLE_ARGS_CHECKING
+    //
+    // Do a sanity check on base addresses, offsets and lengths.
+    //
     const nnti::datatype::ugni_work_request &gni_wr = (const nnti::datatype::ugni_work_request &)work_id->wr();
     if (gni_wr.local_offset() + gni_wr.length() > gni_wr.local_length()) {
-        log_error("ugni_transport", "GET length extends beyond the end of local buffer");
+        log_error("ugni_transport", 
+                  "GET: length extends beyond the end of local buffer (local offset=%lu, xfer length=%lu, local length=%lu)",
+                  gni_wr.local_offset(), gni_wr.length(), gni_wr.local_length());
         return NNTI_EMSGSIZE;
     }
     if (gni_wr.remote_offset() + gni_wr.length() > gni_wr.remote_length()) {
-        log_error("ugni_transport", "GET length extends beyond the end of remote buffer");
+        log_error("ugni_transport", 
+                  "GET: length extends beyond the end of remote buffer (remote offset=%lu, xfer length=%lu, remote length=%lu)",
+                  gni_wr.remote_offset(), gni_wr.length(), gni_wr.remote_length());
         return NNTI_EMSGSIZE;
+    }
+    if (gni_wr.length() == 0) {
+        log_error("ugni_transport", "GET: 0-length GETs are not supported");
+        return NNTI_EMSGSIZE;
+    }
+
+    //
+    // Local address alignment is a Gemini-only restriction.
+    //
+    if ((dev_type_ == GNI_DEVICE_GEMINI) && 
+        (((uint64_t)gni_wr.local_addr()+gni_wr.local_offset())%4 != 0)) {
+        log_error("ugni_transport", 
+                  "GET: local address (buffer+offset) is not 4-byte aligned (addr=%lu, offset=%lu)", 
+                  gni_wr.local_addr(), gni_wr.local_offset());
+        return NNTI_EALIGN;
+    }
+
+    //
+    // The remaining alignment restrictions apply to both Gemini and Aries.
+    //
+    if (((uint64_t)gni_wr.remote_addr()+gni_wr.remote_offset())%4 != 0) {
+        log_error("ugni_transport", 
+                  "GET: remote address (buffer+offset) is not 4-byte aligned (addr=%lu, offset=%lu)", 
+                  gni_wr.remote_addr(), gni_wr.remote_offset());
+        return NNTI_EALIGN;
+    }
+    if ((gni_wr.length())%4 != 0) {
+        log_error("ugni_transport", 
+                  "GET: the RDMA length is not 4-byte aligned (actual=%lu)", 
+                  gni_wr.length());
+        return NNTI_EALIGN;
     }
 #endif
 
@@ -1143,6 +1225,41 @@ ugni_transport::atomic_fop(
 
     nnti::datatype::nnti_work_id *work_id   = new nnti::datatype::nnti_work_id(*wr);
     nnti::core::ugni_atomic_op   *atomic_op = nullptr;
+
+#ifdef NNTI_ENABLE_ARGS_CHECKING
+    //
+    // Do a sanity check on lengths.
+    //
+    const nnti::datatype::ugni_work_request &gni_wr = (const nnti::datatype::ugni_work_request &)work_id->wr();
+    if (gni_wr.length() != 8) {
+        log_error("ugni_transport", 
+                  "Fetching Atomics: length must be 8 (actual=%lu)", 
+                  gni_wr.length());
+        return NNTI_EMSGSIZE;
+    }
+
+    //
+    // Check the alignment of the addresses and length
+    //
+    if (((uint64_t)gni_wr.local_addr()+gni_wr.local_offset())%8 != 0) {
+        log_error("ugni_transport", 
+                  "Fetching Atomics: local address (buffer+offset) is not 8-byte aligned (addr=%lu, offset=%lu)", 
+                  gni_wr.local_addr(), gni_wr.local_offset());
+        return NNTI_EALIGN;
+    }
+    if (((uint64_t)gni_wr.remote_addr()+gni_wr.remote_offset())%8 != 0) {
+        log_error("ugni_transport", 
+                  "Fetching Atomics: remote address (buffer+offset) is not 8-byte aligned (addr=%lu, offset=%lu)", 
+                  gni_wr.remote_addr(), gni_wr.remote_offset());
+        return NNTI_EALIGN;
+    }
+    if ((gni_wr.length())%8 != 0) {
+        log_error("ugni_transport", 
+                  "Fetching Atomics: length is not 8-byte aligned (actual=%lu)", 
+                  gni_wr.length());
+        return NNTI_EALIGN;
+    }
+#endif
 
     rc = create_fadd_op(work_id, &atomic_op);
     if (rc != NNTI_OK) {
@@ -1205,8 +1322,6 @@ NNTI_result_t
 ugni_transport::cancel(
     NNTI_work_id_t wid)
 {
-    nnti::datatype::nnti_work_id *work_id = (nnti::datatype::nnti_work_id *)wid;
-
     return NNTI_OK;
 }
 
@@ -1297,8 +1412,6 @@ ugni_transport::wait(
     const int64_t   timeout,
     NNTI_status_t  *status)
 {
-    nnti::datatype::nnti_work_id *work_id = (nnti::datatype::nnti_work_id *)wid;
-
     return NNTI_OK;
 }
 
@@ -1610,10 +1723,7 @@ ugni_transport::teardown_freelists(void)
 void
 ugni_transport::progress(void)
 {
-    int           rc      = 0;
     gni_return_t  gni_rc  = GNI_RC_SUCCESS;
-    NNTI_result_t nnti_rc = NNTI_OK;
-
     bool cq_empty;
 
     gni_cq_handle_t cq_list[CQ_COUNT];
@@ -1625,8 +1735,6 @@ ugni_transport::progress(void)
     gni_post_descriptor_t *post_desc_ptr = NULL;
 
     void *header = NULL;
-
-    bool interrupted = false;
 
     nnti::core::ugni_connection *conn = NULL;
 
@@ -1648,6 +1756,12 @@ ugni_transport::progress(void)
 
         log_debug("ugni_transport", "checking for events on any CQ (cq_count=%d)", cq_count);
         gni_rc=GNI_CqVectorMonitor(cq_list, cq_count, -1, &which_cq);
+        if (terminate_progress_thread_.load() == true) {
+            // this is probably a performance hit, but if bootstrap is shutting 
+            // down this process then anything below will likely fail.
+            break;
+        }
+
         /* case 1: success */
         if (gni_rc == GNI_RC_SUCCESS) {
 
@@ -1729,14 +1843,14 @@ ugni_transport::progress(void)
                                 abort();
                             } else if (gni_rc == GNI_RC_NOT_DONE) {
                                 log_debug("ugni_transport", "GNI_RC_NOT_DONE means the mailbox is empty - implicit credit event on CQ??");
-                                if (conn->waitlisted()) {
-                                    // try to send some messages from this connection's wait list
-                                    conn->waitlist_execute();
-                                }
 //                                cq_empty = true;
                             } else {
                                 log_debug("ugni_transport", "SmsgGetNextWTag(smsg_ep_hdl) failed: %d", gni_rc);
                                 continue;
+                            }
+                            if (conn->waitlisted()) {
+                                // try to send some messages from this connection's wait list
+                                conn->waitlist_execute();
                             }
                             log_debug("ugni_transport", "goto another_event");
                         } else if (gni_rc == GNI_RC_NOT_DONE) {
@@ -1852,16 +1966,12 @@ ugni_transport::progress(void)
                 case INTERRUPT_CQ_INDEX:
                     if (get_event(cq_list[which_cq], &ev_data) == GNI_RC_SUCCESS) {
                         log_debug("ugni_transport", "CqVectorMonitor() interrupted by transport::interrupt()");
-                        interrupted=true;
-                        nnti_rc = NNTI_EINTR;
                     }
                     continue;
 
                 default:
                     break;
             }
-
-            nnti_rc = NNTI_OK;
         } else {
             char errstr[1024];
             uint32_t recoverable=0;
@@ -1872,12 +1982,9 @@ ugni_transport::progress(void)
             log_error("ugni_transport", "CqVectorMonitor failed (gni_rc=%d) (recoverable=%llu) : %s",
                     gni_rc, (uint64_t)recoverable, errstr);
             print_cq_event(&ev_data, false);
-
-            nnti_rc = NNTI_EIO;
         }
     }
 
-cleanup:
     log_debug("ugni_transport", "exit");
 
     return;
@@ -1910,12 +2017,46 @@ ugni_transport::connect_cb(const std::map<std::string,std::string> &args, std::s
     nthread_lock(&new_connection_lock_);
 
     nnti::core::nnti_url peer_url = nnti::core::nnti_url(args.at("hostname"), args.at("port"));
+    std::string fingerprint = args.at("fingerprint");
 
-    log_debug("ugni_transport", "Looking for connection with pid=%016lx", peer_url.pid());
+    log_debug("ugni_transport", "Looking for connection with pid=%016lx fingerprint=%s", peer_url.pid(), fingerprint.c_str());
     conn = (nnti::core::ugni_connection*)conn_map_.get(peer_url.pid());
     if (conn != nullptr) {
-        log_debug("ugni_transport", "Found connection with pid=%016lx", peer_url.pid());
+        if (conn->fingerprint() == fingerprint) {
+            // The connecting peer already has a fully formed connection object in the map.  
+            // We will reply with the properties of this connection.
+            log_debug("ugni_transport", "Found matching connection with pid=%016lx fingerprint=%s", peer_url.pid(), fingerprint.c_str());
+        } else if (conn->fingerprint().empty()) {
+            // The connecting peer already has a partiallu formed connection object in the map.
+            // This can happened when two peers initiate a connection simultaneously.  One side 
+            // will win the race and find a connection object with no fingerprint.  This connection 
+            // object should be populated with the initiator info found in 'args' and transitioned 
+            // to ready.
+            // Then we can reply with the properties of the now complete connection.
+            log_debug("ugni_transport", "Found connection with matching pid=%016lx and empty fingerprint=%s", peer_url.pid(), conn->fingerprint().c_str());
+            conn->peer_params(args);
+            conn->transition_to_ready();
+        } else {
+            // The connecting peer already has a fully formed connection object in the map, 
+            // but the fingerprint doesn't match.  This can happen if the peer is restarted 
+            // and gets a new fingerprint.  The stale connection will be destroyed and 
+            // replaced.
+            // Then we can reply with the properties of the new connection.
+            log_debug("ugni_transport", "Found mismatched connection with pid=%016lx fingerprint=%s", peer_url.pid(), conn->fingerprint().c_str());
+
+            conn_map_.remove(conn);
+            delete conn;
+
+            conn = new nnti::core::ugni_connection(this, cmd_msg_size_, cmd_msg_count_, args);
+            conn->index = conn_vector_.add(conn);
+            conn_map_.insert(conn);
+
+            conn->transition_to_ready();
+        }
     } else {
+        // A connection object couldn't be found for the connecting peer.  We will create 
+        // a new one.
+        // Then we can reply with the properties of the new connection.
         log_debug("ugni_transport", "Couldn't find connection with pid=%016lx", peer_url.pid());
 
         conn = new nnti::core::ugni_connection(this, cmd_msg_size_, cmd_msg_count_, args);
@@ -1927,11 +2068,12 @@ ugni_transport::connect_cb(const std::map<std::string,std::string> &args, std::s
 
     nthread_unlock(&new_connection_lock_);
 
-    results << "hostname="   << url_.hostname()      << std::endl;
-    results << "addr="       << url_.addr()          << std::endl;
-    results << "port="       << url_.port()          << std::endl;
-    results << "local_addr=" << drc_info_.local_addr << std::endl;
-    results << "instance="   << instance_            << std::endl;
+    results << "hostname="    << url_.hostname()      << std::endl;
+    results << "addr="        << url_.addr()          << std::endl;
+    results << "port="        << url_.port()          << std::endl;
+    results << "fingerprint=" << fingerprint_         << std::endl;
+    results << "local_addr="  << drc_info_.local_addr << std::endl;
+    results << "instance="    << instance_            << std::endl;
     results << conn->reply_string();
 
     log_debug("ugni_transport", "connect_cb() - exit");
@@ -2006,12 +2148,13 @@ ugni_transport::build_whookie_path(
 {
     std::stringstream wh_url;
 
-    wh_url << "/nnti/ugni/"  << service;
-    wh_url << "&hostname="   << url_.hostname();
-    wh_url << "&addr="       << url_.addr();
-    wh_url << "&port="       << url_.port();
-    wh_url << "&local_addr=" << drc_info_.local_addr;
-    wh_url << "&instance="   << instance_;
+    wh_url << "/nnti/ugni/"   << service;
+    wh_url << "&hostname="    << url_.hostname();
+    wh_url << "&addr="        << url_.addr();
+    wh_url << "&port="        << url_.port();
+    wh_url << "&fingerprint=" << fingerprint_;
+    wh_url << "&local_addr="  << drc_info_.local_addr;
+    wh_url << "&instance="    << instance_;
 
     return wh_url.str();
 }
@@ -2144,10 +2287,10 @@ ugni_transport::create_get_op(
 
     if (rdma_op_freelist_->pop(*rdma_op)) {
         (*rdma_op)->set(work_id);
-        (*rdma_op)->index = op_vector_.add(*rdma_op);
     } else {
         *rdma_op = new nnti::core::ugni_rdma_op(this, work_id);
     }
+    (*rdma_op)->index = op_vector_.add(*rdma_op);
 
     log_debug("ugni_transport", "create_get_op() - exit");
 
@@ -2165,11 +2308,10 @@ ugni_transport::create_put_op(
 
     if (rdma_op_freelist_->pop(*rdma_op)) {
         (*rdma_op)->set(work_id);
-        (*rdma_op)->index = op_vector_.add(*rdma_op);
     } else {
         *rdma_op = new nnti::core::ugni_rdma_op(this, work_id);
-        (*rdma_op)->index = op_vector_.add(*rdma_op);
     }
+    (*rdma_op)->index = op_vector_.add(*rdma_op);
 
     log_debug("ugni_transport", "create_put_op() - exit");
 
@@ -2366,14 +2508,15 @@ ugni_transport::get_drc_info(
     errno = 0;
     drc_info->device_id = (uint8_t)strtoul (ptr, (char **)NULL, 10);
     if (0 != errno) {
+        log_error("ugni_transport", "PMI_GNI_DEV_ID (%s) is invalid.", ptr);
         return NNTI_EINVAL;
     }
 
-    int64_t tmp_cred=0;
-    rc = config_.GetInt(&tmp_cred, "nnti.transport.credential_id", "0");
-    if (rc == 0) {
-        drc_info->credential_id = (uint32_t)tmp_cred;
+    int64_t tmp_cred=-1;
+    rc = config_.GetInt(&tmp_cred, "nnti.transport.credential_id", "-1");
+    drc_info->credential_id = (uint32_t)tmp_cred;
 
+    if (drc_info->credential_id != -1) {
         rc = drc_access(drc_info->credential_id, flags, &drc_info->drc_info_hdl);
         if (rc != DRC_SUCCESS) {
             // Something is wrong. Either the credential doesn't exist or you don't have permission to access it
@@ -2383,6 +2526,7 @@ ugni_transport::get_drc_info(
 
         drc_info->cookie1 = drc_get_first_cookie(drc_info->drc_info_hdl);
         drc_info->ptag1 = GNI_FIND_ALLOC_PTAG;
+        log_debug("ugni_transport", "looking for ptag1 on device_id=%u that matches cookie1=%u", drc_info->device_id, drc_info->cookie1);
         grc = GNI_GetPtag(drc_info->device_id, drc_info->cookie1, &drc_info->ptag1);
         if (grc != GNI_RC_SUCCESS) {
             // Something is wrong. This should not happen if drc_access returned DRC_SUCCESS
@@ -2425,6 +2569,37 @@ error:
         return NNTI_OK;
     }
 
+}
+
+NNTI_result_t
+ugni_transport::free_drc_info(
+    drc_info_t *drc_info)
+{
+    int rc;
+    int flags = 0;
+
+    if (drc_info->credential_id != -1) {
+      rc = drc_release(drc_info->credential_id, flags);
+      if (rc != DRC_SUCCESS) {
+          /* failed to release credential */
+          if (rc != -DRC_EPERM) {
+            log_error("ugni_transport", "drc_release() failed: %d (%s)", rc, strerror(-rc));
+          }
+          if (rc == -DRC_EINVAL) {
+            return NNTI_EINVAL;
+          } else if (rc == -DRC_CRED_NOT_FOUND) {
+            return NNTI_ENOENT;
+          } else if (rc == -DRC_EPERM) {
+            return NNTI_EPERM;
+          } else if (rc == -DRC_ECONNREFUSED) {
+            return NNTI_EBADRPC;
+          } else {
+            return NNTI_EIO;
+          }
+      }
+    }
+    
+    return NNTI_OK;
 }
 
 //void

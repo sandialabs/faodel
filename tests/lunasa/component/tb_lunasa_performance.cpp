@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #include "gtest/gtest.h"
 #include <iostream>
@@ -22,7 +22,6 @@ string default_config = R"EOF(
 default.kelpie.core_type nonet
 
 #lkv settings for the server
-server.max_capacity 32M
 server.mutex_type   rwlock
 
 lunasa.eager_memory_manager tcmalloc
@@ -260,7 +259,7 @@ TEST_F(LunasaAllocTest, PreloadedAllocations) {
 
     // Preload
     cout << "preloading..." << flush;
-    for(int j = 0; j<num_preloaded_allocs; j++) {
+    for(unsigned long j = 0; j<num_preloaded_allocs; j++) {
       preloaded_allocs[j] = DataObject(0, preloaded_alloc_size, DataObject::AllocatorType::eager);
     }
     cout << "done" << endl;

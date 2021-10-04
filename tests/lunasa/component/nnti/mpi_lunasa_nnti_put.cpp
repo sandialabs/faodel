@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #include "gtest/gtest.h"
 #include <mpi.h>
@@ -266,8 +266,8 @@ protected:
   private:
     nnti::transports::transport *transport = nullptr;
     std::promise<int> &recv_promise;
-    std::promise<int> &put_promise;
     std::promise<int> &send_promise;
+    std::promise<int> &put_promise;
 
     NNTI_result_t recv_callback_func(NNTI_event_t *event, void *context) {
 #ifdef DEBUG
@@ -514,7 +514,6 @@ public:
 TEST_F(LunasaPutUserTest, basic) {
   int rc;
 
-  int partner_id;
   faodel::nodeid_t partner_nodeid;
 
   MPI_Request request;
@@ -542,7 +541,6 @@ TEST_F(LunasaPutUserTest, basic) {
     NNTI_peer_t p;
     transport->connect(url.str().c_str(), 1000, &p);
 
-    int payload_length = 8;
     NNTI_attrs_t nnti_attrs;
     transport->attrs(&nnti_attrs);
 

@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 /**
  * @file base_transport.cpp
@@ -16,6 +16,7 @@
 
 #include "nnti/nntiConfig.h"
 
+#include <chrono>
 #include <string>
 
 #include "faodel-common/Configuration.hh"
@@ -38,7 +39,7 @@ namespace transports {
  * @brief Initialize NNTI to use a specific transport.
  *
  * \param[in]  trans_id  The ID of the transport the client wants to use.
- * \param[in]  my_url    A string that describes the transport parameters.
+ * \param[in]  me        An nnti_peer object that references this process.
  * \return A result code (NNTI_OK or an error)
  *
  */
@@ -90,7 +91,11 @@ base_transport::base_transport(
 
     me_  = nnti::datatype::nnti_peer(this, url_);
 
+    uint64_t now = std::chrono::time_point_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now()).time_since_epoch().count();
+    fingerprint_ = faodel::hash32(whookie::Server::GetNodeID().GetHex() + std::to_string(now));
+
     log_debug_stream("base_transport") << "me_ = " << me_.url().url();
+    log_debug_stream("base_transport") << "fingerprint_ = " << fingerprint_;
 
     return;
 }

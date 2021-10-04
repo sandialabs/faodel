@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 
 #include "nnti/nntiConfig.h"
@@ -241,7 +241,7 @@ namespace core {
 
         return op_state::CLEANUP;
     }
-    ugni_cmd_op::op_state
+    void
     ugni_cmd_op::update_stats(void)
     {
         nnti::datatype::nnti_work_request &wr = wid_->wr();

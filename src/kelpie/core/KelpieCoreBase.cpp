@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 
 
@@ -22,13 +22,6 @@ KelpieCoreBase::KelpieCoreBase()
 }
 KelpieCoreBase::~KelpieCoreBase() = default;
 
-#if 0
-void KelpieCoreBase::registerPoolConstructor(string pool_name, fn_PoolCreate_t function_pointer) {
-  //shortcut for registration. A core uses this to register its own handles
-  //kelpie_core_unconfigured.pool_registry.RegisterPoolConstructor(pool_name, function_pointer);
-  return kelpie::internal::RegisterPoolConstructor(pool_name, function_pointer);
-}
-#endif
 
 }  // namespace internal
 }  // namespace kelpie

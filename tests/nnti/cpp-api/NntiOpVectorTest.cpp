@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 
 #include "nnti/nnti_pch.hpp"
@@ -94,7 +94,7 @@ TEST_F(NntiOpVectorTest, start1) {
 
     mirror.reserve(1024);
 
-    for (auto i = 0; i < num_op; ++i) {
+    for (int i = 0; i < num_op; ++i) {
         test_op *op = new test_op(t, &wid);
         op_vector.add(op);
         mirror[i] = op;
@@ -112,7 +112,7 @@ TEST_F(NntiOpVectorTest, start1) {
             delete victim_op;
         }
     }
-    for (auto i = 0; i < mirror.size(); ++i) {
+    for (uint32_t i = 0; i < mirror.size(); ++i) {
         EXPECT_EQ(op_vector.at(i), mirror[i]);
         op_vector.remove(i);
         delete mirror[i];

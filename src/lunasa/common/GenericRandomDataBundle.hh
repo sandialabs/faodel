@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #ifndef FAODEL_GENERICDATABUNDLE_HH
 #define FAODEL_GENERICDATABUNDLE_HH
@@ -16,11 +16,16 @@ struct bundle_offsets_t {
   uint32_t max_payload_bytes;   //How much data can be stored in the LDO's data section
   uint32_t current_byte_offset; //Where we are in appending to/reading from payload
   uint32_t current_id;          //Which item we're currently at
+  bool read_only;               //Status marker specifying this came from a const ldo
 
-  bundle_offsets_t() : max_payload_bytes(0), current_byte_offset(0), current_id(0) {
+  bundle_offsets_t() : max_payload_bytes(0), current_byte_offset(0), current_id(0), read_only(false) {
   }
   bundle_offsets_t(DataObject *ldo) : bundle_offsets_t() {
     max_payload_bytes = ldo->GetDataSize();
+  }
+  bundle_offsets_t(const DataObject *ldo) : bundle_offsets_t() {
+    max_payload_bytes = ldo->GetDataSize();
+    read_only = true;
   }
 };
 

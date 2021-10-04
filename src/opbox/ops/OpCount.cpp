@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #include <iostream>
 #include <chrono>
@@ -35,7 +35,7 @@ WaitingType OpCount::UpdateOrigin(OpArgs *args) {
   switch(state){
   case State::start:
 
-    kassert(args->type == UpdateType::user_trigger, "Was expecting a user trigger?");
+    F_ASSERT(args->type == UpdateType::user_trigger, "Was expecting a user trigger?");
     if(num_left){
       num_left--;
     }

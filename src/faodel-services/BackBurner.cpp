@@ -1,11 +1,12 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #include <iostream>
 #include <utility>
 #include <vector>
 #include <string>
+#include <unistd.h>
 
 
 #include "faodel-services/BackBurner.hh"
@@ -38,7 +39,7 @@ BackBurner::~BackBurner() {
 }
 void BackBurner::RegisterPollingFunction(const string &name, uint32_t group_id, fn_backburner_work polling_function) {
 
-  kassert(!configured, "BackBurner RegisterPollingFunction called after Start called");
+  F_ASSERT(!configured, "BackBurner RegisterPollingFunction called after Start called");
 
   workers->at(group_id%worker_count).RegisterPollingFunction(name, group_id, std::move(polling_function));
 }
@@ -55,7 +56,7 @@ void BackBurner::DisablePollingFunction(const string &name, uint32_t group_id) {
 }
 
 void BackBurner::Init(const Configuration &config) {
-  kassert(!configured, "BackBurner Init called twice");
+  F_ASSERT(!configured, "BackBurner Init called twice");
 
   ConfigureLogging(config);
 
@@ -77,7 +78,7 @@ void BackBurner::Start() {
 }
 
 void BackBurner::Finish() {
-  kassert(configured, "Backburner Finish called when not in configured state");
+  F_ASSERT(configured, "Backburner Finish called when not in configured state");
   if(workers_launched) {
     workers_launched=false;
   }
@@ -118,7 +119,7 @@ void BackBurner::AddWork(uint32_t tag, vector<fn_backburner_work> work) {
 
 
 BackBurner::Worker::Worker() :
-  LoggingInterface("backburnerWorker"),
+  LoggingInterface("backburner.worker"),
   parent(nullptr),
   worker_id(0),
   kill_worker(false),
@@ -127,7 +128,7 @@ BackBurner::Worker::Worker() :
 }
 
 BackBurner::Worker::Worker(BackBurner *parent) :
-  LoggingInterface("backburnerWorker"),
+  LoggingInterface("backburner.worker"),
   parent(parent),
   tasks_consumer(&tasks_a), tasks_producer(&tasks_b),
   producer_num(0), consumer_num(0) {
@@ -137,6 +138,7 @@ BackBurner::Worker::Worker(BackBurner *parent) :
 
 BackBurner::Worker::~Worker() {
   kill_worker = true;
+  notifyNewWork(); //Some notification methods may need to be unblocked to see kill_worker
   th_server.join();
 }
 
@@ -144,6 +146,55 @@ void BackBurner::Worker::SetConfiguration(const Configuration &config, int id) {
   worker_id = id;
   SetSubcomponentName("["+std::to_string(id)+"]");
   ConfigureLogging(config);
+
+  string notification_method;
+  config.GetString(&notification_method, "backburner.notification_method", "pipe");
+
+  if(notification_method == "polling") {
+    //This version doesn't do any special notification and will burn the cpu
+    notifyNewWork = []() {};
+    blockUntilWork = []() { return 1; };
+
+  } else if (notification_method == "sleep_polling") {
+    //This version polls, but injects sleep time so we don't eat as much time
+    uint64_t time_us;
+    config.GetTimeUS(&time_us, "backburner.sleep_polling_time","100us");
+    dbg("Notification method: sleep_polling with a delay of "+std::to_string(time_us)+" us");
+    notifyNewWork = []() {};
+    blockUntilWork = [=]() {
+        std::this_thread::sleep_for(std::chrono::microseconds(time_us));
+        return 1;
+    };
+
+  } else if (notification_method == "pipe") {
+    dbg("Notification method: pipe");
+
+    int rc = pipe(notification_pipe);
+    F_ASSERT(!rc, "Trouble setting up notification pipe in backburner?");
+    //Use non blocking writes
+    int flags = fcntl(notification_pipe[1], F_GETFL);
+    F_ASSERT(flags>=0, "Pipe flags were bad?");
+    rc = fcntl(notification_pipe[1], F_SETFL, flags | O_NONBLOCK);
+    F_ASSERT(rc>=0, "Backburner could not set notification pipe writes to non blocking?");
+
+    notifyNewWork = [=] {
+        dbg("Notifying through pipe");
+        uint32_t new_work=1;
+        ssize_t write_bytes = write(notification_pipe[1], &new_work, 4);
+        F_ASSERT(write_bytes==4, "notifyNewWork could not write full word to pipe?");
+    };
+    blockUntilWork = [=] {
+        dbg("Blocking on pipe");
+        uint32_t val;
+        ssize_t read_size;
+        do {
+          read_size = read(notification_pipe[0], &val, 4);
+          F_ASSERT(read_size==4, "blockUntilWork did not get full word from pipe?");
+        } while(read_size!=4);
+        return 1;
+    };
+  }
+
   th_server = thread(&Worker::server, this);
 }
 
@@ -153,6 +204,7 @@ void BackBurner::Worker::AddWork(fn_backburner_work work) {
   tasks_producer->push(work);
   producer_num++;
   mtx.unlock();
+  notifyNewWork();
 }
 
 void BackBurner::Worker::AddWork(vector<fn_backburner_work> work) {
@@ -162,10 +214,10 @@ void BackBurner::Worker::AddWork(vector<fn_backburner_work> work) {
     tasks_producer->push(w);
   producer_num+=work.size();
   mtx.unlock();
+  notifyNewWork();
 }
 
 void BackBurner::Worker::RegisterPollingFunction(string name, uint32_t group_id, fn_backburner_work polling_function) {
-
   dbg("Register polling function "+name);
   auto it = registered_poll_functions.find(name);
   if(it != registered_poll_functions.end()) {
@@ -176,7 +228,6 @@ void BackBurner::Worker::RegisterPollingFunction(string name, uint32_t group_id,
 }
 
 void BackBurner::Worker::DisablePollingFunction(string name) {
-
   dbg("Disabling polling function "+name);
   auto it = registered_poll_functions.find(name);
   if(it != registered_poll_functions.end()) {
@@ -184,14 +235,17 @@ void BackBurner::Worker::DisablePollingFunction(string name) {
   }
 }
 
-
 void BackBurner::Worker::server() {
 
   int num_bundles=0;
   int num=0;
+  bool no_extra_poll_functions = registered_poll_functions.empty();
 
   while(!kill_worker) {
-    //cout <<"Backburner\n";
+    dbg("Polling");
+
+    //If user didn't add any polling functions we can use notifications to save some cycles
+    if(no_extra_poll_functions) blockUntilWork();
 
     //Only lock when there's work
     if(producer_num!=consumer_num) {

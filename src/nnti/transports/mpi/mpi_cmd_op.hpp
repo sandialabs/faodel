@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 
 #ifndef MPI_CMD_OP_HPP_
@@ -67,17 +67,13 @@ private:
 
     size_t                           index_;
 
-    nnti::transports::mpi_transport *transport_;
     nnti::core::mpi_cmd_msg          cmd_msg_;
-
-    enum cmd_state                   state_;
 
 public:
     mpi_cmd_op(
         nnti::transports::mpi_transport *transport,
         const uint32_t                   cmd_msg_size)
     : nnti_op(),
-      transport_(transport),
       cmd_msg_(transport, cmd_msg_size)
     {
         return;
@@ -87,7 +83,6 @@ public:
         const uint32_t                   cmd_msg_size,
         nnti::datatype::nnti_work_id    *wid)
     : nnti_op(wid),
-      transport_(transport),
       cmd_msg_(transport, cmd_msg_size)
     {
         set(wid);
@@ -97,7 +92,6 @@ public:
         nnti::transports::mpi_transport *transport,
         nnti::datatype::nnti_work_id    *wid)
     : nnti_op(wid),
-      transport_(transport),
       cmd_msg_(transport, id_, wid)
     {
         return;

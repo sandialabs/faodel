@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #ifndef KELPIE_IOMPOSIXINDIVIDUALOBJECTS_HH
 #define KELPIE_IOMPOSIXINDIVIDUALOBJECTS_HH
@@ -27,17 +27,27 @@ public:
   IomPosixIndividualObjects(std::string name, const std::map<std::string,std::string> &new_settings);
   ~IomPosixIndividualObjects() override {}
 
-  rc_t GetInfo(faodel::bucket_t bucket, const kelpie::Key &key, kv_col_info_t *col_info) override;
-  void WriteObject(faodel::bucket_t bucket, const kelpie::Key &key, const lunasa::DataObject &ldo) override;
+  rc_t GetInfo(faodel::bucket_t bucket, const kelpie::Key &key, object_info_t *info) override;
+  rc_t WriteObject(faodel::bucket_t bucket, const kelpie::Key &key, const lunasa::DataObject &ldo) override;
   rc_t ReadObject(faodel::bucket_t bucket, const kelpie::Key &key, lunasa::DataObject *ldo) override;
 
   //WriteObjects and ReadObjects come from base class
   
+  rc_t ListObjects(faodel::bucket_t bucket, Key key, ObjectCapacities *oc) override;
+
   constexpr static char type_str[] = "PosixIndividualObjects";
   std::string Type() const override { return IomPosixIndividualObjects::type_str; };
 
   void AppendWebInfo(faodel::ReplyStream rs, std::string reference_link, const std::map<std::string,std::string> &args) override;
-  
+
+
+  /// Return a list of all the setting names this IOM accepts at construction and provide a brief description for each
+  static const std::vector<std::pair<std::string,std::string>> ValidSettingNamesAndDescriptions() {
+    return {
+      {"path", "The path that the IOM writer should use for storing data"}
+    };
+  }
+
   //Info interface
   void sstr(std::stringstream &ss, int depth=0, int indent=0) const override;
   
@@ -45,6 +55,7 @@ private:
   std::string path;
   std::string genBucketPath(faodel::bucket_t bucket);
   std::string genBucketPathFile(faodel::bucket_t bucket, const kelpie::Key &key);
+  int getKeyFromBucketPathFile(const std::string path, Key *key);
   std::vector<faodel::bucket_t> getBucketNames();
   std::vector<std::pair<std::string,std::string>> getBucketContents(std::string bucket);
 };

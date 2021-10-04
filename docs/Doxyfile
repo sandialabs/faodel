@@ -789,6 +789,8 @@ INPUT += src/lunasa
 INPUT += src/opbox
 INPUT += src/faodel-services
 INPUT += src/kelpie
+INPUT += tools/faodel-cli
+INPUT += tools/faodel-stress
 INPUT += README.md
 INPUT += INSTALL.md
 INPUT += LICENSE.md
@@ -802,6 +804,10 @@ INPUT += src/dirman/README_DirMan.md
 INPUT += src/faodel-services/README_Services.md
 INPUT += src/faodel-common/README_Common.md
 INPUT += src/sbl/README_SBL.md
+INPUT += tools/faodel-cli/README_Faodel_Cli.md
+INPUT += tools/faodel-stress/README_Faodel_Stress.md
+INPUT += docs/ConfigurationFileCookbook.md
+INPUT += docs/WhatsAFaodel.md
 
 # This tag can be used to specify the character encoding of the source files
 # that doxygen parses. Internally doxygen uses the UTF-8 encoding. Doxygen uses
@@ -827,6 +833,9 @@ INPUT_ENCODING         = UTF-8
 # *.f, *.for, *.tcl, *.vhd, *.vhdl, *.ucf and *.qsf.
 
 FILE_PATTERNS          = *.cpp \
+                         *.c   \
+                         *.h   \
+                         *.hpp \
                          *.hh
 
 # The RECURSIVE tag can be used to specify whether or not subdirectories should

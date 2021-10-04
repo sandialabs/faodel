@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 
 #include <string>
@@ -128,7 +128,17 @@ TEST_F(UrlTest, LocalReference) {
   ResourceURL l4("/local/stuff/bob");                     EXPECT_EQ("local",l4.Type());
 
 }
+TEST_F(UrlTest, Dashify) {
+  ResourceURL u1("local:/my/thing/here&is=working&not=broken");
+  EXPECT_EQ("-my-thing-here", u1.Dashify());
 
+  ResourceURL u2("dht:/my");
+  EXPECT_EQ("-my", u2.Dashify());
+
+  ResourceURL u3("local:");
+  EXPECT_EQ("-", u3.Dashify());
+
+}
 TEST_F(UrlTest, LocalOptions) {
   //Local can be a special case.. More hand tests to make sure it really works
 
@@ -257,7 +267,7 @@ TEST_F(UrlTest, BadFormats) {
       ru = ResourceURL(surls_ok[i]);
       if(!ru.Valid()) cout <<"Ok url came up invalid? "<<surls_ok[i]<<endl;
       EXPECT_TRUE(ru.Valid());
-    } catch(exception e) {
+    } catch(exception &e) {
       cout <<"Unexpected exception for "+surls_ok[i]+"\n";
       EXPECT_FALSE(true);
     }
@@ -286,7 +296,7 @@ TEST_F(UrlTest, BadFormats) {
       ru = ResourceURL(surls_bad[i]);
       if(ru.Valid()) cout <<"Didn't fail url properly: "<<surls_bad[i]<<endl;
       EXPECT_FALSE(ru.Valid());
-    } catch(exception e) {
+    } catch(exception &e) {
       EXPECT_TRUE(true);
     }
   }

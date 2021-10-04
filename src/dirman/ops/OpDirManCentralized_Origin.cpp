@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #include <iostream>
 #include <chrono>
@@ -55,7 +55,7 @@ WaitingType OpDirManCentralized::UpdateOrigin(OpArgs *args) {
         case RequestType::Invalid: {
           //Invalid can happen. this isn't a reply message
           cerr << "Invalid OpDirManCentalized response at origin\n";
-          KHALT("InvalidMessage")
+          F_HALT("InvalidMessage")
         }
           break;
 
@@ -78,7 +78,7 @@ WaitingType OpDirManCentralized::UpdateOrigin(OpArgs *args) {
     case State::done:
       return updateState(State::done, WaitingType::done_and_destroy);
 
-    default: KTODO("Unhandled state in OpDirManCentralized origin Update");
+    default: F_TODO("Unhandled state in OpDirManCentralized origin Update");
   }
   //Shouldn't get here
   return updateState(State::done, WaitingType::error);

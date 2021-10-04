@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 
 #include "nnti/nnti_pch.hpp"
@@ -72,7 +72,6 @@ public:
     }
 
     NNTI_result_t operator() (NNTI_event_t *event, void *context) {
-        NNTI_result_t rc = NNTI_OK;
 
         pingpong_context *c = (pingpong_context*)context;
 
@@ -94,7 +93,7 @@ public:
 
                 if (c->recv_count_ < c->volley_threshold_) {
                     NNTI_event_t result_event;
-                    rc = c->transport_->next_unexpected(c->pingpong_buf_->hdl, 0, &result_event);
+                    c->transport_->next_unexpected(c->pingpong_buf_->hdl, 0, &result_event);
 
                     // issue another send
                     EXPECT_TRUE(verify_buffer((char*)result_event.start, result_event.offset, result_event.length));
@@ -103,9 +102,9 @@ public:
                     uint32_t seed     = *(uint32_t*)(payload+4); // the salt
                     seed++;
 
-                    rc = populate_buffer(c->transport_, seed, 0, c->pingpong_buf_->hdl, c->pingpong_buf_->base, c->pingpong_buf_->size);
+                    populate_buffer(c->transport_, seed, 0, c->pingpong_buf_->hdl, c->pingpong_buf_->base, c->pingpong_buf_->size);
 
-                    rc = send_unexpected_async(c->transport_, c->pingpong_buf_->hdl, c->pingpong_buf_->base, c->pingpong_buf_->size, event->peer, *c->cb_, context);
+                    send_unexpected_async(c->transport_, c->pingpong_buf_->hdl, c->pingpong_buf_->base, c->pingpong_buf_->size, event->peer, *c->cb_, context);
 
                     c->recv_count_++;
                 } else {

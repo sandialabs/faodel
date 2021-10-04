@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #ifndef KELPIE_OPKELPIEMETA_HH
 #define KELPIE_OPKELPIEMETA_HH
@@ -26,14 +26,14 @@ class OpKelpieMeta : public opbox::Op {
     orig_meta_send=0,
     trgt_meta_start,
 
-    orig_colinfo_wait_for_ack,
+    orig_wait_for_ack,
 
     done };
 
 public:
 
   //Meta
-  OpKelpieMeta(const uint16_t xferdirect_command,
+  OpKelpieMeta(const uint16_t xferdirect_command, //Either CMD_COLINFO
                const faodel::nodeid_t target_node,
                const net::peer_ptr_t target_ptr,
                const faodel::bucket_t bucket,
@@ -42,12 +42,14 @@ public:
                fn_publish_callback_t cb_result);
 
   //A target starts off the same way no matter what command
-  OpKelpieMeta(Op::op_create_as_target_t t);
+  explicit OpKelpieMeta(Op::op_create_as_target_t t);
   ~OpKelpieMeta() override;
 
   //Unique name and id for this op
   const static unsigned int op_id;
   const static std::string  op_name;
+  static bool debug_enabled; //!< Dump debug messages
+
   unsigned int getOpID() const override { return op_id; }
   std::string  getOpName() const override { return op_name; }
 
@@ -57,31 +59,34 @@ public:
 
   std::string GetStateName() const override;
 
-  static void configure(faodel::internal_use_only_t iuo, LocalKV *new_lkv);
+  static void configure(faodel::internal_use_only_t iuo, const faodel::Configuration *config, LocalKV *new_lkv);
 
 private:
+
+   //todo: put this in a standard form so it can be reused
+  #if Faodel_LOGGINGINTERFACE_DISABLED==0
+  void dbg(const std::string &s) const {
+    if(OpKelpieMeta::debug_enabled) {
+      std::cout << "\033[1;93mD " << op_name << ": ["<<GetStateName()<<"]:\033[0m\t" << (s) << std::endl;
+    }
+  }
+  #else
+  void dbg(std::string s) const {}
+  #endif
+
+
   static LocalKV *lkv;  //Pointer back to the lkv, set at start time
 
   State state;
-  State state_after_start;
 
-  net::peer_ptr_t peer;
-
-  // We need to hold on to the nbr, bucket, and key in-between updates
-  net::NetBufferRemote nbr;
-  faodel::bucket_t bucket;
-  Key key;
-
-  lunasa::DataObject  ldo_msg;     //Outgoing message, allocated/managed by net
-  lunasa::DataObject  ldo_data;    //Data to hold on to until complete
-
+  net::peer_ptr_t       peer;            //For handoffs between ctro and start
+  lunasa::DataObject    ldo_msg;         //Outgoing message, allocated/managed by net
   fn_publish_callback_t cb_info_result;  //Just returns rc and column info for destination
 
   //Origin/Target States (in order)
   WaitingType smo_Meta_Send();
   WaitingType smt_Meta_Start(opbox::OpArgs *args);
-
-  WaitingType smo_colinfo_WaitAck(opbox::OpArgs *args);
+  WaitingType smo_WaitAck(opbox::OpArgs *args);
 
   WaitingType updateState(State new_state, WaitingType waiting_condition) {
     state=new_state;

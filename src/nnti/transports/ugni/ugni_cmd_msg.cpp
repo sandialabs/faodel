@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 
 #include "nnti/nntiConfig.h"
@@ -25,12 +25,12 @@ ugni_cmd_msg::ugni_cmd_msg(
     nnti::transports::ugni_transport *transport,
     const uint32_t                    cmd_msg_size)
 : transport_(transport),
-  initiator_peer_(nullptr),
-  target_peer_(nullptr),
   cmd_msg_buf_(nullptr),
   cmd_msg_size_(cmd_msg_size),
   free_in_dtor_(true),
-  unexpected_(false)
+  unexpected_(false),
+  initiator_peer_(nullptr),
+  target_peer_(nullptr)
 {
     get_cmd_msg_buffer();
 
@@ -42,12 +42,12 @@ ugni_cmd_msg::ugni_cmd_msg(
     uint32_t                          id,
     nnti::datatype::nnti_work_id     *wid)
 : transport_(transport),
-  initiator_peer_(nullptr),
-  target_peer_(nullptr),
   cmd_msg_buf_(nullptr),
   cmd_msg_size_(cmd_msg_size),
   free_in_dtor_(true),
-  unexpected_(false)
+  unexpected_(false),
+  initiator_peer_(nullptr),
+  target_peer_(nullptr)
 {
     get_cmd_msg_buffer();
     pack(id, wid);
@@ -59,12 +59,12 @@ ugni_cmd_msg::ugni_cmd_msg(
     uint32_t                          id,
     nnti::datatype::nnti_work_id     *wid)
 : transport_(transport),
-  initiator_peer_(nullptr),
-  target_peer_(nullptr),
   cmd_msg_buf_(nullptr),
   cmd_msg_size_(2048),
   free_in_dtor_(false),
-  unexpected_(false)
+  unexpected_(false),
+  initiator_peer_(nullptr),
+  target_peer_(nullptr)
 {
     if (wid->wr().flags() & NNTI_OF_ZERO_COPY) {
         nnti::datatype::ugni_buffer *b = (nnti::datatype::ugni_buffer *)wid->wr().local_hdl();
@@ -85,12 +85,12 @@ ugni_cmd_msg::ugni_cmd_msg(
     uint32_t                          buf_size,
     bool                              copy_buf)
 : transport_(transport),
-  initiator_peer_(nullptr),
-  target_peer_(nullptr),
   cmd_msg_buf_(nullptr),
   cmd_msg_size_(buf_size),
   free_in_dtor_(copy_buf),
-  unexpected_(false)
+  unexpected_(false),
+  initiator_peer_(nullptr),
+  target_peer_(nullptr)
 {
     get_cmd_msg_buffer();
     if (copy_buf) {
@@ -309,6 +309,7 @@ ugni_cmd_msg::pack(
     uint32_t                      id,
     nnti::datatype::nnti_work_id *wid)
 {
+    const uint32_t MSG_ALIGNMENT = NNTI_UGNI_RDMA_ALIGNMENT;
     const nnti::datatype::nnti_work_request &wr = wid->wr();
     nnti::datatype::ugni_buffer *buf;
 
@@ -329,11 +330,54 @@ ugni_cmd_msg::pack(
         buf = (nnti::datatype::ugni_buffer *)wr.local_hdl();
         buf->pack(cmd_msg_buf_->packed_initiator_hdl, packed_buffer_size_);
 
-        if (!(wid->wr().flags() & NNTI_OF_ZERO_COPY) && eager()) {
-            // message is small, use eager
-            log_debug("ugni_cmd_msg", "payload=%p  offset=%lu  length=%lu",
-                      buf->payload(), cmd_msg_buf_->initiator_offset, cmd_msg_buf_->payload_length);
-            memcpy(cmd_msg_buf_->eager_payload, buf->payload()+cmd_msg_buf_->initiator_offset, cmd_msg_buf_->payload_length);
+        if (!(wid->wr().flags() & NNTI_OF_ZERO_COPY)) {
+            if (eager()) {
+              // message is small, use eager
+              log_debug("ugni_cmd_msg", "payload=%p  offset=%lu  length=%lu",
+                        buf->payload(), cmd_msg_buf_->initiator_offset, cmd_msg_buf_->payload_length);
+              memcpy(cmd_msg_buf_->eager_payload, 
+                     buf->payload()+cmd_msg_buf_->initiator_offset,
+                     cmd_msg_buf_->payload_length);
+          } else {
+              // message is not small, check for alignment
+              uint32_t addr_alignment = (MSG_ALIGNMENT - (((uintptr_t)buf->payload()+cmd_msg_buf_->initiator_offset)%MSG_ALIGNMENT)) % MSG_ALIGNMENT;
+              if (addr_alignment != 0) {
+                log_debug("ugni_cmd_msg", 
+                          "long send address is not 4-byte aligned (%p %% %u = %u); sending first %u bytes in eager payload.",
+                          ((uintptr_t)buf->payload()+cmd_msg_buf_->initiator_offset), 
+                          MSG_ALIGNMENT,
+                          ((uintptr_t)buf->payload()+cmd_msg_buf_->initiator_offset)%MSG_ALIGNMENT, 
+                          addr_alignment);
+                
+                memcpy(cmd_msg_buf_->eager_payload, 
+                       buf->payload()+cmd_msg_buf_->initiator_offset, 
+                       addr_alignment);
+              }
+              uint32_t extra = (cmd_msg_buf_->payload_length - addr_alignment) % MSG_ALIGNMENT;
+              if (extra != 0) {
+                // message length isn't 4-byte alignment, send trailing bytes in eager
+                log_debug("ugni_cmd_msg", 
+                          "long send length is not 4-byte aligned (%lu %% %u = %u); sending last %u bytes in eager payload.", 
+                          cmd_msg_buf_->payload_length - addr_alignment, 
+                          MSG_ALIGNMENT,
+                          (cmd_msg_buf_->payload_length - addr_alignment)%MSG_ALIGNMENT,
+                          extra);
+                
+                memcpy(cmd_msg_buf_->eager_payload+addr_alignment, 
+                       buf->payload()+cmd_msg_buf_->initiator_offset+cmd_msg_buf_->payload_length-extra, 
+                       extra);
+              }
+
+              uint64_t aligned_local_addr  = ((uintptr_t)buf->payload()+cmd_msg_buf_->initiator_offset) + addr_alignment;
+              uint64_t aligned_length      = cmd_msg_buf_->payload_length - addr_alignment - extra;
+              
+              log_debug("ugni_cmd_msg", 
+                        "\nlong get RDMA summary:\n"
+                        "\taligned_local_addr  = %p (aligned? %c)\n"
+                        "\taligned_length      = %lu (aligned? %c)\n",
+                        aligned_local_addr,  (!(aligned_local_addr%MSG_ALIGNMENT))?'Y':'N', 
+                        aligned_length,      (!(aligned_length%MSG_ALIGNMENT))?'Y':'N');
+          }
         }
     } else {
         *(uint32_t*)cmd_msg_buf_->packed_initiator_hdl = 0;

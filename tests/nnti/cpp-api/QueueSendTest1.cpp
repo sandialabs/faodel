@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 
 #include "nnti/nnti_pch.hpp"
@@ -105,15 +105,12 @@ TEST_F(NntiQueueSendTest1, start1) {
     if (i_am_server) {
         NNTI_event_queue_t  eq;
         NNTI_event_t        event;
-        NNTI_event_t        result_event;
-        uint32_t            which;
         NNTI_buffer_t       src_hdl;
         char               *src_base=nullptr;
         uint32_t            src_size=320;
         NNTI_buffer_t       my_q_hdl;
         char               *my_q_base=nullptr;
         uint32_t            my_q_size=3200;
-        NNTI_work_request_t base_wr = NNTI_WR_INITIALIZER;
 
         rc = t->eq_create(128, NNTI_EQF_UNEXPECTED, &eq);
         t->alloc(src_size,
@@ -163,15 +160,12 @@ TEST_F(NntiQueueSendTest1, start1) {
     } else {
         NNTI_event_queue_t  eq;
         NNTI_event_t        event;
-        NNTI_event_t        result_event;
-        uint32_t            which;
         NNTI_buffer_t       src_hdl;
         char               *src_base=nullptr;
         uint32_t            src_size=320;
         NNTI_buffer_t       my_q_hdl;
         char               *my_q_base=nullptr;
         uint32_t            my_q_size=3200;
-        NNTI_work_request_t base_wr = NNTI_WR_INITIALIZER;
 
         // give the server a chance to startup
 //        nnti::util::sleep(1000);

@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #include <iostream>
 #include <unistd.h>
@@ -12,7 +12,7 @@
 #include "dirman/DirMan.hh"
 
 
-#include "../../support/Globals.hh"
+#include "../../opbox-example-support/Globals.hh"
 
 
 //The Globals class just holds basic communication vars we use in these
@@ -64,7 +64,7 @@ void example2_ldo_string_messages();
 
 void example3_ldo_string_request_reply();
 
-void example4_boost_messages();
+void example4_cereal_messages();
 
 #ifdef USE_FLATBUFFERS
 void example5_flatbuffer_messages();
@@ -94,7 +94,7 @@ int main(int argc, char **argv){
 
   example3_ldo_string_request_reply();
 
-  example4_boost_messages();
+  example4_cereal_messages();
 
 #ifdef USE_FLATBUFFERS
   example5_flatbuffer_messages();

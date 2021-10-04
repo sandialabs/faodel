@@ -1,7 +1,15 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
+#include <chrono>
+
+#include <kelpie/ops/direct/OpKelpieDrop.hh>
+#include <kelpie/ops/direct/OpKelpieGetBounded.hh>
+#include <kelpie/ops/direct/OpKelpieGetUnbounded.hh>
+#include <kelpie/ops/direct/OpKelpieList.hh>
+#include <kelpie/ops/direct/OpKelpieMeta.hh>
+#include <kelpie/ops/direct/OpKelpiePublish.hh>
 #include "kelpie/core/Singleton.hh"
 
 #include "kelpie/core/KelpieCoreNoNet.hh"
@@ -117,11 +125,53 @@ void SingletonImpl::Finish() {
   if(IsUnconfigured()){
     error("Attempted to finish Kelpie that is unconfigured");
   } else {
+
+    //Often users launch kelpie ops but forget to check on their status. Do
+    //a quick check and make sure we don't have any ops that are stuck. Give
+    //up after a few tries- sometimes things can't be helped.
+    int num_kelpie_ops=0;
+    for(int i=0; i<3; i++) {
+      num_kelpie_ops = 0;
+      num_kelpie_ops += opbox::GetNumberOfActiveOps(OpKelpieDrop::op_id);
+      num_kelpie_ops += opbox::GetNumberOfActiveOps(OpKelpieGetBounded::op_id);
+      num_kelpie_ops += opbox::GetNumberOfActiveOps(OpKelpieGetUnbounded::op_id);
+      num_kelpie_ops += opbox::GetNumberOfActiveOps(OpKelpieList::op_id);
+      num_kelpie_ops += opbox::GetNumberOfActiveOps(OpKelpieMeta::op_id);
+      num_kelpie_ops += opbox::GetNumberOfActiveOps(OpKelpiePublish::op_id);
+
+      dbg("Kelpie Finish detected "+std::to_string(num_kelpie_ops)+" active kelpie ops");
+
+      if(num_kelpie_ops>0) {
+        warn("Kelpie detected "+std::to_string(num_kelpie_ops)+" active ops. Delaying shutdown for 5 seconds.");
+        std::this_thread::sleep_for(std::chrono::seconds(5));
+      } else {
+        break;
+      }
+    }
+    if (num_kelpie_ops>0) {
+      dbg("Kelpie Finish is charging ahead with "+std::to_string(num_kelpie_ops)+" active kelpie ops.  Expect bad things.");
+    }
+
     delete core;
     core = &unconfigured;
   }
 
 }
+
+vector<string> getCoreTypes() {  return { "nonet", "standard" }; }
+vector<string> getPoolTypes() { return getKelpieCore()->GetRegisteredPoolTypes(); }
+vector<string> getIomTypes() {  return getKelpieCore()->iom_registry.RegisteredTypes();}
+
+/**
+ * @brief Get a pointer to the current kelpie core (for testing)
+ * @return The core inside the Singleton
+ */
+KelpieCoreBase * getKelpieCore() { return kelpie::internal::Singleton::impl.core; }
+
+IomBase * FindIOM(std::string iom_name) { return Singleton::impl.core->iom_registry.Find(iom_name); }
+IomBase * FindIOM(iom_hash_t iom_hash)  { return Singleton::impl.core->iom_registry.Find(iom_hash); }
+
+
 
 }  // namespace internal
 

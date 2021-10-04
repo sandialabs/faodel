@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 
 #ifndef NNTI_WR_HPP
@@ -43,7 +43,7 @@ public:
 
     virtual NNTI_peer_t
     peer(void) const;
-    virtual const NNTI_process_id_t
+    virtual NNTI_process_id_t
     peer_pid(void) const;
 
     NNTI_op_t
@@ -81,7 +81,7 @@ public:
     event_context(void) const;
 
     virtual std::string
-    toString(void) const;
+    toString(void) const override;
 };
 
 } /* namespace datatype */

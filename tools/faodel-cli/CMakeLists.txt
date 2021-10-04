@@ -1,11 +1,18 @@
 set( 
   SOURCES
+  all_in_one.cpp
   build_info.cpp
   config_info.cpp
   dirman_server.cpp
+  kelpie_blast.cpp
   kelpie_client.cpp
   kelpie_server.cpp
-  resource.cpp
+  KelpieBlastParams.cpp
+  KelpieClientAction.cpp
+  play.cpp
+  PlayAction.cpp
+  resource_client.cpp
+  ResourceAction.cpp
   whookie_client.cpp
   faodel_cli.cpp
   #..insert others here

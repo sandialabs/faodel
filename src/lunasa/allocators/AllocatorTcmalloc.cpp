@@ -1,10 +1,10 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #include "lunasa/allocators/AllocatorTcmalloc.hh"
 #include "lunasa/common/Allocation.hh"
-#include "assert.h"
+
 
 #if defined(HAVE_MALLOC_H)
 #include "malloc.h"
@@ -32,9 +32,9 @@ void *AllocatorTcmalloc::TcmallocSysAllocator::Alloc(size_t size, size_t *actual
   bytes += size;
   *actual_size = size;
   rc = posix_memalign(&memory, 8 * 1024, size);
-  assert(rc == 0);
+  F_ASSERT(rc == 0, "");
   AllocatorTcmalloc *tcmalloc = GetInstance();
-  assert(tcmalloc != NULL);
+  F_ASSERT(tcmalloc != NULL, "");
   tcmalloc->mTotalManaged += size;
 
   // if eager, this memory needs to be pinned
@@ -130,7 +130,7 @@ AllocatorTcmalloc *AllocatorTcmalloc::GetInstance(const faodel::Configuration &c
     //instance->mMutexType != mutex_type) {
     //TODO: fix above checks, now that config holds mutex info. Previously passed in mutex_type and threading_model
     /* Requested instance doesn't match existing instance. */
-    cerr << "ERROR: Attempt to create multiple instances of tcmalloc allocator\n";
+    throw std::runtime_error("Lunasa configuration attempted to create multiple instaces of tcmalloc allocator (not possible)");
     return NULL;
   }
 
@@ -147,19 +147,19 @@ Allocation *AllocatorTcmalloc::Allocate(uint32_t user_capacity) {
     return nullptr;
   }
 
-  int total_capacity = user_capacity + sizeof(Allocation);
-  Allocation *alloc = static_cast<Allocation *>(tc_malloc(total_capacity));
+  user_capacity += sizeof(Allocation);
+  Allocation *alloc = static_cast<Allocation *>(tc_malloc(user_capacity));
 
   /* RECORD where the allocation came from. */
   alloc->local.allocator = this;
   alloc->local.net_buffer_handle = GetPinnedAddr(alloc);
   alloc->local.net_buffer_offset = GetPinnedOffset(alloc);
-  alloc->local.allocated_bytes = total_capacity;
+  alloc->local.allocated_bytes = user_capacity;
   alloc->local.user_data_segments = nullptr;
 
   // Add to the set
   mutex->WriterLock();
-  mTotalAllocated += total_capacity;
+  mTotalAllocated += user_capacity;
   mTotalUsed += user_capacity;
   allocations.insert(alloc);
   mutex->Unlock();
@@ -220,12 +220,12 @@ void *AllocatorTcmalloc::GetPinnedAddr(Allocation *allocation) {
   it = pinned_regions.lower_bound(allocation);
   if(it->first != allocation) {
     // We want the predecessor; the largest value that is less than <addr>
-    assert(it != pinned_regions.begin());
+    F_ASSERT(it != pinned_regions.begin(), "");
     it--;
   }
   std::pair<size_t, void *> value = it->second;
-  assert((char *) allocation >= (char *) it->first);
-  assert((char *) it->first + value.first > (char *) allocation);
+  F_ASSERT((char *) allocation >= (char *) it->first, "");
+  F_ASSERT((char *) it->first + value.first > (char *) allocation, "");
   mutex->Unlock();
 
   return value.second;
@@ -237,12 +237,12 @@ uint64_t AllocatorTcmalloc::GetPinnedOffset(Allocation *allocation) {
   it = pinned_regions.lower_bound(allocation);
   if(it->first != allocation) {
     // We want the predecessor; the largest value that is less than <addr>
-    assert(it != pinned_regions.begin());
+    F_ASSERT(it != pinned_regions.begin(), "");
     it--;
   }
   std::pair<size_t, void *> value = it->second;
-  assert((char *) allocation >= (char *) it->first);
-  assert((char *) it->first + value.first > (char *) allocation);
+  F_ASSERT((char *) allocation >= (char *) it->first, "");
+  F_ASSERT((char *) it->first + value.first > (char *) allocation, "");
 
   uint64_t offset = (uint64_t) ((char *) allocation - (char *) it->first);
   mutex->Unlock();

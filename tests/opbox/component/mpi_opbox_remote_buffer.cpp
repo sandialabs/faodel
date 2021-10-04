@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 
 #include <mpi.h>
@@ -84,7 +84,7 @@ TEST_F(OpboxRemoteBufferTest, start4) {
   EXPECT_EQ(nbr.GetLength(), ldo.GetDataSize());
 
   nbr.TrimToLength(2560);
-  EXPECT_EQ(nbr.GetLength(), 2560);
+  EXPECT_EQ(nbr.GetLength(), 2560UL);
 }
 
 TEST_F(OpboxRemoteBufferTest, start5) {
@@ -95,16 +95,16 @@ TEST_F(OpboxRemoteBufferTest, start5) {
 
   opbox::net::GetRdmaPtr(&ldo, &nbl, &nbr);
   EXPECT_NE(nbl, nullptr);
-  EXPECT_EQ(nbr.GetLength(), ldo.GetHeaderSize() + ldo.GetMetaSize() + ldo.GetDataSize());
+  EXPECT_EQ(nbr.GetLength(), ldo.GetHeaderSize() + ldo.GetMetaSize() + ldo.GetDataSize() + ldo.GetPaddingSize());
 
   nbr.IncreaseOffset(ldo.GetHeaderSize());
-  EXPECT_EQ(nbr.GetLength(), ldo.GetMetaSize() + ldo.GetDataSize());
+  EXPECT_EQ(nbr.GetLength(), ldo.GetMetaSize() + ldo.GetDataSize() + ldo.GetPaddingSize());
 
   nbr.IncreaseOffset(ldo.GetMetaSize());
-  EXPECT_EQ(nbr.GetLength(), ldo.GetDataSize());
+  EXPECT_EQ(nbr.GetLength(), ldo.GetDataSize() + ldo.GetPaddingSize());
 
   nbr.TrimToLength(2560);
-  EXPECT_EQ(nbr.GetLength(), 2560);
+  EXPECT_EQ(nbr.GetLength(), 2560UL);
 }
 
 TEST_F(OpboxRemoteBufferTest, start6) {
@@ -112,12 +112,10 @@ TEST_F(OpboxRemoteBufferTest, start6) {
 
   opbox::net::NetBufferLocal *nbl = nullptr;
   opbox::net::NetBufferRemote nbr;
-  uint32_t offset = ldo.GetHeaderSize();
-  uint32_t length = ldo.GetDataSize();
   opbox::net::GetRdmaPtr(&ldo, &nbl, &nbr);
   EXPECT_NE(nbl, nullptr);
   EXPECT_EQ(nbr.GetOffset(), ldo.GetLocalHeaderSize());
-  EXPECT_EQ(nbr.GetLength(), ldo.GetHeaderSize() + ldo.GetMetaSize() + ldo.GetDataSize());
+  EXPECT_EQ(nbr.GetLength(), ldo.GetHeaderSize() + ldo.GetMetaSize() + ldo.GetDataSize() + ldo.GetPaddingSize());
 }
 
 int main(int argc, char **argv) {

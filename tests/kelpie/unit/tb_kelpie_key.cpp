@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 
 #include <string>
@@ -9,7 +9,7 @@
 #include <arpa/inet.h> //htonl
 
 #include "faodel-common/Common.hh"
-#include "faodel-common/SerializationHelpers.hh"
+#include "faodel-common/SerializationHelpersBoost.hh"
 
 #include "kelpie/Key.hh"
 
@@ -219,5 +219,56 @@ TEST_F(KeyTest, Packing){
   EXPECT_EQ(d1,u1);
   EXPECT_EQ(d2,u2);
 
+
+}
+
+TEST_F(KeyTest, Wildcards) {
+
+  Key k[4];
+  k[0] = Key("MyRowName",  "MyColName"); EXPECT_FALSE( k[0].IsRowWildcard() ); EXPECT_FALSE( k[0].IsColWildcard());
+  k[1] = Key("MyRowWild*", "MyColName"); EXPECT_TRUE(  k[1].IsRowWildcard() ); EXPECT_FALSE( k[1].IsColWildcard());
+  k[2] = Key("MyRowName",  "MyColWild*");EXPECT_FALSE( k[2].IsRowWildcard() ); EXPECT_TRUE(  k[2].IsColWildcard());
+  k[3] = Key("MyRowWild*", "MyColWild*");EXPECT_TRUE(  k[3].IsRowWildcard() ); EXPECT_TRUE(  k[3].IsColWildcard());
+  Key kall("*", "*");                    EXPECT_TRUE(  kall.IsRowWildcard() ); EXPECT_TRUE(  kall.IsColWildcard());
+  Key krow("MyRow*", "*");               EXPECT_TRUE(  krow.IsRowWildcard() ); EXPECT_TRUE(  krow.IsColWildcard());
+
+  //Manual tests on a real key
+  EXPECT_TRUE( k[0].Matches(k[0])); //Self test
+  EXPECT_TRUE( k[0].Matches("MyRowName", "MyColName"));
+  EXPECT_TRUE( k[0].Matches("MyRowName", "MyColName*"));
+  EXPECT_TRUE( k[0].Matches("MyRowName", "MyCol*"));
+  EXPECT_TRUE( k[0].Matches("MyRowName", "*"));
+  EXPECT_TRUE( k[0].Matches("MyRowName*","*"));
+  EXPECT_TRUE( k[0].Matches("MyRow*",    "MyColName"));
+  EXPECT_TRUE( k[0].Matches("*",         "MyColName"));
+  EXPECT_TRUE( k[0].Matches("*",         "MyCol*"));
+  EXPECT_TRUE( k[0].Matches("*",         "*"));
+
+  //Wrong case: tests should fail
+  EXPECT_FALSE( k[0].Matches("MyRowName", "myColName"));
+  EXPECT_FALSE( k[0].Matches("myRowName", "MyColName"));
+  EXPECT_FALSE( k[0].Matches("myRowName", "myColName"));
+  EXPECT_FALSE( k[0].Matches("MyRow*",    "myColName"));
+  EXPECT_FALSE( k[0].Matches("MyRow*",    "my*"));
+  EXPECT_FALSE( k[0].Matches("*",         "my*"));
+  EXPECT_FALSE( k[0].Matches("myRow*",    "MyColName"));
+  EXPECT_FALSE( k[0].Matches("myRowName", "*"));
+
+  for(int i=0; i<4; i++) {
+    EXPECT_TRUE(k[i].Matches(Key("*", "*")));
+    EXPECT_TRUE(k[i].Matches(kall));
+    EXPECT_TRUE(k[i].Matches(kall.K1(), kall.K2()));
+    EXPECT_TRUE(k[i].Matches(krow)); //All have same rowname
+  }
+
+  //Above should have hit this code, but a few just in case
+  EXPECT_TRUE( k[0].matchesPrefixString(false, "MyRowName", false, "MyColName"));
+  EXPECT_TRUE( k[0].matchesPrefixString(true,  "My",        false, "MyColName"));
+  EXPECT_TRUE( k[0].matchesPrefixString(false, "MyRowName", true,  "My"));
+  EXPECT_TRUE( k[0].matchesPrefixString(true,  "My",        true,  "My"));
+
+  EXPECT_FALSE(k[0].matchesPrefixString(false, "My",        false, "MyColName"));
+  EXPECT_FALSE(k[0].matchesPrefixString(false, "MyRowName", false, "My"));
+  EXPECT_FALSE(k[0].matchesPrefixString(false, "My",        false, "My"));
 
 }

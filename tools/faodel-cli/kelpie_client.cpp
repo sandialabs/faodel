@@ -1,22 +1,31 @@
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
+
 #include <iomanip>
 #include <fstream>
+#include <atomic>
 #include <sys/stat.h>
+#include <dirent.h>
 
 #include "faodel-common/StringHelpers.hh"
 #include "dirman/DirMan.hh"
 #include "kelpie/Kelpie.hh"
 
 #include "faodel_cli.hh"
+#include "kelpie_client.hh"
 
 using namespace std;
 using namespace faodel;
 
-int kelpieClientPut(const vector<string> &args);
-int kelpieClientGet(bool only_meta, const vector<string> &args);
-int kelpieClientInfo(const vector<string> &args);
-int kelpieClientList(const vector<string> &args);
 
 
+
+/**
+ * @brief Provide help info for all the kelpie client commands
+ * @param[in] subcommand The command we're looking for
+ * @return FOUND whether we found this command or not
+ */
 bool dumpHelpKelpieClient(string subcommand) {
 
   string help_kput[5] = {
@@ -68,7 +77,7 @@ kelpie-get arguments:
   -k/--key "rowname|colname" : Specify both parts of key, separated by '|'
 
   -f/--file filename         : Read data from file instead of stdin
-  -m/--meta-only             : Only display the meta data for the object
+  -i/--meta-only             : Only display the meta data for the object
 
 The kelpie-get command provides a simple way to retrieve an object from a
 pool. A user must specify the pool and key name for an object. If no file
@@ -137,6 +146,47 @@ Example:
 
 )"
   };
+    string help_ksave[5] = {
+            "kelpie-save", "ksave", "<keys>", "Save objects from a pool to a local dir",
+            R"(
+kelpie-save arguments:
+  -p/pool pool_url           : The pool to retrieve from (resolves w/ DirMan)
+                               (pool may be specified in $FAODEL_POOL)
+  -d/dir directory           : The directory to store objects
+
+The kelpie-save command provides users with a way to retrieve that
+objects that are in a pool and save them to a local directory. Similar
+to the list command, the user must provide a list of keys or wildcards
+to retrieve (if all items are desired, use '*').
+
+Note: The bucket for the bool is not saved in the directory structure
+
+Example:
+
+  # Save all items to the directory "mystruff/"
+  faodel ksave --pool ref:/my/dht --dir mystuff "*"
+
+)"
+    };
+    string help_kload[5] = {
+            "kelpie-load", "kload", "", "Load objects from disk and store to a pool",
+            R"(
+kelpie-load arguments:
+  -p/pool pool_url           : The pool to retrieve from (resolves w/ DirMan)
+                               (pool may be specified in $FAODEL_POOL)
+  -d/dir directory           : The directory to load objects from
+
+The kelpie-load command allows you load objects from disk and push them into
+pool. Objects must be in Lunasa's native disk format and be named as packed
+key names).
+
+Example:
+
+  # Load objects that were previously ksave'd to "mystuff/"
+  faodel kload --pool ref:/my/dht --dir mystuff
+
+)"
+    };
 
 
   bool found=false;
@@ -145,88 +195,332 @@ Example:
   found |= dumpSpecificHelp(subcommand, help_kgetm);
   found |= dumpSpecificHelp(subcommand, help_kinfo);
   found |= dumpSpecificHelp(subcommand, help_klist);
+  found |= dumpSpecificHelp(subcommand, help_ksave);
+  found |= dumpSpecificHelp(subcommand, help_kload);
   return found;
 }
 
-int checkKelpieClientCommands(const std::string &cmd, const vector<string> &args) {
 
-  if(     (cmd == "kelpie-put")       || (cmd == "kput"))  return kelpieClientPut(args);
-  else if((cmd == "kelpie-get")       || (cmd == "kget"))  return kelpieClientGet(false, args);
-  else if((cmd == "kelpie-get-meta")  || (cmd == "kgetm")) return kelpieClientGet(true, args);
-  else if((cmd == "kelpie-info")      || (cmd == "kinfo")) return kelpieClientInfo(args);
-  else if((cmd == "kelpie-list") || (cmd == "klist") || (cmd=="kls")) return kelpieClientList(args);
+/**
+ * @brief Read a normal file and publish its raw data into a pool using the info specified in KelpieClientAction
+ * @param pool The pool to write into
+ * @param action The info about what needs to be published
+ * @retval -1 Could not find file, or data was too big
+ * @retval 0 Success
+ * @note This only uses the first key provided in args
+ * @note Does not shutdown bootstrap on errors
+ */
+int kelpieClient_PutFromFile(kelpie::Pool &pool, const KelpieClientAction &action) {
 
-  //No command
-  return ENOENT;
-}
+  dbg("Putting file "+action.file_name+" to key "+action.keys[0].str());
 
-bool getArgValue(string *result, const vector<string> &args, size_t &i, const string &s1, const string &s2) {
+  uint16_t meta_capacity = action.meta.size() & 0x0FFFF; //capacity checked in parser
 
-  if((args[i] == s1) || (args[i] == s2)) {
-    i++;
-    if(i>=args.size()) {
-      cerr<<"Error parsing "<<s1<<"/"<<s2<<": expected additional argument\n";
-      exit(-1);
-    }
-    *result = args[i];
-    return true;
+  ifstream f;
+  f.open(action.file_name, ios::in|ios::binary);
+  if(!f.is_open()) {
+    cerr <<"Could not open file "<<action.file_name<<endl;
+    return -1;
   }
-  return false;
+
+  struct stat results;
+  int rc = stat(action.file_name.c_str(), &results);
+  if((rc!=0) || (results.st_size >= 4*1024*1024*1024LL)){
+    cerr <<"File "<<action.file_name<<" was larger than a single Kelpie object can store\n";
+    return -1;
+  }
+  lunasa::DataObject ldo(meta_capacity, results.st_size,lunasa::DataObject::AllocatorType::eager);
+  if(meta_capacity){
+    memcpy(ldo.GetMetaPtr(), action.meta.c_str(), meta_capacity);
+  }
+  f.read(ldo.GetDataPtr<char *>(), ldo.GetDataSize());
+
+  kelpie::object_info_t info;
+
+  pool.Publish(action.keys[0], ldo, &info);
+  return 0;
+}
+
+/**
+ * @brief Generate a block of data and publish it to a pool
+ * @param pool The pool to write into
+ * @param action The info about what needs to be published
+ * @retval -1 Could not find file, or data was too big
+ * @retval 0 Success
+ * @note This only uses the first key provided in args
+ * @note Does not shutdown bootstrap on errors
+ */
+int kelpieClient_PutFromGeneratedData(kelpie::Pool &pool, const KelpieClientAction &action) {
+
+  dbg("Putting generated data to key "+action.keys[0].str());
+
+
+  lunasa::DataObject ldo(action.getMetaCapacity(), action.generate_data_size,lunasa::DataObject::AllocatorType::eager);
+  if(!action.meta.empty()){
+    memcpy(ldo.GetMetaPtr(), action.meta.c_str(), action.meta.size());
+  }
+
+  kelpie::object_info_t info;
+  pool.Publish(action.keys[0], ldo, &info);
+  return 0;
+}
+
+/**
+ * @brief Take data from stdio and publish it to a pool
+ * @param pool The pool to write into
+ * @param action The info about what needs to be published
+ * @param MAX_CAPACITY The maximum amount of data that can be sent
+ * @retval 0 Success
+ * @note This only uses the first key provided in args
+ * @note Does not shutdown bootstrap on errors
+ */
+int kelpieClient_PutFromStdio(kelpie::Pool &pool, const KelpieClientAction &action, uint64_t MAX_CAPACITY) {
+
+  uint16_t meta_capacity = action.meta.size() & 0x0FFFF; //meta is validated to be <64KB in parse
+
+  lunasa::DataObject ldo( meta_capacity, MAX_CAPACITY, lunasa::DataObject::AllocatorType::eager );
+
+  if(meta_capacity){
+    memcpy(ldo.GetMetaPtr(), action.meta.c_str(), meta_capacity);
+  }
+
+  try {
+    uint32_t offset=0;
+    auto *dptr=ldo.GetDataPtr<char *>();
+    size_t len;
+    while((len = fread( &dptr[offset], 1, MAX_CAPACITY - offset, stdin )) > 0) {
+      if(std::ferror(stdin) && !std::feof(stdin))
+        throw std::runtime_error(std::strerror(errno));
+      offset += len;
+      if(offset==MAX_CAPACITY) break;
+    }
+    //Trim the data section to the actual length
+    ldo.ModifyUserSizes(meta_capacity, offset);
+
+    kelpie::object_info_t info;
+    pool.Publish(action.keys[0], ldo, &info);
+
+  } catch(std::exception const &e) {
+    cerr <<"STDIO error "<<e.what()<<endl;
+  }
+
+  return 0;
+}
+
+/**
+ * @brief Publish data into a pool. Input is either from a file, stdio, or generated
+ * @param pool The pool to write into
+ * @param config The current configurations (used to provide limits)
+ * @param action The info about what needs to be published
+ * @retval -1 Could not find file, or data was too big
+ * @retval 0 success
+ */
+int kelpieClient_Put(kelpie::Pool &pool, const faodel::Configuration &config, const KelpieClientAction &action) {
+
+  int rc;
+  if(!action.file_name.empty()) {
+    //Handle case (1): Read from file
+    rc = kelpieClient_PutFromFile(pool, action);
+
+  } else if(action.generate_data_size!=0) {
+    //Handle case (2): generating data
+    rc = kelpieClient_PutFromGeneratedData(pool, action);
+
+  } else {
+    //Handle case (3): Take data from stdin and put it into an object. Get our max chunk size
+    uint64_t MAX_CAPACITY;
+    config.GetUInt(&MAX_CAPACITY, "kelpie.chunk_size", "512M");
+    dbg("Chunk size is "+std::to_string(MAX_CAPACITY));
+    rc = kelpieClient_PutFromStdio(pool, action, MAX_CAPACITY);
+  }
+  return rc;
+}
+
+/**
+ * @brief Request an object and write it to stdout or a file
+ * @param pool The pool to read from
+ * @param action The info about what needs to be retrieved
+ * @retval EIO Could not write to output
+ * @retval 0 Success
+ * @note This only uses the first key provided in args
+ * @note Does not shutdown bootstrap on errors
+ */
+int kelpieClient_Get(kelpie::Pool &pool, const KelpieClientAction &action) {
+
+  lunasa::DataObject ldo;
+  pool.Need(action.keys[0], &ldo);
+
+  char *ptr; uint32_t len;
+  ptr = (action.kget_meta_only) ? ldo.GetMetaPtr<char *>() : ldo.GetDataPtr<char *>();
+  len = (action.kget_meta_only) ? ldo.GetMetaSize()        : ldo.GetDataSize();
+
+  if(!action.file_name.empty()) {
+    ofstream f;
+    f.open(action.file_name, ios::out | ios::app | ios::binary);
+    if(!f.is_open()) {
+      cerr <<"Problem opening file "<<action.file_name<<" for writing\n";
+      return EIO;
+    }
+    f.write(ptr, len);
+    f.close();
+
+  } else {
+    std::cout.write(ptr,len);
+  }
+  return 0;
 }
 
 
-void kelpieClientParseBasicArgs(const vector<string> &args,
-                                vector<string> *remaining_args,
-                                string *pool_name, string *file_name,
-                                kelpie::Key *key ) {
+int kelpieClient_Info(kelpie::Pool &pool, const KelpieClientAction &action) {
 
-  string key1, key2, tmp_key;
+  size_t max_key_len=0;
+  for(auto key : action.keys) {
+    size_t key_len = key.str().size();
+    if(key_len>max_key_len)
+      max_key_len = key_len;
+  }
 
-  for(size_t i = 0; i<args.size(); i++) {
-    string val;
-    if(       getArgValue(pool_name, args, i, "-p",  "--pool")) {
-    } else if(getArgValue(&key1,     args, i, "-k1", "--key1")) {
-    } else if(getArgValue(&key2,     args, i, "-k2", "--key2")) {
-    } else if(getArgValue(file_name, args, i, "-f",  "--file")) {
-    } else if(getArgValue(&tmp_key,  args, i, "-k",  "--key")) {
-
-      //Split the key into two parts
-      auto keys = faodel::Split(tmp_key, '|');
-      if(keys.size()>2) {
-        cerr << "Could not parse -k/--key argument for '" << tmp_key << "'. Must be of form 'key1' or 'key1|key2'\n";
-        exit(-1);
-      }
-      key1 = keys[0];
-      if(keys.size()>1)
-        key2 = keys[1];
-
+  for(auto key : action.keys) {
+    kelpie::object_info_t info;
+    rc_t rc = pool.Info(key, &info);
+    cout <<setw(max_key_len)<<std::left<< key.str() <<" ";
+    if(rc!=0) {
+      cout << "Not found\n";
     } else {
-      remaining_args->push_back(args[i]);
+      cout << info.str()
+           << endl; //TODO Add other info like local/disk
     }
-
   }
-
-  //Generate a proper key
-  if(key1.empty()) {
-    cerr << "No key provided. Cannot publish.\n";
-    exit(-1);
-  }
-  *key = kelpie::Key(key1, key2);
-
-  //Pull from env var is no pool name
-  if(pool_name->empty()) {
-    char *env_pool = getenv("FAODEL_POOL");
-    if(env_pool == nullptr) {
-      cerr << "No pool provided. Use -p/--pool resource_url or set env var FAODEL_POOL\n";
-      exit(-1);
-    }
-    *pool_name = string(env_pool);
-  }
+  return 0;
 }
 
+
+int kelpieClient_List(kelpie::Pool &pool, const KelpieClientAction &action) {
+  //Get all keys and append to one OC
+  kelpie::ObjectCapacities oc;
+  for(auto key : action.keys) {
+    pool.List(key, &oc);
+  }
+
+  int max_key_len = 0;
+  for(size_t i = 0; i<oc.keys.size(); i++) {
+    int len = oc.keys[i].str().size();
+    if(len>max_key_len)
+      max_key_len = len;
+  }
+
+  for(size_t i=0; i<oc.keys.size(); i++) {
+    cout << setw(max_key_len) << std::left << oc.keys[i].str() << " " << oc.capacities[i] << endl;
+  }
+  return 0;
+}
+
+
+/**
+ * @brief Save a list of keys from a pool to a local directory
+ * @param[in] args Command line args
+ * @retval 0 (always success or immediate exit)
+ */
+int kelpieClient_Save(kelpie::Pool &pool, const KelpieClientAction &action) {
+
+  //Note: dir_name vetted inside parse
+
+  //Get all keys and append to one OC
+  kelpie::ObjectCapacities oc;
+  for(auto key : action.keys) {
+    pool.List(key, &oc);
+  }
+
+  //Download all objects
+  for(size_t i = 0; i<oc.keys.size(); i++) {
+    cout << "Retrieving " << oc.keys[i].str() << " (" << oc.capacities[i] << ")\n";
+    lunasa::DataObject ldo;
+    int rc = pool.Need(oc.keys[i], oc.capacities[i], &ldo);
+    if(rc != 0) cerr << "Could not retrieve " << oc.keys[i].str() << endl;
+
+    //Store to a directory
+    string fname = action.dir_name + "/" + faodel::MakePunycode(oc.keys[i].pup());
+    ldo.writeToFile(fname.c_str());
+    //TODO: save to other targets, like hdf5
+  }
+
+  return 0;
+}
+
+
+/**
+ * @brief Read kelpie objects from a raw directory and push them to the pool
+ * @param pool The pool to use for this operation
+ * @param action The kelpie action/arguments for this command
+ * @return
+ */
+
+int kelpieClient_Load(kelpie::Pool &pool, const KelpieClientAction &action) {
+
+  //Note:  dir_name vetted inside parse
+
+  struct file_info_t {
+    string full_fname;
+    kelpie::Key key;
+    size_t disk_size;
+  };
+  vector<file_info_t> files;
+
+  //Scan directory and see if there are any files that we should read
+  DIR *dp;
+  struct dirent *ep;
+  dp = opendir(action.dir_name.c_str());
+  if(dp != NULL) {
+    while((ep = readdir(dp)) != NULL) {
+      string name(ep->d_name);
+      if(!((name == ".") || (name == ".."))) {
+        string pname = action.dir_name + "/" + name;
+        struct stat sb;
+        if((stat(pname.c_str(), &sb) == 0) && (S_ISREG(sb.st_mode))) {
+          file_info_t finfo;
+          finfo.full_fname = pname;
+          finfo.key.pup(faodel::ExpandPunycode(name));
+          finfo.disk_size = sb.st_size;
+          files.push_back(finfo);
+        }
+      }
+    }
+  }
+  closedir(dp);
+
+  if(files.size() == 0) return 0; //Done
+
+
+  //Read in each file and publish it
+  kelpie::ResultCollector results(files.size());
+  for(auto finfo : files) {
+    cout << "Reading key " << finfo.key.str() << " (" << finfo.disk_size << ")\n";
+    lunasa::DataObject ldo = lunasa::LoadDataObjectFromFile(finfo.full_fname);
+    pool.Publish(finfo.key, ldo, results);
+  }
+  results.Sync();
+
+  return 0;
+}
+
+/**
+ * @brief Check env var to see if the default FAODEL_POOL is set
+ * @return A string with the FAODEL_POOL setting of empty
+ */
+string kelpieGetPoolFromEnv() {
+  char *env_pool = getenv("FAODEL_POOL");
+  if(env_pool == nullptr)  return "";
+  return string(env_pool);
+}
+
+/**
+ * @brief Launch a kelpie client. Converts some cli settings to config settings
+ * @return Configuration the configuration that was used at launch time
+ */
 faodel::Configuration kelpieClientStart() {
 
   faodel::Configuration config;
+  config.AppendFromReferences();
 
   //Make sure we're using dirman
   string dirman_type;
@@ -238,299 +532,65 @@ faodel::Configuration kelpieClientStart() {
                       {"kelpie", "whookie"},
                       {"opbox", "dirman"});
 
-  config.AppendFromReferences();
 
   faodel::bootstrap::Start(config, kelpie::bootstrap);
 
   return config;
 }
 
-int kelpieClientPut(const vector<string> &args) {
+/**
+ * @brief Launch one of the kelpie client commands
+ * @param pool The pool to use for this operation
+ * @param config The configuration (for pulling out minor constants)
+ * @param action The kelpie action/arguments for this command
+ * @return Results of the operation or EINVAL for command not found
+ * @note Requires kelpie to be started
+ */
+int kelpieClient_Dispatch(kelpie::Pool &pool, faodel::Configuration &config, const KelpieClientAction &action) {
 
-  string pool_name, file_name, meta;
-  kelpie::Key key;
-  vector<string> custom_args;
-
-  //Pull out basic args
-  kelpieClientParseBasicArgs(args, &custom_args, &pool_name, &file_name, &key);
-
-  //Pull out put-specific args
-  for(size_t i=0; i<custom_args.size(); i++) {
-    string val;
-    if( getArgValue(&meta,      custom_args, i, "-m",  "--meta")) {
-    } else {
-      cerr <<"Unknown argument: "<<custom_args[i]<<endl;
-      exit(-1);
-    }
+  string cmd2 = action.cmd;
+  int rc=EINVAL;
+  if       (cmd2=="kput")  { rc = kelpieClient_Put(pool, config, action);
+  } else if(cmd2=="kget")  { rc = kelpieClient_Get(pool, action);
+  } else if(cmd2=="kinfo") { rc = kelpieClient_Info(pool, action);
+  } else if(cmd2=="klist") { rc = kelpieClient_List(pool, action);
+  } else if(cmd2=="ksave") { rc = kelpieClient_Save(pool, action);
+  } else if(cmd2=="kload") { rc = kelpieClient_Load(pool, action);
   }
-
-  auto config = kelpieClientStart();
-  auto pool = kelpie::Connect(pool_name);
-
-  uint64_t MAX_CAPACITY;
-  config.GetUInt(&MAX_CAPACITY, "kelpie.chunk_size", "512M");
-  dbg("Chunk size is "+std::to_string(MAX_CAPACITY));
-
-  if(meta.size()>=64*1024){
-    cerr <<"Meta sectionn must be less than 16KB\n";
-    exit(-1);
-  }
-  uint16_t meta_capacity = meta.size() & 0x0FFFF;
-
-
-  if(!file_name.empty()) {
-
-    ifstream f;
-    f.open(file_name, ios::in|ios::binary);
-    if(!f.is_open()) {
-      cerr <<"Could not open file "<<file_name<<endl;
-      faodel::bootstrap::Finish();
-      return -1;
-    }
-
-    struct stat results;
-    int rc = stat(file_name.c_str(), &results);
-    if((rc!=0) || (results.st_size >= 4*1024*1024*1024LL)){
-      cerr <<"File "<<file_name<<" was larger than a single Kelpie object can store\n";
-      faodel::bootstrap::Finish();
-      return -1;
-    }
-    lunasa::DataObject ldo(meta_capacity, results.st_size,lunasa::DataObject::AllocatorType::eager);
-    if(meta_capacity){
-      memcpy(ldo.GetMetaPtr(), meta.c_str(), meta_capacity);
-    }
-    f.read(ldo.GetDataPtr<char *>(), ldo.GetDataSize());
-
-    kelpie::kv_row_info_t row;
-    kelpie::kv_col_info_t col;
-
-    pool.Publish(key, ldo, &row, &col);
-    //cout <<"Publish row col info is "<<row.str() << "\n"<< col.str()<<endl;
-
-  } else {
-
-    lunasa::DataObject ldo( meta_capacity, MAX_CAPACITY, lunasa::DataObject::AllocatorType::eager );
-
-    if(meta_capacity){
-      memcpy(ldo.GetMetaPtr(), meta.c_str(), meta_capacity);
-    }
-
-    //cout <<"About to read from stdin\n";
-    try {
-      uint32_t offset=0;
-      auto *dptr=ldo.GetDataPtr<char *>();
-      size_t len;
-      while((len = fread( &dptr[offset], 1, MAX_CAPACITY - offset, stdin )) > 0) {
-        //cout <<"Pulled in chunk of len "<<len<<endl;
-        if(std::ferror(stdin) && !std::feof(stdin))
-          throw std::runtime_error(std::strerror(errno));
-        offset += len;
-        if(offset==MAX_CAPACITY) break;
-      }
-      //Trim the data section to the actual length
-      ldo.ModifyUserSizes(meta_capacity, offset);
-
-      kelpie::kv_row_info_t row;
-      kelpie::kv_col_info_t col;
-
-      //cout <<"About to send key "<<key.str()<<" or k1="<<key.K1()<<" k2="<<key.K2()<<endl;
-      pool.Publish(key, ldo, &row, &col);
-
-      //cout <<"Publish row col info is "<<row.str() << "\n"<< col.str()<<endl;
-
-    } catch(std::exception const &e) {
-      cerr <<"STDIO error "<<e.what()<<endl;
-    }
-  }
-
-  faodel::bootstrap::Finish();
-
-  return 0;
+  return rc;
 }
 
-int kelpieClientGet(bool only_meta, const vector<string> &args) {
+/**
+ * @brief One-shot kelpieClient function. Parses args, starts kelpie command, and shutsdown
+ * @param[in] cmd The command that the user supplied (eg kput)
+ * @param[in] args The other arguments passed in on the cli to parse
+ * @retval 0 Found the command
+ * @retval ENOENT Didn't find the command
+ * @note This Starts and Stops kelpie
+ */
+int checkKelpieClientCommands(const std::string &cmd, const vector<string> &args) {
 
-  string pool_name, file_name, meta;
-  kelpie::Key key;
-  vector<string> custom_args;
+  //Figure out what command this is. Bail out if it's not a kelpie command
+  KelpieClientAction action(cmd);
+  if(action.HasError()) return ENOENT; //Didn't match
 
-  //Pull out basic args
-  kelpieClientParseBasicArgs(args, &custom_args, &pool_name, &file_name, &key);
 
-  //Pull out put-specific args
-  for(size_t i=0; i<custom_args.size(); i++) {
-    string val;
-    if( (custom_args[i]=="-m") || (custom_args[i]=="--meta-only")) {
-      only_meta=true;
-    } else {
-      cerr <<"Unknown argument: "<<custom_args[i]<<endl;
-      exit(-1);
-    }
-  }
+  //Parse this command's arguments
+  string default_pool = kelpieGetPoolFromEnv();
+  action.ParseArgs(args, default_pool);
+  action.exitOnError();     //Parse errors get marked but not handled until here
+  action.exitOnExtraArgs(); //Bail out if we have unrecognized options
 
+  //Start up
   auto config = kelpieClientStart();
-  auto pool = kelpie::Connect(pool_name);
+  auto pool = kelpie::Connect(action.pool_name);
+  pool.ValidOrDie();
 
-  lunasa::DataObject ldo;
-  pool.Need(key, &ldo);
+  int rc = kelpieClient_Dispatch(pool, config, action);
 
-  char *ptr; uint32_t len;
-  ptr = (only_meta) ? ldo.GetMetaPtr<char *>() : ldo.GetDataPtr<char *>();
-  len = (only_meta) ? ldo.GetMetaSize()        : ldo.GetDataSize();
-
-  if(!file_name.empty()) {
-    ofstream f;
-    f.open(file_name, ios::out | ios::app | ios::binary);
-    if(!f.is_open()) {
-      cerr <<"Problem opening file "<<file_name<<" for writing\n";
-      faodel::bootstrap::Finish();
-      return -1;
-    }
-    f.write(ptr, len);
-    f.close();
-
-  } else {
-    std::cout.write(ptr,len);
+  //Shut down
+  if(faodel::bootstrap::IsStarted()) {
+    faodel::bootstrap::Finish();
   }
-
-  faodel::bootstrap::Finish();
-  return 0;
-
-}
-
-int kelpieClientInfo(const vector<string> &args) {
-
-
-  string tmp_key;
-  vector<kelpie::Key> keys;
-  string pool_name;
-
-  int max_key_len;
-  for(size_t i = 0; i<args.size(); i++) {
-    string val;
-    if(       getArgValue(&pool_name, args, i, "-p", "--pool")) {
-    } else {
-
-      //Must be passing a key, either with "-k keyname" or just "keyname"
-      if(getArgValue(&tmp_key,   args, i, "-k", "--key")) { //parsed to tmp_key
-      } else {
-        tmp_key = args[i];
-      }
-
-      //Convert strings to actual keys
-      auto key_parts = faodel::Split(tmp_key, '|');
-      if(key_parts.size()>2) {
-        cerr << "Could not parse -k/--key argument for '" << tmp_key << "'. Must be of form 'key1' or 'key1|key2'\n";
-        exit(-1);
-      }
-      string k1, k2;
-      k1=key_parts[0];
-      k2=(key_parts.size()>1) ? key_parts[1] : "";
-      kelpie::Key key(k1,k2);
-      int len = key.str().size();
-      if(len>max_key_len) max_key_len = len;
-      keys.push_back(key);
-    }
-  }
-
-  //Pull from env var is no pool name
-  if(pool_name.empty()) {
-    char *env_pool = getenv("FAODEL_POOL");
-    if(env_pool == nullptr) {
-      cerr << "No pool provided. Use -p/--pool resource_url or set env var FAODEL_POOL\n";
-      exit(-1);
-    }
-    pool_name = string(env_pool);
-  }
-
-  auto pp=ResourceURL(pool_name);
-
-  auto config = kelpieClientStart();
-  auto pool = kelpie::Connect(pool_name);
-
-  for(auto key : keys) {
-    kelpie::kv_col_info_t col_info;
-    rc_t rc = pool.Info(key, &col_info);
-    cout <<setw(max_key_len)<<std::left<< key.str() <<" : ";
-    if(rc!=0) {
-      cout << "Not found\n";
-    }else {
-      cout << col_info.num_bytes <<endl; //TODO Add other info like local/disk
-    }
-  }
-
-  faodel::bootstrap::Finish();
-  return 0;
-
-}
-
-int kelpieClientList(const vector<string> &args) {
-
-
-  string tmp_key;
-  vector<kelpie::Key> keys;
-  string pool_name;
-
-  for(size_t i = 0; i<args.size(); i++) {
-    string val;
-    if(       getArgValue(&pool_name, args, i, "-p", "--pool")) {
-    } else {
-
-      //Must be passing a key, either with "-k keyname" or just "keyname"
-      if(getArgValue(&tmp_key,   args, i, "-k", "--key")) { //parsed to tmp_key
-      } else {
-        tmp_key = args[i];
-      }
-
-      //Convert strings to actual keys
-      auto key_parts = faodel::Split(tmp_key, '|');
-      if(key_parts.size()>2) {
-        cerr << "Could not parse -k/--key argument for '" << tmp_key << "'. Must be of form 'key1' or 'key1|key2'\n";
-        exit(-1);
-      }
-      string k1, k2;
-      k1=key_parts[0];
-      k2=(key_parts.size()>1) ? key_parts[1] : "";
-      kelpie::Key key(k1,k2);
-      keys.push_back(key);
-    }
-  }
-
-  //Pull from env var is no pool name
-  if(pool_name.empty()) {
-    char *env_pool = getenv("FAODEL_POOL");
-    if(env_pool == nullptr) {
-      cerr << "No pool provided. Use -p/--pool resource_url or set env var FAODEL_POOL\n";
-      exit(-1);
-    }
-    pool_name = string(env_pool);
-  }
-
-  auto pp=ResourceURL(pool_name);
-
-  auto config = kelpieClientStart();
-  auto pool = kelpie::Connect(pool_name);
-
-  //Get all kets and append to one OC
-  kelpie::ObjectCapacities oc;
-  for(auto key : keys) {
-    pool.List(key, &oc);
-  }
-
-  int max_key_len=0;
-  for(size_t i=0; i<oc.keys.size(); i++) {
-    int len = oc.keys[i].str().size();
-    if(len>max_key_len)
-      max_key_len = len;
-  }
-
-  for(size_t i=0; i<oc.keys.size(); i++) {
-    cout << setw(max_key_len) << std::left << oc.keys[i].str() << " " << oc.capacities[i] << endl;
-  }
-
-  faodel::bootstrap::Finish();
-  return 0;
-
-
-
+  return rc;
 }

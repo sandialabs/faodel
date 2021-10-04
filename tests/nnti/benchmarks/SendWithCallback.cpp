@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 
 #include "nnti/nnti_pch.hpp"
@@ -80,7 +80,6 @@ public:
     }
 
     NNTI_result_t operator() (NNTI_event_t *event, void *context) {
-        NNTI_result_t rc = NNTI_OK;
 
         test_context *c = (test_context*)context;
 
@@ -102,7 +101,7 @@ public:
 
                 if (c->recv_count_ < c->volley_threshold_) {
                     // issue another send
-                    rc = send_data_async(c->transport_, c->length_, 0, c->send_src_.hdl, c->send_target_.hdl, event->peer, *c->cb_, context);
+                    send_data_async(c->transport_, c->length_, 0, c->send_src_.hdl, c->send_target_.hdl, event->peer, *c->cb_, context);
                     c->recv_count_++;
                 } else {
                     // we're done here.  return NNTI_ECANCEL to push an event on the EQ.
@@ -135,7 +134,6 @@ NNTI_result_t runbench(bool                         server,
 
         auto end = std::chrono::high_resolution_clock::now();
 
-        float total_bytes     = ppc->length_ * ppc->volley_threshold_;
         // total_megabytes is the ROUNDTRIP total so multiply by 2
         float total_megabytes = (ppc->length_ * ppc->volley_threshold_ * 2.0) / (1024.0 * 1024.0);
         uint64_t total_us     = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
@@ -158,7 +156,6 @@ NNTI_result_t runbench(bool                         server,
 
         auto end = std::chrono::high_resolution_clock::now();
 
-        float total_bytes     = ppc->length_ * ppc->volley_threshold_;
         // total_megabytes is the ROUNDTRIP total so multiply by 2
         float total_megabytes = (ppc->length_ * ppc->volley_threshold_ * 2.0) / (1024.0 * 1024.0);
         uint64_t total_us     = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
@@ -188,8 +185,6 @@ int main(int argc, char *argv[])
 
     NNTI_result_t rc;
     nnti::transports::transport *t=nullptr;
-
-    int i=0;
 
     char                   server_url[1][NNTI_URL_LEN];
     const uint32_t         num_servers = 1;

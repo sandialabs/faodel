@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 //
 //  Test: mpi_kelpie_simple_peer
@@ -67,6 +67,26 @@ lunasa::DataObject generateLDO(int num_words, uint32_t start_val){
   return ldo;
 }
 
+TEST_F(MPISimplePeerTest, Setup) {
+  ResourceURL url("dht:/mydht");
+  kelpie::Pool dht = kelpie::Connect(url);
+  EXPECT_EQ(kelpie::pool_behavior_t(kelpie::PoolBehavior::DefaultRemote), dht.GetBehavior());
+  EXPECT_TRUE(dht.Valid());
+
+  kelpie::Pool dht2 = kelpie::Connect(ResourceURL("/mydht"));
+  EXPECT_EQ(kelpie::pool_behavior_t(kelpie::PoolBehavior::DefaultRemote), dht.GetBehavior());
+  EXPECT_TRUE(dht2.Valid());
+
+  //Try connecting with something not valid. Should get an error pool
+  //handle back that tells us we're not valid. If we call pool function
+  //on an invalid pool, it should throw an exception.
+  kelpie::Pool dhtx = kelpie::Connect(ResourceURL("/not-here"));
+  EXPECT_FALSE(dhtx.Valid());
+  string s;
+  dhtx.Valid(&s);
+  EXPECT_FALSE(s.empty());
+  EXPECT_ANY_THROW(dhtx.Info(kelpie::Key("dummy"),nullptr));
+}
 
 TEST_F(MPISimplePeerTest, BasicDHTCreateAndPublish){
 
@@ -78,7 +98,7 @@ TEST_F(MPISimplePeerTest, BasicDHTCreateAndPublish){
 
 
   //First: Verify remote doesn't know what this item is
-  kelpie::kv_col_info_t col_info;
+  kelpie::object_info_t col_info;
   rc = dht.Info(k1, &col_info);
   EXPECT_NE(0, rc);
 
@@ -89,10 +109,12 @@ TEST_F(MPISimplePeerTest, BasicDHTCreateAndPublish){
   EXPECT_EQ(1024*sizeof(int), ldo1.GetMetaSize()+ldo1.GetDataSize());
 
   //Publish the object out to destination
-  rc = dht.Publish(k1, ldo1);
+  kelpie::object_info_t oi;
+  rc = dht.Publish(k1, ldo1, &oi);
   EXPECT_EQ(0, rc);
   EXPECT_EQ(1024*sizeof(int), ldo1.GetMetaSize()+ldo1.GetDataSize()); //Sanity check
 
+  EXPECT_EQ(kelpie::Availability::InRemoteMemory, oi.col_availability);
 
   //See if we can get the info back. Give it five tries
   int count=5;
@@ -109,9 +131,35 @@ TEST_F(MPISimplePeerTest, BasicDHTCreateAndPublish){
   EXPECT_EQ(0, rc);
   if(rc==0){
     //cout <<"Got info :"<<col_info.str()<<endl;
-    EXPECT_EQ(1024*sizeof(int), col_info.num_bytes);
-    EXPECT_EQ(kelpie::Availability::InRemoteMemory, col_info.availability);
+    EXPECT_EQ(1024*sizeof(int), col_info.col_user_bytes);
+    EXPECT_EQ(kelpie::Availability::InRemoteMemory, col_info.col_availability);
   }
+}
+TEST_F(MPISimplePeerTest, BlockWildcardPubWants) {
+
+  ResourceURL url("dht:/mydht");
+  kelpie::Pool dht = kelpie::Connect(url);
+
+  vector<kelpie::Key> bad_keys = { kelpie::Key("foo*"),
+                                   kelpie::Key("foo","bar*"),
+                                   kelpie::Key("foo*","bar*") };
+
+  auto nop_pub = [](kelpie::rc_t result, kelpie::object_info_t &info) {};
+  auto nop_want = [](bool success, kelpie::Key key, lunasa::DataObject user_ldo, const kelpie::object_info_t &info) {};
+  lunasa::DataObject ldo;
+  kelpie::ResultCollector res(1);
+  kelpie::object_info_t info;
+  for(auto bad_key : bad_keys) {
+    EXPECT_ANY_THROW(dht.Publish(bad_key, nop_pub));
+    EXPECT_ANY_THROW(dht.Publish(bad_key, ldo));
+    EXPECT_ANY_THROW(dht.Publish(bad_key, ldo, &info));
+    EXPECT_ANY_THROW(dht.Publish(bad_key, ldo, res));
+    EXPECT_ANY_THROW(dht.Want(bad_key, nop_want));
+    EXPECT_ANY_THROW(dht.Want(bad_key, 100, nop_want));
+    EXPECT_ANY_THROW(dht.Want(bad_key, res));
+    EXPECT_ANY_THROW(dht.Want(bad_key, 100, res));
+  }
+
 }
 
 
@@ -178,11 +226,12 @@ TEST_F(MPISimplePeerTest, BasicWantUnbounded){
 
   int num_words=1024;
   kelpie::Key k4("obj4");
-  kelpie::kv_col_info_t col_info;
+  kelpie::object_info_t col_info;
 
   ResourceURL url("dht:/mydht");
   kelpie::Pool dht = kelpie::Connect(url);
   kelpie::Pool local = kelpie::Connect("local:");
+
 
   //First, make sure it isn't here yet
   rc = local.Info(k4, &col_info); EXPECT_EQ(kelpie::KELPIE_ENOENT, rc);
@@ -197,7 +246,8 @@ TEST_F(MPISimplePeerTest, BasicWantUnbounded){
   rc =   dht.Info(k4, &col_info); EXPECT_EQ(kelpie::KELPIE_WAITING, rc);
 
 
-  //Create an ldo and publish to DHT
+
+  //Create an ldo and do a blocking publish to DHT
   auto ldo4 = generateLDO(num_words, 1);
   rc = dht.Publish(k4, ldo4);  EXPECT_EQ(0, rc);
 
@@ -209,8 +259,8 @@ TEST_F(MPISimplePeerTest, BasicWantUnbounded){
     if(rc!=kelpie::KELPIE_OK) {
       sleep(1);
     } else {
-      EXPECT_EQ(1024*sizeof(int), col_info.num_bytes);
-      EXPECT_EQ(kelpie::Availability::InLocalMemory, col_info.availability);
+      EXPECT_EQ(1024*sizeof(int), col_info.col_user_bytes);
+      EXPECT_EQ(kelpie::Availability::InLocalMemory, col_info.col_availability);
       success=true;
       break;
     }

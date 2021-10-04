@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 
 #include "opbox/OpBox.hh"
@@ -158,17 +158,17 @@ bool DirManCoreStatic::DropDir(const faodel::ResourceURL &url) {
 }
 
 bool DirManCoreStatic::discoverParent(const ResourceURL &resource_url, nodeid_t *parent_node){
-  KTODO("discoverParent");
+  F_TODO("discoverParent");
 }
 
 bool DirManCoreStatic::cacheForeignDir(const DirectoryInfo &dir_info) {
-  KTODO("cacheForeignDir");
+  F_TODO("cacheForeignDir");
 }
 bool DirManCoreStatic::lookupRemote(faodel::nodeid_t nodeid, const faodel::ResourceURL &resource_url, DirectoryInfo *dir_info){
-  KTODO("lookupRemote");
+  F_TODO("lookupRemote");
 }
 bool DirManCoreStatic::joinRemote(faodel::nodeid_t parent_node, const faodel::ResourceURL &child_url, bool send_detailed_reply){
-  KTODO("joinRemote");
+  F_TODO("joinRemote");
 }
 
 /**

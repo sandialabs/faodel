@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #include <stdexcept>
 
@@ -32,12 +32,12 @@ void OpArgs::VerifyTypeOrDie(UpdateType expected_type, string op_name){
 void SanityCheck(OpArgs *args, const char *src_file, int line ) {
 
   if(args==nullptr) {
-    faodel::_khalt("OpArgs Sanity check fail: null pointer for args", src_file, line);
+    faodel::_f_halt("OpArgs Sanity check fail: null pointer for args", src_file, line);
   }
   switch(args->type) {
 
   case UpdateType::incoming_message:
-    //kassert((args->incoming_msg!=nullptr), "OpArgs sanity check fail: null pointer for incoming_msg");
+    //F_ASSERT((args->incoming_msg!=nullptr), "OpArgs sanity check fail: null pointer for incoming_msg");
     break;
 
   case UpdateType::user_trigger: break; //Special
@@ -53,12 +53,12 @@ void SanityCheck(OpArgs *args, const char *src_file, int line ) {
   case UpdateType::get_error:
   case UpdateType::put_error:
   case UpdateType::atomic_error:
-    //kassert(args->incoming_msg == nullptr, "OpArgs sanity check fail: incoming_msg was not null");
+    //F_ASSERT(args->incoming_msg == nullptr, "OpArgs sanity check fail: incoming_msg was not null");
     break;
 
     //Unrecognized? Probably a bad type
   default: 
-    faodel::_khalt("OpArgs sanity check fail: Type was not valid?", src_file, line);
+    faodel::_f_halt("OpArgs sanity check fail: Type was not valid?", src_file, line);
   }
 }
 #endif

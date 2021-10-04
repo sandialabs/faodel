@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 
 #include "nnti/nnti_pch.hpp"
@@ -78,7 +78,6 @@ public:
     }
 
     NNTI_result_t operator() (NNTI_event_t *event, void *context) {
-        NNTI_result_t rc = NNTI_OK;
 
         test_context *c = (test_context*)context;
 
@@ -138,7 +137,6 @@ NNTI_result_t runbench_get(bool                         server,
 
         auto end = std::chrono::high_resolution_clock::now();
 
-        float total_bytes     = ppc->length_ * ppc->threshold_;
         float total_megabytes = (ppc->length_ * ppc->threshold_) / (1024.0 * 1024.0);
         uint64_t total_us     = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
         float us_per_xfer     = (float)total_us/(float)ppc->threshold_;
@@ -162,7 +160,6 @@ NNTI_result_t runbench_get(bool                         server,
 
         auto end = std::chrono::high_resolution_clock::now();
 
-        float total_bytes     = ppc->length_ * ppc->threshold_;
         float total_megabytes = (ppc->length_ * ppc->threshold_) / (1024.0 * 1024.0);
         uint64_t total_us     = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
         float us_per_xfer     = (float)total_us/(float)ppc->threshold_;
@@ -194,7 +191,6 @@ NNTI_result_t runbench_put(bool                         server,
 
         auto end = std::chrono::high_resolution_clock::now();
 
-        float total_bytes     = ppc->length_ * ppc->threshold_;
         float total_megabytes = (ppc->length_ * ppc->threshold_) / (1024.0 * 1024.0);
         uint64_t total_us     = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
         float us_per_xfer     = (float)total_us/(float)ppc->threshold_;
@@ -218,7 +214,6 @@ NNTI_result_t runbench_put(bool                         server,
 
         auto end = std::chrono::high_resolution_clock::now();
 
-        float total_bytes     = ppc->length_ * ppc->threshold_;
         float total_megabytes = (ppc->length_ * ppc->threshold_) / (1024.0 * 1024.0);
         uint64_t total_us     = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
         float us_per_xfer     = (float)total_us/(float)ppc->threshold_;
@@ -241,8 +236,6 @@ int main(int argc, char *argv[])
 
     NNTI_result_t rc;
     nnti::transports::transport *t=nullptr;
-
-    int i=0;
 
     char                   server_url[1][NNTI_URL_LEN];
     const uint32_t         num_servers = 1;

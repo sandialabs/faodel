@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #include <limits.h>
 #include <string>
@@ -27,6 +27,9 @@ using namespace dirman;
 
 
 string default_config_string = R"EOF(
+
+# Switch dirman to none, since we don't have a root node
+dirman.type none
 
 # IMPORTANT: This test starts/finishes bootstrap multiple times. Lunasa's
 # tcmalloc memory manager doesn't support this feature, so we have to
@@ -199,7 +202,7 @@ int main(int argc, char **argv){
   }
 
   //One last start/finish, this time with a real teardown
-  bootstrap::Start(Configuration(""), opbox::bootstrap);
+  bootstrap::Start(Configuration("dirman.type none"), opbox::bootstrap);
   bootstrap::Finish(); //Deletes the bootstrap item with all the hooks
   MPI_Finalize();
   

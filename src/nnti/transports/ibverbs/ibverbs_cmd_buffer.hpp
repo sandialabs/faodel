@@ -1,11 +1,11 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 /**
- * @file nnti_cmd_buffer.hpp
+ * @file ibverbs_cmd_buffer.hpp
  *
- * @brief nnti_cmd_buffer.hpp
+ * @brief ibverbs_cmd_buffer.hpp
  *
  * @author Todd Kordenbrock (thkorde\@sandia.gov).
  * Created on: Jul 07, 2015

@@ -1,11 +1,11 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 
 #include "opbox/core/OpBoxCoreBase.hh"
 #include "opbox/core/OpBoxCoreUnconfigured.hh"
-#include "opbox/core/OpBoxCoreStandard.hh"
+#include "opbox/core/OpBoxCoreDeprecatedStandard.hh"
 
 #include "faodel-common/NodeID.hh"
 
@@ -37,6 +37,7 @@ int  OpBoxCoreUnconfigured::HandleIncomingMessage(
                     message_t *incoming_message)         { Panic("HandleIncomingMessage"); return -1; }
 int  OpBoxCoreUnconfigured::UpdateOp(
                     Op *op, OpArgs *args)                { Panic("UpdateOp"); return -1; }
+int  OpBoxCoreUnconfigured::GetNumberOfActiveOps(unsigned int op_id) { return 0;} //For simple queries
 int  OpBoxCoreUnconfigured::TriggerOp(
                     mailbox_t mailbox,
                     shared_ptr<OpArgs> args)             { Panic("TriggerOp"); return -1; }

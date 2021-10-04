@@ -1,3 +1,7 @@
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
+
 #include <exception>
 #include <iostream>
 #include <thread>
@@ -132,21 +136,22 @@ int startKelpieServer(const vector<string> &args) {
 
   //Join any resource the user has supplied
   for(auto p : args) {
-    faodel::DirectoryInfo dir;
     faodel::ResourceURL url;
     try {
       url = ResourceURL(p);
 
-      bool ok = dirman::JoinDirWithoutName(url, &dir);
-      if(ok) {
+      cout <<"Trying to join "<<url.GetFullURL()<<endl;
+
+      int rc = kelpie::JoinServerPool(url);
+      if(rc==0) {
         kelpie_local_num_pools++;
-        info("Joined pool "+ url.GetFullURL());
+        info("Joined pool "+url.GetFullURL());
       } else {
         info("Did not join pool "+url.GetFullURL());
       }
 
     } catch(const std::exception &e) {
-      warn("Could not parse url '"+p+"'. Ignoring");
+      warn("Could not parse or connect to pool url '"+p+"'. Ignoring");
     }
   }
 

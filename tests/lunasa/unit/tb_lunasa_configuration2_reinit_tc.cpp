@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #include "gtest/gtest.h"
 //#include <mpi.h>
@@ -20,7 +20,6 @@ string valid_config = R"EOF(
 default.kelpie.core_type nonet
 
 #lkv settings for the server
-server.max_capacity 32M
 server.mutex_type   rwlock
 
 node_role server
@@ -28,6 +27,11 @@ lunasa.eager_memory_manager tcmalloc
 
 lunasa.debug true
 lunasa.allocator.debug true
+
+# This line causes bootstrap to throw an exception instead of handling it and erroring out!
+bootstrap.exit_on_errors false
+
+#bootstrap.debug true
 )EOF";
 
 

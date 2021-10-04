@@ -1,6 +1,6 @@
-// Copyright 2021 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #ifndef KELPIE_TYPES_HH
 #define KELPIE_TYPES_HH
@@ -10,13 +10,13 @@
 #include <memory>
 #include <functional>
 
-
+#include "faodel-common/FaodelTypes.hh"
+#include "faodel-common/Bucket.hh"
 #include "lunasa/DataObject.hh"
 
 #include "kelpie/Key.hh"
 #include "kelpie/common/ObjectCapacities.hh"
 
-#include <boost/serialization/vector.hpp> //For packing ObjectCapacities
 
 
 //Forward references
@@ -39,7 +39,8 @@ namespace internal {
 class IomBase;
 }
 
-typedef int rc_t;  //!< Kelpie functions return standad return codes, plus some extras
+//typedef int rc_t;  //!< Kelpie functions return standard return codes, plus some extras
+using rc_t = faodel::rc_t;
 
 //Ok results
 const rc_t KELPIE_OK        =  0;    //!< Function successful
@@ -49,7 +50,7 @@ const rc_t KELPIE_RECHECK   =  3;    //!< Operation worked, but may have caveats
 
 //Fail
 const rc_t KELPIE_ENOENT    = -2;    //!< Item doesn't exist
-const rc_t KELPIE_EIO       = -5;     //!< Input/output error
+const rc_t KELPIE_EIO       = -5;    //!< Input/output error
 const rc_t KELPIE_NXIO      = -6;    //!< Not configured
 const rc_t KELPIE_EINVAL    = -22;   //!< Bad input
 const rc_t KELPIE_ETIMEDOUT = -110;  //!< Timed out
@@ -78,32 +79,21 @@ enum class Availability : uint8_t {
 };
 std::string availability_to_string(const Availability &a);
 
-/**
- * @brief Information about a particular row of items
- */
-struct kv_row_info_t {
-  ssize_t             row_bytes;              //!< The current total for how big the row is
-  uint32_t            num_cols_in_row;        //!< How many columns are filled in this row
-  uint32_t            num_row_receiver_nodes; //!< How many nodes are waiting on updates to this row
-  uint32_t            num_row_dependencies;   //!< How many actions are waiting if this row has activities
-  Availability        availability;           //!< Where the row is available
-  void Wipe();
-  std::string str();
-  void ChangeAvailabilityFromLocalToRemote();
-};
 
 /**
- * @brief Information about a particular column of data
+ * @brief Information about a particular object stored in kelpie
+ * @note: these are ordered to make this pack down to 3x8 words
  */
-struct kv_col_info_t {
-  faodel::nodeid_t    node_origin;            //!< What node generated this item
-  ssize_t             num_bytes;              //!< How big this item is
-  uint32_t            num_col_receiver_nodes; //!< How many nodes are waiting on updates to this column
-  uint32_t            num_col_dependencies;   //!< How many local actions are waiting on this col
-  Availability        availability;           //!< Whether item is available locally
+struct object_info_t {
+  size_t              row_user_bytes;         //!< The current total for how big the row is
+  size_t              col_user_bytes;         //!< How big the requested column is (meta+data)
+  uint16_t            row_num_columns;        //!< How many columns are filled in this row
+  uint16_t            col_dependencies;       //!< How many local actions are waiting on this column
+  Availability        col_availability;       //!< Where the column is available
   void Wipe();
-  std::string str();
+  std::string str() const;
   void ChangeAvailabilityFromLocalToRemote();
+
 };
 
 
@@ -113,24 +103,28 @@ typedef uint8_t pool_behavior_t;
  */
 struct PoolBehavior {
   //Individual actions
-  static constexpr pool_behavior_t WriteToLocal  = 0x01; //!< Publish writes to local memory
-  static constexpr pool_behavior_t WriteToRemote = 0x02; //!< Publish writes to remote memory
-  static constexpr pool_behavior_t WriteToIOM    = 0x04; //!< Publish writes to remote IOM
-  static constexpr pool_behavior_t ReadToLocal   = 0x08; //!< Want/Need writes to local memory
-  static constexpr pool_behavior_t ReadToRemote  = 0x10; //!< Want/Need writes to remote memory
+  static constexpr pool_behavior_t WriteToLocal     = 0x01; //!< Publish writes to local memory
+  static constexpr pool_behavior_t WriteToRemote    = 0x02; //!< Publish writes to remote memory
+  static constexpr pool_behavior_t WriteToIOM       = 0x04; //!< Publish writes to remote IOM
+  static constexpr pool_behavior_t ReadToLocal      = 0x08; //!< Want/Need writes to local memory
+  static constexpr pool_behavior_t ReadToRemote     = 0x10; //!< Want/Need writes to remote memory
+  static constexpr pool_behavior_t EnableOverwrites = 0x80; //!< Allow a publish to overwrite an existing copy
 
   //Common labels (combine individual actions)
   static constexpr pool_behavior_t WriteAround   = WriteToIOM; //!< Publish only to IOM (skip local/remote memory)
+  static constexpr pool_behavior_t WriteToMemory = WriteToLocal | WriteToRemote; //!< Only write to local/remote memory
   static constexpr pool_behavior_t WriteToAll    = WriteToLocal | WriteToRemote | WriteToIOM; //!< Publish to all levels
   static constexpr pool_behavior_t ReadToNone    = 0x00; //!< Want/Need isn't cached in local/remote memory
   static constexpr pool_behavior_t NoAction      = 0x00; //!< Don't take any action
   static constexpr pool_behavior_t TODO          = 0x00; //!< Not implemented. Should revisit
 
   //Default behaviors: assume ioms are fire and forget
-  static constexpr pool_behavior_t DefaultBaseClass  = WriteToAll | ReadToLocal |ReadToRemote; //!< Cache everywhere
+  static constexpr pool_behavior_t DefaultBaseClass  = WriteToMemory | ReadToLocal |ReadToRemote; //!< Cache everywhere
+  static constexpr pool_behavior_t DefaultLocal      = WriteToLocal  | ReadToLocal; //!< Cache locally
+  static constexpr pool_behavior_t DefaultRemote     = WriteToRemote | ReadToLocal; //!< No local caching
   static constexpr pool_behavior_t DefaultIOM        = WriteToIOM | ReadToNone; //!< Don't cache writes/reads
-  static constexpr pool_behavior_t DefaultLocalIOM   = WriteToIOM | ReadToNone; //!< Don't cache writes/reads
-  static constexpr pool_behavior_t DefaultRemoteIOM  = WriteToIOM | ReadToRemote; //!< Only cache reads on remote side
+  static constexpr pool_behavior_t DefaultLocalIOM   = WriteToIOM | WriteToLocal | ReadToLocal; //!< Cache locally
+  static constexpr pool_behavior_t DefaultRemoteIOM  = WriteToIOM | WriteToRemote | ReadToRemote; //!< Only cache reads on remote side
   static constexpr pool_behavior_t DefaultCachingIOM = WriteToAll | ReadToLocal | ReadToRemote;  //!< Cache everywhere
 
   static pool_behavior_t ChangeRemoteToLocal(pool_behavior_t f);
@@ -143,8 +137,10 @@ struct PoolBehavior {
 
 
 //Pool callbacks
-using fn_publish_callback_t = std::function<void (kelpie::rc_t result, kv_row_info_t &ri, kv_col_info_t &ci )>;
-using fn_want_callback_t    = std::function<void (bool success, Key key, lunasa::DataObject user_ldo, const kv_row_info_t &ri, const kv_col_info_t &ci)>;
+using fn_publish_callback_t = std::function<void (kelpie::rc_t result, object_info_t &info )>;
+using fn_want_callback_t    = std::function<void (bool success, Key key, lunasa::DataObject user_ldo, const object_info_t &info)>;
+using fn_drop_callback_t    = std::function<void (bool success, Key key)>;
+using fn_compute_callback_t = std::function<void (kelpie::rc_t, Key key, lunasa::DataObject user_ldo)>;
 
 using fn_opget_result_t     = std::function<void (bool success, Key &key, lunasa::DataObject &ldo)>;       //!< Lambda for passing back an op get
 
@@ -155,11 +151,19 @@ using fn_row_op_t           = std::function<rc_t (LocalKVRow &,  bool previously
 //Pool creation function pointer
 using fn_PoolCreate_t       = std::function<std::shared_ptr<PoolBase> (
                                                   const faodel::ResourceURL &pool_url)>;                   //!< Lambda for creating a pool from a url
+//User-defined Compute functions
+using fn_compute_t          = std::function<rc_t (faodel::bucket_t bucket, const Key &key, const std::string &args,
+                                                  std::map<Key, lunasa::DataObject> ldos,
+                                                  lunasa::DataObject *ext_ldo)>;
+
+
 
 //Iom driver constructor function pointer
 using fn_IomConstructor_t   = std::function<internal::IomBase * (
                                                   std::string name,
                                                   const std::map<std::string, std::string> &settings)>;    //!< Lambda for creating a new IOM driver
+using fn_IomGetValidSetting_t = std::function<std::vector<std::pair<std::string,std::string>> ()>;         //!< Lambda for getting list of valid setting names/descriptions
+
 
 }  // namespace kelpie
 

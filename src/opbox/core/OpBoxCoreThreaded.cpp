@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #include <iostream>
 #include <chrono>
@@ -15,9 +15,16 @@
 
 #include "opbox/OpBox.hh"
 #include "opbox/core/OpBoxCoreThreaded.hh"
-//#include "opbox/core/OpBoxCoreUnconfigured.hh"
 
 #include "opbox/core/Singleton.hh" //for registry whookie
+
+#if Faodel_ENABLE_DEBUG_TIMERS
+#define OP_TIMER(a,b) if(op_timer) op_timer->Mark(a,b);
+#define OP_TIMER_DISPATCHED(mbox) if(op_timer) op_timer->MarkDispatched(mbox);
+#else
+#define OP_TIMER(a,b)
+#define OP_TIMER_DISPATCHED(mbox)
+#endif
 
 
 using namespace std;
@@ -44,12 +51,11 @@ OpBoxCoreThreaded::~OpBoxCoreThreaded(){
     finish();
   }
 
-  if(initialized){
+  if(initialized) {
     shutdown_requested=true;
-    //th_progress.join();
 
     op_mutex->WriterLock();
-    for(auto op_ptr : active_ops){
+    for(auto op_ptr : active_ops) {
       delete op_ptr.second;
     }
     op_mutex->Unlock();
@@ -69,12 +75,18 @@ void OpBoxCoreThreaded::init(const faodel::Configuration &config) {
 
 
   ConfigureLogging(config);
-  dbg("private Init");
-  kassert(!initialized, "Attempted to initialize OpBoxCoreThreaded more than once");
+  F_ASSERT(!initialized, "Attempted to initialize OpBoxCoreThreaded more than once");
 
   opbox::net::Init(config);
 
-  dbg("Done with opbox::net::Init()");
+  #if Faodel_ENABLE_DEBUG_TIMERS
+    //Only consider timers if the user compiles it in and asks for them
+    bool enable_timers;
+    config.GetBool(&enable_timers, "opbox.enable_timers", "false");
+    if(enable_timers) op_timer = new OpTimer();
+  #endif
+
+
   opbox::net::RegisterRecvCallback(opbox::internal::HandleIncomingMessage);
 
   whookie::Server::updateHook("/opbox", [this] (const map<string,string> &args, stringstream &results) {
@@ -97,7 +109,7 @@ void OpBoxCoreThreaded::init(const faodel::Configuration &config) {
  */
 void OpBoxCoreThreaded::start() {
   dbg("private Start");
-  kassert(initialized, "Attempted to start OpBoxCoreThreaded before initialization");
+  F_ASSERT(initialized, "Attempted to start OpBoxCoreThreaded before initialization");
   opbox::net::Start();
   running=true;
 }
@@ -109,14 +121,14 @@ void OpBoxCoreThreaded::start() {
  */
 void OpBoxCoreThreaded::finish() {
   dbg("private finish");
-  kassert(initialized && running, "Attempted to finish OpBoxCoreThreaded that is not started");
+  F_ASSERT(initialized && running, "Attempted to finish OpBoxCoreThreaded that is not started");
 
   whookie::Server::deregisterHook("/opbox");
   whookie::Server::deregisterHook("/opbox/ops");
 
   opbox::net::Finish();
 
-  if(initialized){
+  if(initialized) {
     dbg("deleting all");
     shutdown_requested=true;
     //th_progress.join();
@@ -127,6 +139,10 @@ void OpBoxCoreThreaded::finish() {
     }
     op_mutex->Unlock();
     initialized=false;
+  }
+  if(op_timer) {
+    op_timer->Dump();
+    delete op_timer;
   }
 
   running=false;
@@ -155,9 +171,10 @@ int OpBoxCoreThreaded::doAction(faodel::internal_use_only_t iuo, mailbox_t mailb
     return args->result;
   }
 
-
   WaitingType rc = op->Update(args);
   op->touch();
+
+  OP_TIMER(op,OpTimerEvent::ActionComplete);
 
   switch(rc){
   case WaitingType::done_and_destroy:
@@ -182,8 +199,6 @@ int OpBoxCoreThreaded::doAction(faodel::internal_use_only_t iuo, mailbox_t mailb
 
   return args->result;
 }
-
-
 
 /**
  * @brief Examine an incoming message and pass it to either a new or existing Op
@@ -211,9 +226,8 @@ int OpBoxCoreThreaded::HandleIncomingMessage(opbox::net::peer_ptr_t peer, messag
     op = opbox::internal::CreateNewTargetOp(incoming_message->op_id);
 
     if(op==nullptr) {
-      KHALT("Incoming message asked for an opid that was not known");
+      F_HALT("Incoming message asked for an opid that was not known");
     }
-
 
     addActiveOp(op); //Sets the mailbox if needed
     my_mailbox = op->GetAssignedMailbox();
@@ -241,26 +255,27 @@ int OpBoxCoreThreaded::HandleIncomingMessage(opbox::net::peer_ptr_t peer, messag
     }
     cerr <<ss.str();
     //return -1;
-    KHALT("Op Lookup fail "+ss.str());
+    F_HALT("Op Lookup fail "+ss.str());
     throw std::runtime_error(ss.str());
   }
-  
+
+  OP_TIMER(op,OpTimerEvent::Incoming);
+
 
   //Note: This has to be a shared pointer for safety. Also has
   //      to be handed as a copy instead of reference to lambda?
-  auto args = make_shared<OpArgs>(peer,incoming_message, true);
+  auto args = make_shared<OpArgs>(peer, incoming_message, true);
 
-  faodel::backburner::AddWork( op->GetAssignedMailbox(), 
-                               [this, my_mailbox, op, args] () mutable { 
-                                 
-                                 return doAction(faodel::internal_use_only,
-                                                 my_mailbox, 
-                                                 op,
-                                                 args.get()); 
-                               });
+  faodel::backburner::AddWork(op->GetAssignedMailbox(),
+                              [this, my_mailbox, op, args]() mutable {
+                                  return doAction(faodel::internal_use_only,
+                                                  my_mailbox,
+                                                  op,
+                                                  args.get());
+                              });
 
-  //Call the update and deal with storing the op
-//  return doHandleIncomingMessage(my_mailbox, op, args);
+  OP_TIMER_DISPATCHED(my_mailbox);
+
   return 0;
 }
 
@@ -268,25 +283,26 @@ int OpBoxCoreThreaded::HandleIncomingMessage(opbox::net::peer_ptr_t peer, messag
 int OpBoxCoreThreaded::UpdateOp(Op *op, OpArgs *args){
 
   //SanityCheckArgs(args);
-  args->result = 0;
-  faodel::backburner::AddWork( op->GetAssignedMailbox(), 
-                               [this, op, args] () { 
-                                 doAction(faodel::internal_use_only,
-                                          op->GetAssignedMailbox(),
-                                          op,
-                                          args);
-                                 //TODO: Check returns
-                                 return 0;
-                               });
 
-  //Call the update and deal with storing the op
-//  return doUpdate(op->GetAssignedMailbox(), op, args);
+  OP_TIMER(op, OpTimerEvent::Update);
+
+  mailbox_t my_mailbox = op->GetAssignedMailbox();
+  args->result = 0;
+
+
+  faodel::backburner::AddWork(op->GetAssignedMailbox(),
+                              [this, op, args, my_mailbox]() {
+                                  doAction(faodel::internal_use_only,
+                                           my_mailbox,
+                                           op,
+                                           args);
+                                  //TODO: Check returns
+                                  return 0;
+                              });
+  OP_TIMER_DISPATCHED(my_mailbox);
 
   return 0;
 }
-
-
-
 
 /**
  * @brief User mechanism for launching a new op. Op ownership is transferred to OpBox
@@ -297,33 +313,35 @@ int OpBoxCoreThreaded::LaunchOp(Op *op, mailbox_t *resulting_mailbox){
 
   dbg("LaunchOp enter");
 
-  kassert(initialized && running, "Attempted to StartOp when OpBoxCoreThreaded that is not running");
-  kassert(op!=nullptr, "Tried starting a null op");
+  F_ASSERT(initialized && running, "Attempted to StartOp when OpBoxCoreThreaded that is not running");
+  F_ASSERT(op != nullptr, "Tried starting a null op");
 
   dbg("LaunchOp "+op->getOpName() +" state "+op->GetStateName());
 
   addActiveOp(op);
 
-  if(resulting_mailbox) *resulting_mailbox = op->GetAssignedMailbox();
+  mailbox_t my_mailbox = op->GetAssignedMailbox();
+  if(resulting_mailbox) *resulting_mailbox = my_mailbox;
 
-  faodel::backburner::AddWork( op->GetAssignedMailbox(), //Put on the right thread
-                               [this, op] () { 
-                                 OpArgs args(UpdateType::start);
-                                 int rc = doAction(faodel::internal_use_only,
-                                          op->GetAssignedMailbox(),
-                                          op,
-                                          &args);
-                                 if(rc!=0) args.result = rc;
-                                 //TODO: Should we block here?
+  OP_TIMER(op,OpTimerEvent::Launch);
 
-                                 return 0; 
-                               });
+  faodel::backburner::AddWork(op->GetAssignedMailbox(), //Put on the right thread
+                              [this, op, my_mailbox]() {
+                                  OpArgs args(UpdateType::start);
+                                  int rc = doAction(faodel::internal_use_only,
+                                                    my_mailbox,
+                                                    op,
+                                                    &args);
+                                  if(rc != 0) args.result = rc;
+                                  //TODO: Should we block here?
 
-//  return doLaunchOp(op, args);
+                                  return 0;
+                              });
+  OP_TIMER_DISPATCHED(my_mailbox);
+
   return 0;
 }
 
-#if 0
 /**
  * @brief Allow user to trigger an update of an op and pass in user data
  *
@@ -332,38 +350,6 @@ int OpBoxCoreThreaded::LaunchOp(Op *op, mailbox_t *resulting_mailbox){
  * @retval 0 Success
  * @retval -1 Failure
  */
-int OpBoxCoreThreaded::TriggerOp(mailbox_t mailbox, OpArgs *args){
-  dbg("TriggerOp enter mailbox "+to_string(mailbox));
-  SanityCheckArgs(args);
-
-  args->result = 0;
-  Op *op = getActiveOp(mailbox);
-  if(op==nullptr){
-    if(mailbox==MAILBOX_UNSPECIFIED) {
-        args->result = -1;
-        return -1;
-    }
-    //throw std::runtime_error("Error: TriggerOp failed because mailbox is no longer active.\n");
-    args->result = -1;
-    return -1; //Not found
-  }
-
-  faodel::backburner::AddWork( op->GetAssignedMailbox(), 
-                               [this, mailbox, op, args] () { 
-                                 doAction(faodel::internal_use_only,
-                                          mailbox,
-                                          op,
-                                          args);
-
-                                 //TODO: should this block?
-                                 return 0;
-                               });
-
-//  return doTriggerOp(mailbox, op, args);
-  return 0;
-}
-#endif
-
 int OpBoxCoreThreaded::TriggerOp(mailbox_t mailbox, std::shared_ptr<OpArgs> args) {
   dbg("TriggerOp enter mailbox "+to_string(mailbox));
   SanityCheckArgs(args);
@@ -381,19 +367,20 @@ int OpBoxCoreThreaded::TriggerOp(mailbox_t mailbox, std::shared_ptr<OpArgs> args
     return -1; //Not found
   }
 
+  OP_TIMER(op,OpTimerEvent::Trigger);
 
-  faodel::backburner::AddWork( mailbox, 
-                               [this, mailbox, op, args] () { 
-                                 doAction(faodel::internal_use_only,
-                                          mailbox,
-                                          op,
-                                          args.get());
+  faodel::backburner::AddWork(mailbox,
+                              [this, mailbox, op, args]() {
+                                  doAction(faodel::internal_use_only,
+                                           mailbox,
+                                           op,
+                                           args.get());
+                                  //TODO: should this block?
+                                  return 0;
+                              });
+  OP_TIMER_DISPATCHED(mailbox);
 
-                                 //TODO: should this block?
-                                 return 0;
-                               });
   return 0;
-  
 }
 
 /**
@@ -422,9 +409,9 @@ Op * OpBoxCoreThreaded::getActiveOp(mailbox_t mailbox){
  * @param[in] op The op in question (may trigger the assignment of a mailbox id)
  */
 void OpBoxCoreThreaded::addActiveOp(Op *op){
-  kassert(op!=nullptr, "Null active op");
+  F_ASSERT(op != nullptr, "Null active op");
   mailbox_t mailbox = op->GetAssignedMailbox();
-  kassert(mailbox!=0, "Op had a zero-value mailbox");
+  F_ASSERT(mailbox != 0, "Op had a zero-value mailbox");
   op_mutex->WriterLock();
   active_ops[mailbox] = op;
   op_mutex->Unlock();
@@ -437,7 +424,7 @@ void OpBoxCoreThreaded::addActiveOp(Op *op){
  * @param[in] mailbox An identifier for the op we want to delete
  */
 void OpBoxCoreThreaded::endActiveOp(mailbox_t mailbox){
-  kassert(mailbox!=0, "Op had a zero-value mailbox");
+  F_ASSERT(mailbox != 0, "Op had a zero-value mailbox");
   dbg("EndActiveOp for mailbox "+to_string(mailbox));
   Op *op;
   op_mutex->WriterLock();
@@ -449,6 +436,22 @@ void OpBoxCoreThreaded::endActiveOp(mailbox_t mailbox){
     delete op;
   }
   op_mutex->Unlock();
+}
+
+/**
+ * @brief Count the number of active Ops that ObBox has (useful for shutdown)
+ * @param[in] op_id Optional op_id field to search on. If set, only include ops that match
+ * @retval COUNT the number of ops that are active
+ */
+int OpBoxCoreThreaded::GetNumberOfActiveOps(unsigned int op_id) {
+  if(op_id==0) return active_ops.size();
+  int count=0;
+  op_mutex->ReaderLock();
+  for(auto &mbox_opptr : active_ops){
+    if (mbox_opptr.second->getOpID() == op_id) count++;
+  }
+  op_mutex->Unlock();
+  return count;
 }
 
 
@@ -469,7 +472,6 @@ void OpBoxCoreThreaded::HandleWhookieStatus(
     rs.tableRow({"Core Type", GetType()});
     rs.tableRow({"State", ((shutdown_requested) ? "Shutdown Requested" : ((running) ? "Running" : ((initialized) ? "Initialized" : "Uninitialized")))});
     rs.tableRow({"Active Ops", to_string(active_ops.size())});
-    rs.tableRow({"Receive Buffer Count", to_string(recv_buf_count)});
     rs.tableEnd();
 
     rs.mkText(html::mkLink("Current Active Ops", "/opbox/ops"));

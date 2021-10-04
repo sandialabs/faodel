@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 
 #include <mpi.h>
@@ -315,7 +315,7 @@ TEST_F(OpboxAtomicsTest, start1) {
     int64_t *atomic_val = (int64_t *) atomics_target.GetDataPtr();
     *atomic_val = 0;
 
-    fprintf(stdout, "atomic_val=%p\n", atomic_val);
+    fprintf(stdout, "atomic_val=%p\n", (void*)atomic_val);
     int64_t *atomic_rewind=atomic_val-32;
     for (int iii=0;iii<128;iii++) {
       fprintf(stdout, "%lx\n", atomic_rewind[iii]);

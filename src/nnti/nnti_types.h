@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 
 #ifndef NNTI_TYPES_H_
@@ -95,6 +95,9 @@ enum NNTI_result_t {
 
     /** @brief The size of the message is larger than the supported maximum size. */
     NNTI_EMSGSIZE,
+
+    /** @brief The buffer does not meet the alignment restrictions of the interconnect. */
+    NNTI_EALIGN,
 
     /** @brief The operation or process has been canceled. */
     NNTI_ECANCELED,
@@ -401,31 +404,6 @@ struct NNTI_work_request_t {
 };
 typedef struct NNTI_work_request_t NNTI_work_request_t;
 
-
-/********** Initializers **********/
-//Note: these pragmas are here because C++ people can't cope with human readable c99 structures
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wpedantic"
-/**
- * @brief A simple initializer to zero-out a work request.
- */
-static struct NNTI_work_request_t NNTI_WR_INITIALIZER =
-{   .op = NNTI_OP_NOOP,
-    .flags = NNTI_OF_UNSET,
-    .trans_hdl = 0,
-    .peer = 0,
-    .local_hdl = 0,
-    .local_offset = 0,
-    .remote_hdl = 0,
-    .remote_offset = 0,
-    .length = 0,
-    .operand1 = 0,
-    .operand2 = 0,
-    .alt_eq = 0,
-    .callback = 0,
-    .cb_context = 0,
-    .event_context = 0
-};
-#pragma GCC diagnostic pop
+extern struct NNTI_work_request_t NNTI_WR_INITIALIZER;
 
 #endif /* NNTI_TYPES_H_ */

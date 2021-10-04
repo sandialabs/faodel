@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #include <algorithm>
 #include <fstream> //for ifstream parsing of file
@@ -92,9 +92,11 @@ DirManCoreBase::DirManCoreBase(const faodel::Configuration &config, const string
       //          gets a url with all the members, but the non-root nodes
       //          get zero members because mpisyncstart doesn't globally
       //          sync everything.
-      if((di.url.Type()!="local") && (di.members.size()==0)) {
+      set<string> ok_types={"local","trace","null"};
+      bool not_local = ok_types.find(di.url.Type()) == ok_types.end();
+      if((not_local) && (di.members.size()==0)) {
         dbg("Not adding predefined resource "+key_url.first+" because it is not local and does not have any members");
-        throw runtime_error("Abort on adding "+key_url.first);
+        throw runtime_error("Dirman aborted adding "+key_url.first+" because it was not a local resource and didn't have predefined members");
         continue;
       }
       dbg("adding predefined resource "+key_url.first+" --> "+di.url.GetFullURL()+" Num Members="+std::to_string(di.members.size()));
@@ -197,14 +199,14 @@ DirManCoreBase::~DirManCoreBase() = default;
 bool DirManCoreBase::Locate(const faodel::ResourceURL &search_url, nodeid_t *reference_node) {
 
   bool ok = lookupLocal(search_url, nullptr, reference_node);
-  KWARN("Locate should be global, not just local");
+  F_WARN("Locate should be global, not just local");
   return ok;
 }
 
 
 /**
  * @brief Retrieve info about a particular resource directory entry
- * @param url -  Resource URL to look up
+ * @param search_url -  Resource URL to look up
  * @param check_local - Check our local cache for answer first
  * @param check_remote - Check the remote node responsible for dir (if local not successful)
  * @param dir_info -  The resulting directory info (set to empty value if no entry)
@@ -219,7 +221,7 @@ bool DirManCoreBase::GetDirectoryInfo(const faodel::ResourceURL &search_url, boo
     if(ok || !check_remote) return ok;
   }
   if(check_remote){
-    KWARN("GetDirectoryInfo should be global, not just local");
+    F_WARN("GetDirectoryInfo should be global, not just local");
     return false;
   }
   return false;
@@ -251,7 +253,7 @@ bool DirManCoreBase::DefineNewDir(const DirectoryInfo &dir_info) {
   // Fail: This default DefineNewDir doesn't know what to do with an undefined reference node.
   //       A core should define this and do the right thing instead.
 
-  KTODO("Default DefineNewDir does not handle unspecified reference node case. Derived class should implement.");
+  F_TODO("Default DefineNewDir does not handle unspecified reference node case. Derived class should implement.");
   return false;
 
 }
@@ -312,7 +314,7 @@ bool DirManCoreBase::HostNewDir(const DirectoryInfo &dir_info){
   bool ok = discoverParent(dir_info.url, &parent_node);
   dbg("hostresource discovered ok="+to_string(ok)+" parent was "+parent_node.GetHex());
 
-  kassert(ok,"couldn't discover parent for "+dir_info.url.GetFullURL());
+  F_ASSERT(ok, "couldn't discover parent for "+dir_info.url.GetFullURL());
   if((parent_node == my_node)||(parent_node==NODE_LOCALHOST)){
     dbg("hosted resource's parent available here. Joining.");
     return dc_mine.Join(dir_info.url);
@@ -321,7 +323,7 @@ bool DirManCoreBase::HostNewDir(const DirectoryInfo &dir_info){
   //Not local, we must join a resource
   dbg("hosted resource's parent not available here. remote joining.");
   ok = joinRemote(parent_node, dir_info.url);
-  kassert(ok,"Couldn't host resource, because couldn't join parent?");
+  F_ASSERT(ok, "Couldn't host resource, because couldn't join parent?");
 
   return true;
 }
@@ -338,7 +340,7 @@ bool DirManCoreBase::HostNewDir(const faodel::ResourceURL &url){
 
   //Plug in our default bucket and node id
   if(tmp_url.bucket==BUCKET_UNSPECIFIED) {
-    kassert(!strict_checking, "HostNewDir given a url with a null bucket");
+    F_ASSERT(!strict_checking, "HostNewDir given a url with a null bucket");
     tmp_url.bucket=default_bucket;
   }
 
@@ -472,7 +474,7 @@ nodeid_t DirManCoreBase::parseConfigForRootNode(const Configuration &config) con
   rc_t rc;
   string fname, root_node_hex;
 
-  dbg("Parsing condfig for root node info");
+  dbg("Parsing config for root node info");
   rc = config.GetString(&root_node_hex, "dirman.root_node");
   dbg("Searching for dirman.root_node gave '"+root_node_hex+"'");
   if(rc==ENOENT) {
@@ -571,7 +573,7 @@ bool DirManCoreBase::writeURLsToFileOrDie(const string file_name, const vector<f
   if(!f.is_open()){
     //TODO: Better error handling here?
     error("Could not write url to file "+file_name);
-    KFAIL("Could not open output file");
+    F_FAIL("Could not open output file");
     return false;
   }
   for(const auto &url : urls){

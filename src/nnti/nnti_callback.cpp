@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 
 #include "nnti/nntiConfig.h"
@@ -27,33 +27,30 @@ public:
 };
 
 nnti_event_callback::nnti_event_callback()
-: cb_(default_event_callback()),
-  nnti_datatype(NNTI_dt_callback)
+: nnti_datatype(NNTI_dt_callback),
+  cb_(default_event_callback())
 {
     return;
 }
 nnti_event_callback::nnti_event_callback(
     nnti::datatype::nnti_event_callback &other)
-: cb_(other.cb_),
-  nnti_datatype(other.transport_,
-      other.datatype_)
+: nnti_datatype(other.transport_, other.datatype_),
+  cb_(other.cb_)
 {
     return;
 }
 nnti_event_callback::nnti_event_callback(
     nnti::transports::transport *transport)
-: cb_(default_event_callback()),
-  nnti_datatype(transport,
-      NNTI_dt_callback)
+: nnti_datatype(transport, NNTI_dt_callback),
+  cb_(default_event_callback())
 {
     return;
 }
 nnti_event_callback::nnti_event_callback(
     nnti::transports::transport *transport,
     NNTI_event_callback_t        cb)
-: cb_(cb),
-  nnti_datatype(transport,
-      NNTI_dt_callback)
+: nnti_datatype(transport, NNTI_dt_callback),
+  cb_(cb)
 {
     if (!cb_) {
         cb_  = default_event_callback();
@@ -63,9 +60,8 @@ nnti_event_callback::nnti_event_callback(
 nnti_event_callback::nnti_event_callback(
     nnti::transports::transport                         *transport,
     std::function< NNTI_result_t(NNTI_event_t*,void*) >  cb)
-: cb_(cb),
-  nnti_datatype(transport,
-      NNTI_dt_callback)
+: nnti_datatype(transport, NNTI_dt_callback),
+  cb_(cb)
 {
     if (!cb_) {
         cb_  = default_event_callback();
@@ -91,7 +87,7 @@ nnti_event_callback::invoke(
 }
 
 std::string
-nnti_event_callback::toString() {
+nnti_event_callback::toString() const {
     std::stringstream out;
     out << "cb_==" << &cb_;
     return out.str();

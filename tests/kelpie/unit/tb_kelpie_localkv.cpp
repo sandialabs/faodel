@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 
 #include <string>
@@ -20,7 +20,6 @@ string default_config = R"EOF(
 #kelpie.core_type nonet
 #kelpie.debug true
 #kelpie.lkv.debug true
-#kelpie.lkv.max_capacity 32M
 
 # We start/stop multiple times (which lunasa's tcmalloc does not like), so
 # we have to switch to a plain malloc allocator
@@ -87,15 +86,20 @@ TEST_F(LocalKVTest, basics){
 
   //Store things in random order
   random_shuffle(ids.begin(), ids.end());
-  for(vector<pair<int,int>>::iterator it=ids.begin(); it!=ids.end(); ++it){
-    setBuf(buf, bufsize, owner.bid, it->first, it->second);
+  for(auto i_j : ids) {
+    setBuf(buf, bufsize, owner.bid, i_j.first, i_j.second);
 
-    lunasa::DataObject ldo(0, bufsize*sizeof(int), lunasa::DataObject::AllocatorType::eager);
+    lunasa::DataObject ldo(bufsize*sizeof(int));
 
     memcpy(ldo.GetDataPtr(), buf, bufsize*sizeof(int));
-    Key key=KeyGen<int,int>(it->first, it->second);
-    rc = lkv->put(owner, key, ldo, PoolBehavior::DefaultBaseClass, nullptr, nullptr);
+    Key key=KeyGen<int,int>(i_j.first, i_j.second);
+    object_info_t info;
+    rc = lkv->put(owner, key, ldo, PoolBehavior::DefaultBaseClass, nullptr, &info);
     EXPECT_EQ(KELPIE_OK,rc);
+    EXPECT_EQ(Availability::InLocalMemory, info.col_availability);
+    //EXPECT_EQ(ldo.GetUserCapacity(), info.col_user_bytes);
+    EXPECT_EQ(bufsize*sizeof(int), info.col_user_bytes);
+    EXPECT_GE(ldo.GetUserCapacity(), info.col_user_bytes);  //Note: ldo may be allocated more, usually for alignment
   }
 
   memset(buf, 4, sizeof(buf));
@@ -104,14 +108,14 @@ TEST_F(LocalKVTest, basics){
 
   //Pull things out in a different random order
   random_shuffle(ids.begin(), ids.end());
-  for(vector<pair<int,int>>::iterator it=ids.begin(); it!=ids.end(); ++it){
+  for(auto i_j : ids) {
     size_t ret_size=0;
 
-    rc = lkv->getData(owner, KeyGen<int,int>(it->first,it->second), (void *)buf, sizeof(buf), &ret_size, nullptr, nullptr);
+    rc = lkv->getData(owner, KeyGen<int,int>(i_j.first,i_j.second), (void *)buf, sizeof(buf), &ret_size, nullptr);
     EXPECT_EQ(KELPIE_OK,rc);
     EXPECT_EQ(ret_size, sizeof(buf));
 
-    rc = checkBuf(buf, bufsize, owner.bid, it->first, it->second);
+    rc = checkBuf(buf, bufsize, owner.bid, i_j.first, i_j.second);
     EXPECT_EQ(0,rc);
 
   }
@@ -150,7 +154,7 @@ TEST_F(LocalKVTest, ldoRefCount){
 
   //Get a reference from lkv That makes 4 references
   lunasa::DataObject ldo3_lkv;
-  rc = lkv->get(owner, Key("booya"), &ldo3_lkv, nullptr, nullptr); EXPECT_EQ(KELPIE_OK, rc);
+  rc = lkv->get(owner, Key("booya"), &ldo3_lkv, nullptr); EXPECT_EQ(KELPIE_OK, rc);
   int *x3 = ldo3_lkv.GetDataPtr<int *>();
   ref_count = ldo1.internal_use_only.GetRefCount();
   EXPECT_EQ(x3[0], x[0]);
@@ -194,7 +198,7 @@ TEST_F(LocalKVTest, access){
       for(int c=0; c<10; c++){
         size_t ret_size=0;
 
-        rc = lkv->getData(owners[i], KeyGen<int,int>(r,c), (void *)buf, sizeof(buf), &ret_size, nullptr, nullptr);
+        rc = lkv->getData(owners[i], KeyGen<int,int>(r,c), (void *)buf, sizeof(buf), &ret_size, nullptr);
         EXPECT_EQ(KELPIE_OK,rc);
         EXPECT_EQ(ret_size, sizeof(buf));
 
@@ -211,7 +215,7 @@ TEST_F(LocalKVTest, access){
     for(int r=0; r<10; r++)
       for(int c=0; c<10; c++){
         size_t ret_size=0;
-        rc = lkv->getData(b, KeyGen<int,int>(r,c), (void *)buf, sizeof(buf), &ret_size, nullptr,nullptr);
+        rc = lkv->getData(b, KeyGen<int,int>(r,c), (void *)buf, sizeof(buf), &ret_size, nullptr);
         EXPECT_EQ(KELPIE_ENOENT,rc);
       }
   }
@@ -229,15 +233,15 @@ TEST_F(LocalKVTest, IgnoreWrites) {
   //LKV Should only do a write if the WriteToLocal bit is set. It still checks dependencies, but otherwise returns w/ no entry
   rc = lkv->put(bucket, k1, ldo1, PoolBehavior::NoAction,      nullptr, nullptr ); EXPECT_EQ(KELPIE_ENOENT, rc);
   rc = lkv->put(bucket, k1, ldo1, PoolBehavior::WriteToRemote, nullptr, nullptr ); EXPECT_EQ(KELPIE_ENOENT, rc);
-  rc = lkv->put(bucket, k1, ldo1, PoolBehavior::WriteToIOM,    nullptr, nullptr ); EXPECT_EQ(KELPIE_ENOENT, rc);
+  rc = lkv->put(bucket, k1, ldo1, PoolBehavior::WriteToIOM,    nullptr, nullptr ); EXPECT_EQ(KELPIE_EIO, rc);
 
   //Double check there's no data
-  rc = lkv->get(bucket, k1, &ldo_return, nullptr, nullptr);                        EXPECT_EQ(KELPIE_ENOENT, rc);
+  rc = lkv->get(bucket, k1, &ldo_return, nullptr);                                 EXPECT_EQ(KELPIE_ENOENT, rc);
 
 
   //Make sure a local write works
   rc = lkv->put(bucket, k1, ldo1, PoolBehavior::WriteToLocal,  nullptr, nullptr ); EXPECT_EQ(KELPIE_OK, rc);
-  rc = lkv->get(bucket, k1, &ldo_return, nullptr, nullptr);                        EXPECT_EQ(KELPIE_OK, rc);
+  rc = lkv->get(bucket, k1, &ldo_return, nullptr);                                 EXPECT_EQ(KELPIE_OK, rc);
   EXPECT_EQ(1024, ldo_return.GetUserSize());
 
 }
@@ -263,7 +267,7 @@ TEST_F(LocalKVTest, ListRowStar) {
 
   { //Get thing*|"" (four rows)
     ObjectCapacities oc;
-    rc = lkv->list(bucket, kelpie::Key("thing*"), &oc);
+    rc = lkv->list(bucket, kelpie::Key("thing*"), nullptr, &oc);
     EXPECT_EQ(KELPIE_OK, rc);
     EXPECT_EQ(oc.keys.size(), oc.capacities.size());
     EXPECT_EQ(4, oc.keys.size());
@@ -276,7 +280,7 @@ TEST_F(LocalKVTest, ListRowStar) {
 
   { //Get specific row/col: "thing3|"
     ObjectCapacities oc;
-    rc = lkv->list(bucket, kelpie::Key("thing3"), &oc);
+    rc = lkv->list(bucket, kelpie::Key("thing3"), nullptr, &oc);
     EXPECT_EQ(KELPIE_OK, rc);
     EXPECT_EQ(oc.keys.size(), oc.capacities.size());
     EXPECT_EQ(1, oc.keys.size());
@@ -325,7 +329,7 @@ TEST_F(LocalKVTest, ListRowColStars) {
   exact_keys.push_back(Key("some",   "thing4"));
   for(auto k : exact_keys) {
     ObjectCapacities oc;
-    rc = lkv->list(bucket, k, &oc);
+    rc = lkv->list(bucket, k, nullptr, &oc);
     EXPECT_EQ(KELPIE_OK, rc);
     EXPECT_EQ(1, oc.keys.size()); EXPECT_EQ(1, oc.capacities.size());
     if((oc.keys.size()==1) && (oc.capacities.size() == 1)) {
@@ -341,7 +345,7 @@ TEST_F(LocalKVTest, ListRowColStars) {
   missing_keys.push_back(Key("Xname",  "Xthing3")); //bad row/col
   for(auto k : missing_keys) {
     ObjectCapacities oc;
-    rc = lkv->list(bucket, k, &oc);
+    rc = lkv->list(bucket, k, nullptr, &oc);
     EXPECT_EQ(KELPIE_ENOENT, rc);
     EXPECT_EQ(0, oc.keys.size()); EXPECT_EQ(0,oc.capacities.size());
   }
@@ -349,7 +353,7 @@ TEST_F(LocalKVTest, ListRowColStars) {
 
   { //Exact Row, Col*
     ObjectCapacities oc;
-    rc = lkv->list(bucket, Key("go", "thing*"), &oc);
+    rc = lkv->list(bucket, Key("go", "thing*"), nullptr, &oc);
     EXPECT_EQ(KELPIE_OK, rc);
     EXPECT_EQ(4, oc.keys.size()); EXPECT_EQ(4,oc.capacities.size());
     vector<string> found_cols;
@@ -367,7 +371,7 @@ TEST_F(LocalKVTest, ListRowColStars) {
 
   { //Row*, Exact col
     ObjectCapacities oc;
-    rc = lkv->list(bucket, Key("so*", "thing3"), &oc);
+    rc = lkv->list(bucket, Key("so*", "thing3"), nullptr, &oc);
     EXPECT_EQ(KELPIE_OK, rc);
     EXPECT_EQ(2, oc.keys.size()); EXPECT_EQ(2,oc.capacities.size());
     vector<string> found_rows;
@@ -384,7 +388,7 @@ TEST_F(LocalKVTest, ListRowColStars) {
 
   { //Row*, Col*
     ObjectCapacities oc;
-    rc = lkv->list(bucket, Key("so*", "thing*"), &oc);
+    rc = lkv->list(bucket, Key("so*", "thing*"), nullptr, &oc);
     EXPECT_EQ(KELPIE_OK, rc);
     EXPECT_EQ(8, oc.keys.size()); EXPECT_EQ(8,oc.capacities.size());
     vector<string> found_rows;
@@ -404,5 +408,243 @@ TEST_F(LocalKVTest, ListRowColStars) {
     EXPECT_TRUE( (found_cols==expected_cols));
   }
 
+}
+
+TEST_F(LocalKVTest, DropIndividual) {
+
+  int rc;
+  bucket_t bucket("bucky");
+
+  string row_names[] = {"some", "random", "column", "names", "go", "heree", "sowhat"};
+
+  string col_names[] = {"nothing1", "nothing2", "nothing3", "nothing4",
+                        "thing1", "thing2", "thing3",
+                        "nothing5", "nothing6",
+                        "",
+                        "thing4"};
+
+  map<kelpie::Key, int> keymap_sizes; //records how big the ldo is
+
+  //Insert a bunch or keys into lkv
+  int i = 0;
+  for(auto r : row_names) {
+    for(auto c : col_names) {
+      Key k(r, c);
+      lunasa::DataObject ldo(100 + i);
+      rc = lkv->put(bucket, k, ldo, PoolBehavior::WriteToLocal, nullptr, nullptr);
+      EXPECT_EQ(KELPIE_OK, rc);
+      keymap_sizes[k] = 100 + i;
+      i++;
+    }
+  }
+
+
+
+  //Try dropping each one
+  for(auto &key_size : keymap_sizes) {
+    //Verify object is there
+    //cout <<"Key is "<<key_size.first.str()<<" size is "<<key_size.second<<endl;
+    ObjectCapacities oc;
+    rc = lkv->list(bucket, key_size.first, nullptr, &oc);
+
+    EXPECT_EQ(KELPIE_OK, rc);
+    EXPECT_EQ(1, oc.keys.size());
+    EXPECT_EQ(1, oc.capacities.size());
+    if(oc.capacities.size()==1) {
+      EXPECT_EQ(key_size.second, oc.capacities[0]);
+    }
+    //Drop it
+    rc = lkv->drop(bucket,key_size.first);
+    EXPECT_EQ(KELPIE_OK, rc);
+
+    //Make sure it doesn't show up
+    oc.Wipe();
+    rc = lkv->list(bucket, key_size.first, nullptr, &oc);
+
+    EXPECT_EQ(KELPIE_ENOENT, rc);
+    EXPECT_EQ(0, oc.capacities.size());
+    //cout<<lkv->str(10);
+
+  }
 
 }
+
+TEST_F(LocalKVTest, DropRow) {
+
+  int rc;
+  bucket_t bucket("bucky");
+
+  string row_names[] = {"ignore", "random", "row1", "bob", "row2", "go","stuff1","stuff2"};
+
+  string col_names[] = {"nothing1", "nothing2", "nothing3", "nothing4",
+                        "thing1", "thing2", "thing3",
+                        "nothing5", "nothing6",
+                        "",
+                        "thing4"};
+
+  map<kelpie::Key, int> keymap_sizes; //records how big the ldo is
+
+  //Insert a bunch or keys into lkv
+  int i = 0;
+  for(auto r : row_names) {
+    for(auto c : col_names) {
+      Key k(r, c);
+      lunasa::DataObject ldo(100 + i);
+      rc = lkv->put(bucket, k, ldo, PoolBehavior::WriteToLocal, nullptr, nullptr);
+      EXPECT_EQ(KELPIE_OK, rc);
+      keymap_sizes[k] = 100 + i;
+      i++;
+    }
+  }
+
+  //Remove some columns
+  {
+    kelpie::Key k1("bob", "thing*");
+    ObjectCapacities oc;
+    rc = lkv->drop(bucket, k1);      EXPECT_EQ(KELPIE_OK, rc);
+    rc = lkv->list(bucket, k1, nullptr, &oc); EXPECT_EQ(KELPIE_ENOENT, rc);
+    rc = lkv->list(bucket, kelpie::Key("bob","*"), nullptr, &oc); EXPECT_EQ(KELPIE_OK, rc);
+    EXPECT_EQ(7, oc.capacities.size());
+  }
+
+  //Remove all columns
+  {
+    kelpie::Key k1("go", "*");
+    ObjectCapacities oc;
+    rc = lkv->drop(bucket, k1);      EXPECT_EQ(KELPIE_OK, rc);
+    rc = lkv->list(bucket, k1, nullptr, &oc); EXPECT_EQ(KELPIE_ENOENT, rc);
+    rc = lkv->list(bucket, kelpie::Key("go","*"), nullptr, &oc);
+    EXPECT_EQ(KELPIE_ENOENT, rc);
+    EXPECT_EQ(0, oc.capacities.size());
+  }
+
+  //Remove some columns on multiple rows
+  {
+    kelpie::Key k1("stuff*", "thing*");
+    ObjectCapacities oc;
+    rc = lkv->drop(bucket, k1);      EXPECT_EQ(KELPIE_OK, rc);
+    rc = lkv->list(bucket, k1, nullptr, &oc); EXPECT_EQ(KELPIE_ENOENT, rc);
+    rc = lkv->list(bucket, kelpie::Key("stuff*","*"), nullptr, &oc);
+    EXPECT_EQ(KELPIE_OK, rc);
+    EXPECT_EQ(14, oc.capacities.size());
+  }
+
+  //Remove all columns on multiple rows
+  {
+    kelpie::Key k1("stuff*", "*");
+    ObjectCapacities oc;
+    rc = lkv->drop(bucket, k1);      EXPECT_EQ(KELPIE_OK, rc);
+    rc = lkv->list(bucket, k1, nullptr, &oc); EXPECT_EQ(KELPIE_ENOENT, rc);
+  }
+
+}
+
+TEST_F(LocalKVTest, GetRowStar) {
+
+  int rc;
+  bucket_t bucket("bucky");
+
+  string row_names[] = {"some", "random", "column", "names", "go", "heree", "sowhat"};
+
+  string col_names[] = {"nothing1", "nothing2", "nothing3", "nothing4",
+                        "thing1", "thing2", "thing3",
+                        "nothing5", "nothing6",
+                        "",
+                        "thing4"};
+
+  map<kelpie::Key, string> keymap_encodes; //records the name of the key into the ldo
+
+  //Insert a bunch or keys into lkv
+  int i = 0;
+  for(auto r : row_names) {
+    for(auto c : col_names) {
+      Key k(r,c);
+
+      string enc = k.pup();
+      lunasa::DataObject ldo(enc.size());
+      memcpy(ldo.GetDataPtr(), enc.c_str(), enc.size());
+      keymap_encodes[k] = enc;
+
+      rc = lkv->put(bucket, k, ldo, PoolBehavior::WriteToLocal, nullptr, nullptr);
+      EXPECT_EQ(KELPIE_OK, rc);
+      i++;
+    }
+  }
+
+  //Good keys: Look for a list of exact matches
+  vector<kelpie::Key> exact_keys;
+  exact_keys.push_back(Key("names", "thing3"));
+  exact_keys.push_back(Key("random","nothing1"));
+  exact_keys.push_back(Key("go",    ""));
+  exact_keys.push_back(Key("some",   "thing4"));
+  for(auto k : exact_keys) {
+    std::map<Key, lunasa::DataObject> ldos;
+    rc = lkv->getAvailable(bucket, k, ldos);
+    EXPECT_EQ(KELPIE_OK, rc);
+    EXPECT_EQ(1, ldos.size());
+    if(ldos.size()==1) {
+      EXPECT_EQ( k, ldos.begin()->first);
+      auto tmp_ldo = ldos.begin()->second;
+      string s1(tmp_ldo.GetDataPtr<char *>(), tmp_ldo.GetDataSize());
+      EXPECT_EQ(keymap_encodes[k], s1);
+    }
+  }
+
+  { //Simple wildcard
+    Key kstar("names", "thing*");
+    vector<Key> expected_keys;
+    for(int i = 1; i < 5; i++) expected_keys.push_back(Key("names", "thing"+to_string(i)));
+
+    std::map<Key, lunasa::DataObject> ldos;
+    rc = lkv->getAvailable(bucket, kstar, ldos);
+    EXPECT_EQ(KELPIE_OK, rc);
+    EXPECT_EQ(4, ldos.size());
+    if(ldos.size() == 4) {
+      for(auto &k : expected_keys) {
+        //cout << "Checking " << k.str() << "\n";
+        EXPECT_EQ(1, ldos.count(k));
+        if(ldos.count(k) == 1) {
+          auto tmp_ldo = ldos[k];
+          string s1(tmp_ldo.GetDataPtr<char *>(), tmp_ldo.GetDataSize());
+          EXPECT_EQ(keymap_encodes[k], s1);
+        }
+      }
+    }
+
+  }
+
+  { //Get all cols in a row
+    Key kstar2 = Key("names", "*");
+    vector<Key> expected_keys2;
+    for(auto c: col_names)
+      expected_keys2.push_back( Key("names", c) );
+    std::map<Key, lunasa::DataObject> ldos2;
+    rc = lkv->getAvailable(bucket, kstar2, ldos2);
+    EXPECT_EQ(KELPIE_OK, rc);
+    EXPECT_EQ(11, ldos2.size());
+    if(ldos2.size()==11) {
+      for(auto &k : expected_keys2) {
+        //cout <<"Checking "<<k.str()<<"\n";
+        EXPECT_EQ(1, ldos2.count(k) );
+        if(ldos2.count(k)==1) {
+          auto tmp_ldo = ldos2[k];
+          string s1(tmp_ldo.GetDataPtr<char *>(), tmp_ldo.GetDataSize());
+          EXPECT_EQ(keymap_encodes[k], s1);
+        }
+      }
+    }
+  }
+
+  { //Check none
+    vector<Key> bogus = { Key("bogus"), Key("some","nocol"), Key("foo","bar")};
+    for(auto &k : bogus) {
+      std::map<Key, lunasa::DataObject> ldos;
+      rc = lkv->getAvailable(bucket, k, ldos);
+      EXPECT_EQ(KELPIE_ENOENT, rc);
+      EXPECT_EQ(0, ldos.size());
+    }
+  }
+
+
+}
+

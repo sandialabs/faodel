@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 /**
  * @file DataObject.hh
@@ -141,9 +141,10 @@ public:
 
   /* GET size of LDO segments */
   uint32_t GetLocalHeaderSize() const;   //Size of local bookkeeping
-  uint32_t GetHeaderSize() const;        //Header (contains tag, meta, and data lengths)
+  static uint32_t GetHeaderSize();       //Header (contains tag, meta, and data lengths)
   uint32_t GetMetaSize() const;          //Meta size reported in header
   uint32_t GetDataSize() const;          //Data size reported in header
+  uint32_t GetPaddingSize() const;       //Number of padding bytes to ensure aligned length
   uint32_t GetUserSize() const;          //Meta + Data
   uint32_t GetWireSize() const;          //Header+Meta+Data
   uint32_t GetRawAllocationSize() const; //Local bookkeeping's allocated bytes for header+meta+data (rare)
@@ -153,10 +154,10 @@ public:
 
   /* Get RDMA handles */
 
-  /*! @brief Class describing the characterisitics of a memory segment
+  /*! @brief Class describing the characteristics of a memory segment
    * 
    *  LDOs that are created from memory that was not allocated by Lunasa will be comprised
-   *  of two (likely) discontinous memory regions.  An instance of this class will be used
+   *  of two (likely) discontinuous memory regions.  An instance of this class will be used
    *  to describe each. 
    *
    *  \sa DataObject::GetXXXXRdmaHandles() */
@@ -215,7 +216,7 @@ public:
   int DeepCompare(const DataObject &other) const;
 
   //InfoInterface
-  void sstr(std::stringstream &ss, int depth=0, int indent=0) const;
+  void sstr(std::stringstream &ss, int depth=0, int indent=0) const override;
 
 private:
   // Pointer to STRUCTURE that represents the "beginning" of the data object.

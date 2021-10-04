@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #include "gtest/gtest.h"
 //#include <mpi.h>
@@ -24,7 +24,6 @@ string default_config = R"EOF(
 default.kelpie.core_type nonet
 
 #lkv settings for the server
-server.max_capacity 32M
 server.mutex_type   rwlock
 
 lunasa.eager_memory_manager tcmalloc
@@ -122,7 +121,7 @@ void *fixed_allocation(void *arg, unsigned long allocation_size) {
   map<string, test_results_t> *results = (map<string, test_results_t> *) arg;
 
   DataObject *allocs = new DataObject[ops];
-  char buffer[BUFFER_LENGTH];
+  //char buffer[BUFFER_LENGTH];
   test_results_t r;
 
   while(num_bytes[i]>0) {
@@ -276,7 +275,7 @@ void process_alloc_results(alloc_test_results_t &results, string prefix, string 
   double total_time = 0.0;
   long total_operations = 0;
   long total_bytes = 0;
-  for(int i = 0; i<results.size(); i++) {
+  for(long unsigned int i = 0; i<results.size(); i++) {
     test_results_t r = results[i].at(key);
     total_time += r.elapsed_time;
     total_operations += r.num_operations;
@@ -400,7 +399,7 @@ void *preloaded_allocation(void *arg) {
 
     // Preload
     if(thread_id == 0) cout << "preloading..." << flush;
-    for(int j = 0; j<num_preloaded_allocs; j++) {
+    for(long unsigned int j = 0; j<num_preloaded_allocs; j++) {
       preloaded_allocs[j] = DataObject(0, preloaded_alloc_size, DataObject::AllocatorType::eager);
     }
     if(thread_id == 0) cout << "done" << endl;
@@ -434,7 +433,7 @@ void process_preload_results(preload_test_results_t &results, string prefix, str
   double total_time = 0.0;
   long total_operations = 0;
   long total_bytes = 0;
-  for(int i = 0; i<results.size(); i++) {
+  for(long unsigned int i = 0; i<results.size(); i++) {
     test_results_t r = results[i].at(key);
     total_time += r.elapsed_time;
     total_operations += r.num_operations;

@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #include <iostream>
 #include <assert.h>
@@ -232,7 +232,13 @@ int main(int argc, char **argv){
     MPI_Comm_size(MPI_COMM_WORLD, &mpi_size);
 
     /* Currently, only works for two MPI ranks: one sender and one receiver. */
-    assert(2==mpi_size);
+    if(mpi_size==1) {
+      std::cerr<<"This example needs to be run with multiple mpi ranks\n";
+      faodel::bootstrap::Finish();
+      MPI_Finalize();
+      return -1;
+    }
+
 
     /* 
      * The value of <nodeid> allows us to tell NNTI which process we want to connect to.

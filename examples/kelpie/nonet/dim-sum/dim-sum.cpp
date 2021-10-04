@@ -1,11 +1,11 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
-// Example: kelpie local pool basics
-// Purpose:
+// Example: dim-sum
+// Purpose: Create a number of producer and consumer threads that pass data through a local kelpie
 //
-// Keypoints
+// Keypoints: Shows how to use Kelpie to pass events between threads
 
 
 #include <iostream>
@@ -21,6 +21,7 @@ std::string default_config_string = R"EOF(
 
 # For local testing, tell kelpie to use the nonet implementation
 kelpie.type nonet
+dirman.type none
 
 # Uncomment these options to get debug info for each component
 #bootstrap.debug true
@@ -53,6 +54,7 @@ int main(){
   for(int i=0; i<num_producers; i++){ workers.push_back( new Producer(url, i, num_producers, num_timesteps) ); }
   for(int i=0; i<num_consumers; i++){ workers.push_back( new Consumer(url, i, num_producers, num_consumers, num_timesteps) ); }
 
+  //Start all the workers
   for(auto &wptr : workers){
     wptr->Start();
   }
@@ -61,9 +63,6 @@ int main(){
   for(auto &wptr : workers){
     wptr->Join();
   }
-
-
-
 
   cout <<"Finishing..\n";
   faodel::bootstrap::Finish();

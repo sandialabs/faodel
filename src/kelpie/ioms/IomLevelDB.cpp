@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #include <string>
 #include <map>
@@ -69,14 +69,19 @@ leveldb::DB * IomLevelDB::bucketToDB(faodel::bucket_t &bkt) {
 }
 
 
-void IomLevelDB::WriteObject(faodel::bucket_t bucket,
-                        const kelpie::Key &key,
-                        const lunasa::DataObject &ldo) {
-  WriteObjects(bucket, {kvpair(key, ldo)});
+rc_t IomLevelDB::WriteObject(faodel::bucket_t bucket,
+                             const kelpie::Key &key,
+                             const lunasa::DataObject &ldo) {
+  try {
+    internal_WriteObject(bucket, {kvpair(key, ldo)});
+    return 0;
+  } catch (std::runtime_error &e) {
+    return 1;
+  }
 }
 
-void IomLevelDB::WriteObjects(faodel::bucket_t bucket,
-                         const std::vector<kvpair> &kvpairs) {
+void IomLevelDB::internal_WriteObject(faodel::bucket_t bucket,
+                                      const std::vector<kvpair> &kvpairs) {
   leveldb::WriteBatch batch;
   size_t wr_amt = 0;
 
@@ -104,7 +109,7 @@ void IomLevelDB::WriteObjects(faodel::bucket_t bucket,
 
   leveldb::Status status = db->Write(leveldb::WriteOptions(), &batch);
   if(not status.ok()) {
-    std::cerr << "leveldb write failed: " << status.ToString() << std::endl;
+    throw std::runtime_error("IomLevelDB::leveldb write failed: " + status.ToString());
   } else {
     stat_wr_requests += kvpairs.size();
     stat_wr_bytes += wr_amt;
@@ -138,22 +143,22 @@ rc_t IomLevelDB::ReadObject(faodel::bucket_t bucket,
   return rc;
 }
 
-rc_t IomLevelDB::ReadObjects(faodel::bucket_t bucket,
-                        std::vector<kelpie::Key> &keys,
-                        std::vector<kvpair> *found_keys,
-                        std::vector<kelpie::Key> *missing_keys) {
-  for(auto &&k : keys) {
-    lunasa::DataObject ldo;
-    rc_t each_rc = ReadObject(bucket, k, &ldo);
-    if(each_rc == KELPIE_OK) {
-      found_keys->push_back({kvpair(k, ldo)});
-    } else {
-      missing_keys->push_back(k);
-    }
-  }
-
-  return KELPIE_OK;
-}
+//rc_t IomLevelDB::ReadObjects(faodel::bucket_t bucket,
+//                        std::vector<kelpie::Key> &keys,
+//                        std::vector<kvpair> *found_keys,
+//                        std::vector<kelpie::Key> *missing_keys) {
+//  for(auto &&k : keys) {
+//    lunasa::DataObject ldo;
+//    rc_t each_rc = ReadObject(bucket, k, &ldo);
+//    if(each_rc == KELPIE_OK) {
+//      found_keys->push_back({kvpair(k, ldo)});
+//    } else {
+//      missing_keys->push_back(k);
+//    }
+//  }
+//
+//  return KELPIE_OK;
+//}
 
 void IomLevelDB::sstr(std::stringstream &ss, int depth, int index) const {
   ss << std::string(index, ' ') + "IomLevelDB Path: " << path_ << std::endl;
@@ -214,31 +219,29 @@ void IomLevelDB::AppendWebInfo(faodel::ReplyStream rs,
 }
 
 
-rc_t IomLevelDB::GetInfo(faodel::bucket_t bucket, const kelpie::Key &key, kv_col_info_t *col_info) {
+rc_t IomLevelDB::GetInfo(faodel::bucket_t bucket, const kelpie::Key &key, object_info_t *info) {
   rc_t rc;
   std::string val;
 
-  if(col_info not_eq nullptr)
-    col_info->Wipe();
+  if(info) info->Wipe();
 
   leveldb::DB *db = bucketToDB(bucket);
   leveldb::Status s = db->Get(leveldb::ReadOptions(), key.str(), &val);
   if(s.ok()) {
-    if(col_info not_eq nullptr) {
-      col_info->num_bytes = val.size();
-      col_info->availability = kelpie::Availability::InDisk;
+    if(info not_eq nullptr) {
+      info->col_user_bytes = val.size();
+      info->col_availability = kelpie::Availability::InDisk;
     }
     rc = KELPIE_OK;
   } else {
-    if(col_info not_eq nullptr) {
-      col_info->availability = kelpie::Availability::Unavailable;
+    if(info not_eq nullptr) {
+      info->col_availability = kelpie::Availability::Unavailable;
     }
     rc = KELPIE_ENOENT;
   }
 
   return rc;
 }
-
 
 } // namespace internal
 } // namespace kelpie

@@ -6,6 +6,10 @@ set(HEADERS_PUBLIC
     DataObject.hh
     Lunasa.hh
     common/Types.hh
+    common/DataObjectPacker.hh
+    common/Helpers.hh
+    common/GenericRandomDataBundle.hh
+    common/GenericSequentialDataBundle.hh
 )
 
 
@@ -17,6 +21,7 @@ set(HEADERS
     allocators/AllocatorMalloc.hh
     allocators/AllocatorUnconfigured.hh
     common/Allocation.hh
+    common/DataObjectPacker.hh
     common/GenericRandomDataBundle.hh
     common/GenericSequentialDataBundle.hh
     common/DataObjectTypeRegistry.hh
@@ -35,6 +40,8 @@ set(SOURCES
     allocators/AllocatorMalloc.cpp
     allocators/AllocatorUnconfigured.cpp
     common/DataObjectTypeRegistry.cpp
+    common/DataObjectPacker.cpp
+    common/Helpers.cpp
     core/LunasaCoreBase.cpp
     core/LunasaCoreSplit.cpp
     core/LunasaCoreUnconfigured.cpp
@@ -67,7 +74,7 @@ install(TARGETS lunasa
   )
 
 install( FILES DataObject.hh Lunasa.hh DESTINATION ${INCLUDE_INSTALL_DIR}/faodel/lunasa )
-install( FILES common/Types.hh DESTINATION ${INCLUDE_INSTALL_DIR}/faodel/lunasa/common )
+install( FILES common/Types.hh common/DataObjectPacker.hh common/Helpers.hh common/GenericRandomDataBundle.hh common/GenericSequentialDataBundle.hh DESTINATION ${INCLUDE_INSTALL_DIR}/faodel/lunasa/common )
 
 
 #-----------------------------------------

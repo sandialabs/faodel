@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 
 #include "faodel-common/StringHelpers.hh"
@@ -24,57 +24,23 @@ string availability_to_string(const Availability &a){
   }
 }
 
-/**
- * @brief Clear out all data values in this data structure
- */
-void kv_row_info_t::Wipe(){
-  row_bytes=0;
-  num_cols_in_row=num_row_receiver_nodes=num_row_dependencies=0;
-  availability = Availability::Unavailable;
+
+void object_info_t::Wipe() {
+  row_user_bytes=row_num_columns=col_user_bytes=col_dependencies=0;
+  col_availability = Availability::Unavailable;
 }
-
-string kv_row_info_t::str(){
+string object_info_t::str() const {
   std::stringstream ss;
-  ss<<"RowInfo: "
-    <<" RowCols: "             << num_cols_in_row
-    <<" RowBytes: "            << row_bytes
-    <<" Availability: "        << availability_to_string(availability)
-    <<" WaitingNodes: "        << num_row_receiver_nodes
-    <<" WaitingFunctions: "    << num_row_dependencies;
-
+  ss<<"RowBytes: "<<row_user_bytes
+  <<" NumCols: "<<row_num_columns
+  <<" ColBytes: "<<col_user_bytes
+  <<" ColDepenencies: "<<col_dependencies
+  <<" Availability: " << availability_to_string(col_availability);
   return ss.str();
 }
-
-
-void kv_row_info_t::ChangeAvailabilityFromLocalToRemote(){
-  if(availability == Availability::InLocalMemory)
-    availability = Availability::InRemoteMemory;
-}
-
-/**
- * @brief Clear out all data values in this data structure
- */
-void kv_col_info_t::Wipe(){
-  node_origin=faodel::NODE_UNSPECIFIED;
-  num_bytes=0;
-  num_col_receiver_nodes=num_col_dependencies=0;
-  availability = Availability::Unavailable;
-}
-
-string kv_col_info_t::str(){
-  std::stringstream ss;
-  ss<<"ColInfo: "
-    <<" Origin: "             << node_origin.GetHex()
-    <<" NumBytes: "           << std::dec << num_bytes
-    <<" WaitingNodes: "       << num_col_receiver_nodes
-    <<" LocalDependencies: "  << num_col_dependencies
-    <<" Availability: "       << availability_to_string(availability);
-  return ss.str();
-}
-
-void kv_col_info_t::ChangeAvailabilityFromLocalToRemote(){
-  if(availability == Availability::InLocalMemory)
-    availability = Availability::InRemoteMemory;
+void object_info_t::ChangeAvailabilityFromLocalToRemote() {
+  if(col_availability == Availability::InLocalMemory)
+    col_availability = Availability::InRemoteMemory;
 }
 
 /**
@@ -114,9 +80,13 @@ pool_behavior_t PoolBehavior::ParseString(string parse_line) {
     else if (s=="writetoiom")        f |= PoolBehavior::WriteToIOM;
     else if (s=="readtolocal")       f |= PoolBehavior::ReadToLocal;
     else if (s=="readtoremote")      f |= PoolBehavior::ReadToRemote;
+    else if (s=="enableoverwrites")  f |= PoolBehavior::EnableOverwrites;
     else if (s=="writearound")       f |= PoolBehavior::WriteAround;
+    else if (s=="writememory")       f |= PoolBehavior::WriteToMemory;
     else if (s=="writeall")          f |= PoolBehavior::WriteToAll;
     else if (s=="readtonone")        f |= PoolBehavior::ReadToNone;
+    else if (s=="defaultlocal")      f |= PoolBehavior::DefaultLocal;
+    else if (s=="defaultremote")     f |= PoolBehavior::DefaultRemote;
     else if (s=="defaultiom")        f |= PoolBehavior::DefaultIOM;
     else if (s=="defaultlocaliom")   f |= PoolBehavior::DefaultLocalIOM;
     else if (s=="defaultremoteiom")  f |= PoolBehavior::DefaultRemoteIOM;
@@ -130,12 +100,12 @@ pool_behavior_t PoolBehavior::ParseString(string parse_line) {
 std::string PoolBehavior::GetString(pool_behavior_t f) {
   vector<string> names;
 
-  if(f & PoolBehavior:: WriteToLocal)  names.push_back("WriteToLocal");
-  if(f & PoolBehavior:: WriteToRemote) names.push_back("WriteToRemote");
-  if(f & PoolBehavior:: WriteToIOM)    names.push_back("WriteToIOM");
-  if(f & PoolBehavior:: ReadToLocal)   names.push_back("ReadToLocal");
-  if(f & PoolBehavior:: ReadToRemote)  names.push_back("ReadToRemote");
-  if(f & PoolBehavior:: ReadToLocal)   names.push_back("ReadToLocal");
+  if(f & PoolBehavior:: WriteToLocal)     names.emplace_back("WriteToLocal");
+  if(f & PoolBehavior:: WriteToRemote)    names.emplace_back("WriteToRemote");
+  if(f & PoolBehavior:: WriteToIOM)       names.emplace_back("WriteToIOM");
+  if(f & PoolBehavior:: ReadToLocal)      names.emplace_back("ReadToLocal");
+  if(f & PoolBehavior:: ReadToRemote)     names.emplace_back("ReadToRemote");
+  if(f & PoolBehavior:: EnableOverwrites) names.emplace_back("EnableOverwrites");
 
   string s = faodel::Join(names,' ');
   return s;

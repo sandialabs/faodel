@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 // Example: kelpie using-whookie
 // Purpose: Whookie provides an easy way to check on the status of different
@@ -23,6 +23,7 @@ std::string default_config_string = R"EOF(
 
 # For local testing, tell kelpie to use the nonet implementation
 kelpie.type nonet
+dirman.type none
 
 # Uncomment these options to get debug info for each component
 #bootstrap.debug true

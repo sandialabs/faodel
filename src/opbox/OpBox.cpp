@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #include <iostream>
 
@@ -82,6 +82,17 @@ void DeregisterOp(int id, bool ignore_lock_warning)                 {
 }
 
 /**
+ * @brief Consult the registry and determine the op name for a particular id
+ * @param[in] id The hash value of the operation name
+ * @retval NAME The name of the op
+ * @retval "" The id was not found in the registry
+ */
+string GetOpName(int id) {
+  return opbox::internal::Singleton::impl.registry.GetOpName(id);
+}
+
+
+/**
  * @brief Take ownership of an op a user has created and begin executing it
  *
  * @param[in] op An operation the user has created
@@ -97,6 +108,16 @@ int LaunchOp(Op *op, mailbox_t *mailbox) {
 
 int TriggerOp(mailbox_t mailbox, shared_ptr<OpArgs> args) {
   return opbox::internal::Singleton::impl.core->TriggerOp(mailbox, args);
+}
+
+/**
+ * @brief Determine how many ops are currently active in opbox
+ * @param op_id An optional Op ID that is used as a filter if nonzero
+ * @retval COUNT The number of ops
+ * @note This always returns a valid value, even if opbox is not in the started state
+ */
+int GetNumberOfActiveOps(unsigned int op_id) {
+  return opbox::internal::Singleton::impl.core->GetNumberOfActiveOps(op_id);
 }
 
 /**

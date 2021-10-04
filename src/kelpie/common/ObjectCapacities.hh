@@ -1,6 +1,6 @@
-// Copyright 2021 National Technology & Engineering Solutions of Sandia,
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,
-// the U.S. Government retains certain rights in this software.
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #ifndef FAODEL_OBJECTCAPACITIES_HH
 #define FAODEL_OBJECTCAPACITIES_HH
@@ -18,8 +18,8 @@ class ObjectCapacities :
 public:
 
   //Note: These data structures are plain vectors because some callers need to update capacities first, then set the keys
-  std::vector <kelpie::Key> keys;
-  std::vector <size_t> capacities;
+  std::vector<kelpie::Key> keys;
+  std::vector<size_t> capacities;
 
   /// Append a ket/capacity to this ObjectCapacities. Does NOT dedupe
   void Append(const kelpie::Key &key, size_t capacity);
@@ -31,7 +31,7 @@ public:
   void Wipe();
 
   /// How many entries are here
-  size_t Size() {  return keys.size();  }
+  size_t Size() const {  return keys.size();  }
 
   //Serialization hook
   template<typename Archive>

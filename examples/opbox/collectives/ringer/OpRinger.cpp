@@ -1,10 +1,12 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #include <assert.h>
 
-#include <boost/serialization/vector.hpp>
+#include <cereal/types/string.hpp>
+#include <cereal/types/vector.hpp>
+
 
 #include "opbox/common/MessageHelpers.hh"
 
@@ -27,8 +29,8 @@ OpRinger::OpRinger(RingInfo ring_info)
   //We'll need to convert this to a peer_ptr_t for send command
   peer = opbox::net::ConvertNodeIDToPeer(dst_node);
 
-  //We can use the standard boost request function to pack this message
-  opbox::AllocateBoostRequestMessage<RingInfo>(ldo_msg,
+  //We can use the standard cereal request function to pack this message
+  opbox::AllocateCerealRequestMessage<RingInfo>(ldo_msg,
                                         dst_node, GetAssignedMailbox(),
                                         op_id, 0,
                                         ring_info);
@@ -64,7 +66,7 @@ WaitingType OpRinger::UpdateOrigin(OpArgs *args) {
       //We expect to have received a message with RingInfo in it. Unpack
       //and send it back to the user via a promise
       auto msg = args->ExpectMessageOrDie<message_t *>();
-      auto ring_info = UnpackBoostMessage<RingInfo>(msg);
+      auto ring_info = UnpackCerealMessage<RingInfo>(msg);
       ring_promise.set_value(ring_info);
 
       state=State::done;
@@ -74,7 +76,7 @@ WaitingType OpRinger::UpdateOrigin(OpArgs *args) {
     return WaitingType::done_and_destroy;
   }
   //Shouldn't be here
-  KFAIL();
+  F_FAIL();
   return WaitingType::error;
 }
 
@@ -90,7 +92,7 @@ WaitingType OpRinger::UpdateTarget(OpArgs *args) {
 
       //New message should have a RingInfo we can use for locating next node
       auto msg = args->ExpectMessageOrDie<message_t *>();
-      auto ring_info = UnpackBoostMessage<RingInfo>(msg);
+      auto ring_info = UnpackCerealMessage<RingInfo>(msg);
 
       //Create a message for this node and add it to the ring
       int spot = ring_info.GetNumValues();
@@ -109,7 +111,7 @@ WaitingType OpRinger::UpdateTarget(OpArgs *args) {
       peer = opbox::net::ConvertNodeIDToPeer(next_node);
 
       //We're going to forward a request on to the next node, using origin's info
-      AllocateBoostMessage<RingInfo>(ldo_msg,
+      AllocateCerealMessage<RingInfo>(ldo_msg,
                                      msg->src, next_node,
                                      msg->src_mailbox, dst_mailbox,
                                      op_id, 0,
@@ -128,7 +130,7 @@ WaitingType OpRinger::UpdateTarget(OpArgs *args) {
     cout <<"Done waiting: "<<GetMyID().GetHex()<<endl;
     return WaitingType::done_and_destroy;
   }
-  KHALT("Missing state");
+  F_HALT("Missing state");
   return WaitingType::done_and_destroy;
 }
 
@@ -138,6 +140,6 @@ string OpRinger::GetStateName() const {
   case State::snd_wait_for_reply: return "Sender-WaitForReply";
   case State::done:               return "Done";
   }
-  KFAIL();
+  F_FAIL();
   return "Unknown";
 }

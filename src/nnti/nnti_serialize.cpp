@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #include "nnti/nntiConfig.h"
 
@@ -101,7 +101,6 @@ unpack_peer(
 #if NNTI_USE_XDR == 1
     XDR              decode_xdrs;
     xdrproc_t        decode_fn   = (xdrproc_t)&xdr_NNTI_peer_p_t;
-    NNTI_datatype_t *dt          = (NNTI_datatype_t*)packed_buf;
     uint64_t         dt_size     = sizeof(NNTI_peer_p_t);
     uint64_t         bytes_left  = packed_buflen;
 
@@ -210,7 +209,6 @@ unpack_buffer(
 #if NNTI_USE_XDR == 1
     XDR              decode_xdrs;
     xdrproc_t        decode_fn   = (xdrproc_t)&xdr_NNTI_buffer_p_t;
-    NNTI_datatype_t *dt          = (NNTI_datatype_t*)packed_buf;
     uint64_t         dt_size     = sizeof(NNTI_buffer_p_t);
     uint64_t         bytes_left  = packed_buflen;
 

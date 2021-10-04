@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 
 #ifndef MPI_TRANSPORT_HPP_
@@ -146,8 +146,7 @@ private:
     /**
      * @brief Initialize NNTI to use a specific transport.
      *
-     * \param[in]  my_url    A string that describes the transport parameters.
-     * \param[out] trans_hdl A handle to the activated transport.
+     * \param[in]  config    A Configuration object that NNTI should use to configure itself.
      * \return A result code (NNTI_OK or an error)
      *
      */
@@ -171,8 +170,6 @@ public:
     /**
      * @brief Indicates if a transport has been initialized.
      *
-     * \param[in]  trans_id  The ID of the transport to test.
-     * \param[out] is_init   1 if the transport is initialized, 0 otherwise.
      * \return A result code (NNTI_OK or an error)
      *
      */
@@ -199,7 +196,7 @@ public:
      *
      */
     NNTI_result_t
-    pid(NNTI_process_id_t *pid);
+    pid(NNTI_process_id_t *pid) override;
 
     /**
      * @brief Get attributes of the transport.
@@ -265,7 +262,7 @@ public:
      */
     NNTI_result_t
     eq_destroy(
-        NNTI_event_queue_t eq);
+        NNTI_event_queue_t eq) override;
 
     /**
      * @brief Wait for an event to arrive on an event queue.
@@ -273,6 +270,7 @@ public:
      * \param[in]  eq_list   A list of event queues to wait on.
      * \param[in]  eq_count  The number of event queues in the list.
      * \param[in]  timeout   The amount of time (in milliseconds) to wait.
+     * \param[out] which     The index of the EQ where the event occurred.
      * \param[out] event     The details of the event.
      * \return A result code (NNTI_OK or an error)
      */
@@ -289,7 +287,7 @@ public:
      *
      * \param[in]  dst_hdl        Buffer where the message is delivered.
      * \param[in]  dst_offset     Offset into dst_hdl where the message is delivered.
-     * \param[out] reseult_event  Event describing the message delivered to dst_hdl.
+     * \param[out] result_event   Event describing the message delivered to dst_hdl.
      * \return A result code (NNTI_OK or an error)
      */
     NNTI_result_t
@@ -301,10 +299,10 @@ public:
     /**
      * @brief Retrieves a specific message from the unexpected list.
      *
-     * \param[in]  unexpect_event  Event describing the message to retrieve.
-     * \param[in]  dst_hdl         Buffer where the message is delivered.
-     * \param[in]  dst_offset      Offset into dst_hdl where the message is delivered.
-     * \param[out] reseult_event   Event describing the message delivered to dst_hdl.
+     * \param[in]  unexpected_event  Event describing the message to retrieve.
+     * \param[in]  dst_hdl           Buffer where the message is delivered.
+     * \param[in]  dst_offset        Offset into dst_hdl where the message is delivered.
+     * \param[out] result_event      Event describing the message delivered to dst_hdl.
      * \return A result code (NNTI_OK or an error)
      */
     NNTI_result_t
@@ -358,7 +356,7 @@ public:
         nnti::datatype::nnti_event_callback  cb,
         void                                *cb_context,
         char                               **reg_ptr,
-        NNTI_buffer_t                       *reg_buf);
+        NNTI_buffer_t                       *reg_buf) override;
 
     /**
      * @brief Disables network operations on the block of memory and frees it.
@@ -405,8 +403,8 @@ public:
     /**
      * @brief Convert an NNTI peer to an NNTI_process_id_t.
      *
-     * \param[in]   peer  A handle to a peer that can be used for network operations.
-     * \param[out]  pid   Compact binary representation of a process's location on the network.
+     * \param[in]   peer_hdl  A handle to a peer that can be used for network operations.
+     * \param[out]  pid       Compact binary representation of a process's location on the network.
      * \return A result code (NNTI_OK or an error)
      */
     NNTI_result_t
@@ -417,8 +415,8 @@ public:
     /**
      * @brief Convert an NNTI_process_id_t to an NNTI peer.
      *
-     * \param[in]   pid   Compact binary representation of a process's location on the network.
-     * \param[out]  peer  A handle to a peer that can be used for network operations.
+     * \param[in]   pid       Compact binary representation of a process's location on the network.
+     * \param[out]  peer_hdl  A handle to a peer that can be used for network operations.
      * \return A result code (NNTI_OK or an error)
      */
     NNTI_result_t
@@ -516,7 +514,7 @@ public:
      * \return A result code (NNTI_OK or an error)
      */
     NNTI_result_t
-    interrupt();
+    interrupt() override;
 
 
     /**

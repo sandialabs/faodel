@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #ifndef OPBENCHMARKGET_HH
 #define OPBENCHMARKGET_HH
@@ -22,7 +22,10 @@ class OpBenchmarkGet
     enum class State : int  {
         start=0,
         snd_wait_for_ack,
-        tgt_created,
+        warm_up,
+        warm_up_wait,
+        start_benchmark,
+        execute_benchmark,
         done
     };
 
@@ -61,7 +64,7 @@ private:
     State state;
     opbox::net::peer_t *peer;
 
-    uint32_t warmup_count;  // the number of RDMAs to do before the timer starts
+    uint32_t warmup_count;     // the number of RDMAs to do before the timer starts
 
     uint32_t size;          // the size of each RDMA
     uint32_t count;         // the number of RDMAs this op must complete

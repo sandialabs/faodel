@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 //
 //  Test: mpi_kelpie_dht
@@ -9,6 +9,8 @@
 
 
 #include <mpi.h>
+#include <algorithm>
+#include <random>
 
 #include "gtest/gtest.h"
 
@@ -30,12 +32,13 @@ using namespace opbox;
 Globals G;
 
 //Parameters used in this experiment
+// Note: wante more than 10 for num_rows/cols so we can wildcard on 0* and 1*
 struct Params {
   int num_rows;
   int num_cols;
   int ldo_size;
 };
-Params P = { 8, 10, 20*1024 };
+Params P = { 16, 16, 20*1024 };
 
 
 
@@ -127,33 +130,19 @@ lunasa::DataObject generateLDO(int num_words, uint32_t start_val){
   return ldo;
 }
 
-bool ldosEqual(const lunasa::DataObject &ldo1, lunasa::DataObject &ldo2) {
-  if(ldo1.GetMetaSize() != ldo2.GetMetaSize()) { cout<<"Meta size mismatch\n"; return false; }
-  if(ldo1.GetDataSize() != ldo2.GetDataSize()) { cout<<"Data size mismatch\n"; return false; }
-
-  if(ldo1.GetMetaSize() > 0) {
-    auto *mptr1 = ldo1.GetMetaPtr<char *>();
-    auto *mptr2 = ldo2.GetMetaPtr<char *>();
-    for(int i=ldo1.GetMetaSize()-1; i>=0; i--)
-      if(mptr1[i] != mptr2[i]) { cout <<"Meta mismatch at offset "<<i<<endl; return false;}
-  }
-
-  if(ldo1.GetDataSize() > 0) {
-    auto *dptr1 = ldo1.GetDataPtr<char *>();
-    auto *dptr2 = ldo2.GetDataPtr<char *>();
-    for(int i=ldo1.GetDataSize()-1; i>=0; i--)
-      if(dptr1[i] != dptr2[i]) { cout <<"Data mismatch at offset "<<i<<endl; return false; }
-  }
-  return true;  
-}
-
 vector<pair<kelpie::Key,lunasa::DataObject>>  generateKVs(std::string prefix) {
 
   static int ldos_generated=0;
   vector<pair<kelpie::Key,lunasa::DataObject>> items;
   for(int i=0; i<P.num_rows; i++) {
     for(int j=0; j<P.num_cols; j++) {
-      kelpie::Key key("row_"+prefix+"_"+to_string(i), "col_"+prefix+"_"+to_string(j));
+
+      //Make sure row/cols have some leading zeros so we can wildcard them
+      stringstream ss_row, ss_col;
+      ss_row<<"row_"<<prefix<<"_"<<std::setw(2) << std::setfill('0') << i;
+      ss_col<<"col_"<<prefix<<"_"<<std::setw(2) << std::setfill('0') << j;
+
+      kelpie::Key key(ss_row.str(), ss_col.str());
       auto ldo = generateLDO( P.ldo_size/sizeof(int), (ldos_generated<<16));
       items.push_back( {key,ldo} ); 
       ldos_generated++;
@@ -174,7 +163,7 @@ vector<pair<kelpie::Key, lunasa::DataObject>> generateAndPublish(kelpie::Pool dh
   atomic<int> num_left(kvs.size());
   for(auto &kv : kvs) {
     rc = dht.Publish(kv.first, kv.second,
-                     [&num_left] (kelpie::rc_t result, kelpie::kv_row_info_t &ri, kelpie::kv_col_info_t &ci) {
+                     [&num_left] (kelpie::rc_t result, kelpie::object_info_t &ci) {
                        EXPECT_EQ(0, result);
                        num_left--;
                      } );
@@ -188,15 +177,15 @@ void checkInfo(kelpie::Pool dht, const vector<pair<kelpie::Key, lunasa::DataObje
                bool check_availability, kelpie::Availability expected_availability) {
 
   kelpie::rc_t rc;
-  kelpie::kv_col_info_t col_info;
+  kelpie::object_info_t info;
   for(auto &kv : kvs) {
-    rc = dht.Info(kv.first, &col_info);
+    rc = dht.Info(kv.first, &info);
     EXPECT_EQ(0, rc);
     //cout <<"Col info "<<col_info.str()<<endl;
     if(check_availability) {
-      EXPECT_EQ(expected_availability, col_info.availability);
+      EXPECT_EQ(expected_availability, info.col_availability);
     }
-    EXPECT_EQ(kv.second.GetMetaSize()+kv.second.GetDataSize(), col_info.num_bytes);
+    EXPECT_EQ(kv.second.GetMetaSize()+kv.second.GetDataSize(), info.col_user_bytes);
   }
 }
 void checkNeed(kelpie::Pool dht, const vector<pair<kelpie::Key, lunasa::DataObject>> &kvs) {
@@ -207,7 +196,7 @@ void checkNeed(kelpie::Pool dht, const vector<pair<kelpie::Key, lunasa::DataObje
     uint64_t expected_size= kv.second.GetUserSize();
     rc = dht.Need(kv.first, expected_size, &ldo); EXPECT_EQ(0, rc);
     EXPECT_EQ(kv.second.GetDataSize(), ldo.GetDataSize());
-    EXPECT_TRUE(ldosEqual(kv.second, ldo));    
+    EXPECT_EQ(0, kv.second.DeepCompare(ldo));
   }
 }
 void checkWantBounded(kelpie::Pool dht, const vector<pair<kelpie::Key, lunasa::DataObject>> &kvs) {
@@ -221,10 +210,9 @@ void checkWantBounded(kelpie::Pool dht, const vector<pair<kelpie::Key, lunasa::D
     uint64_t expected_size= kv.second.GetMetaSize() + kv.second.GetDataSize();
     rc = dht.Want(kv.first, expected_size,
                   [&num_left, &ldos, spot] (bool success, kelpie::Key key, lunasa::DataObject user_ldo,
-                                            const kelpie::kv_row_info_t &ri,
-                                            const kelpie::kv_col_info_t &ci) {
+                                            const kelpie::object_info_t &info) {
                                    EXPECT_TRUE(success);
-                                   EXPECT_EQ(kelpie::Availability::InLocalMemory, ci.availability);
+                                   EXPECT_EQ(kelpie::Availability::InLocalMemory, info.col_availability);
                                    ldos[spot]=user_ldo;
                                    num_left--;
                                } );
@@ -234,7 +222,7 @@ void checkWantBounded(kelpie::Pool dht, const vector<pair<kelpie::Key, lunasa::D
   while(num_left!=0) { sched_yield(); } //TODO: add a timeout
   spot=0;
   for(auto &kv : kvs) {
-    EXPECT_TRUE(ldosEqual(kv.second, ldos[spot]));
+    EXPECT_EQ(0, kv.second.DeepCompare(ldos[spot]));
     spot++;
   }
 
@@ -249,10 +237,9 @@ void checkWantUnbounded(kelpie::Pool dht, const vector<pair<kelpie::Key, lunasa:
   for(auto &kv : kvs) {
     rc = dht.Want(kv.first, 
                   [&num_left, &ldos, spot] (bool success, kelpie::Key key, lunasa::DataObject user_ldo,
-                                            const kelpie::kv_row_info_t &ri,
-                                            const kelpie::kv_col_info_t &ci) {
+                                            const kelpie::object_info_t &ci) {
                                    EXPECT_TRUE(success);
-                                   EXPECT_EQ(kelpie::Availability::InLocalMemory, ci.availability);
+                                   EXPECT_EQ(kelpie::Availability::InLocalMemory, ci.col_availability);
                                    ldos[spot]=user_ldo;
                                    num_left--;
                                    //cout<<"Unbound "<<key.str()<<" writing to spot "<<spot<<endl;
@@ -263,8 +250,7 @@ void checkWantUnbounded(kelpie::Pool dht, const vector<pair<kelpie::Key, lunasa:
   while(num_left!=0) { sched_yield(); } //TODO: add a timeout
   spot=0;
   for(auto &kv : kvs) {
-    bool ok = ldosEqual(kv.second, ldos[spot]);
-    EXPECT_TRUE(ok);
+    EXPECT_EQ(0, kv.second.DeepCompare((ldos[spot])));
     spot++;
   }
 
@@ -505,11 +491,11 @@ TEST_F(MPIDHTTest, ListTestSingle) {
   rc = dht.List(kelpie::Key("row_list_test1_1","*"), &oc );
   EXPECT_EQ(kelpie::KELPIE_OK, rc);
 
-  cout <<"Got list with num items="<<oc.keys.size()<<endl;
+  //cout <<"Got list with num items="<<oc.keys.size()<<endl;
 
-  for(int i=0;i<oc.keys.size(); i++) {
-    cout <<"  " << oc.keys[i].str() << oc.capacities[i]<<endl;
-  }
+  //for(int i=0;i<oc.keys.size(); i++) {
+  //  cout <<"  " << oc.keys[i].str() << oc.capacities[i]<<endl;
+  //}
 }
 
 TEST_F(MPIDHTTest, ListTestRowWildcardSingleSelf) {
@@ -524,7 +510,7 @@ TEST_F(MPIDHTTest, ListTestRowWildcardSingleSelf) {
   EXPECT_EQ(kelpie::KELPIE_OK, rc);
   EXPECT_EQ(P.num_rows*P.num_cols, oc.keys.size()); // rows x cols worth of data
   for(int i=0;i<oc.keys.size(); i++) {
-    cout << "  " << oc.keys[i].str() << "  " << oc.capacities[i] << endl;
+    //cout << "  " << oc.keys[i].str() << "  " << oc.capacities[i] << endl;
     EXPECT_EQ(P.ldo_size, oc.capacities[i]);
     EXPECT_TRUE( StringBeginsWith(oc.keys[i].K1(), "row_list_test2"));
     EXPECT_TRUE( StringBeginsWith(oc.keys[i].K2(), "col_list_test2"));
@@ -533,26 +519,26 @@ TEST_F(MPIDHTTest, ListTestRowWildcardSingleSelf) {
 
   //Query2: See if we get everything with col wildcard: "row_list_test2, *"
   kelpie::ObjectCapacities oc2;
-  rc = dht.List(kelpie::Key("row_list_test2_1","*"), &oc2 );
+  rc = dht.List(kelpie::Key("row_list_test2_01","*"), &oc2 );
   EXPECT_EQ(kelpie::KELPIE_OK, rc);
   EXPECT_EQ(P.num_cols, oc2.keys.size());  //Num cols worth of data
   for(int i=0;i<oc2.keys.size(); i++) {
-    cout << "  " << oc2.keys[i].str() << "  " << oc2.capacities[i] << endl;
+    //cout << "  " << oc2.keys[i].str() << "  " << oc2.capacities[i] << endl;
     EXPECT_EQ(P.ldo_size, oc2.capacities[i]);
-    EXPECT_EQ(   oc2.keys[i].K1(), "row_list_test2_1");
+    EXPECT_EQ(   oc2.keys[i].K1(), "row_list_test2_01");
     EXPECT_TRUE( StringBeginsWith(oc2.keys[i].K2(), "col_list_test2"));
   }
 
-  //Query3: See if we get a col wildcard: "*, col_list_test2_3
+  //Query3: See if we get a col wildcard: "*, col_list_test2_03
   kelpie::ObjectCapacities oc3;
-  rc = dht.List(kelpie::Key("row_list_test2*","col_list_test2_3"), &oc3 );
+  rc = dht.List(kelpie::Key("row_list_test2*","col_list_test2_03"), &oc3 );
   EXPECT_EQ(kelpie::KELPIE_OK, rc);
   EXPECT_EQ(P.num_rows, oc3.keys.size());  //Num cols worth of data
   for(int i=0;i<oc3.keys.size(); i++) {
-    cout << "  " << oc3.keys[i].str() << "  " << oc3.capacities[i] << endl;
+    //cout << "  " << oc3.keys[i].str() << "  " << oc3.capacities[i] << endl;
     EXPECT_EQ(P.ldo_size, oc3.capacities[i]);
     EXPECT_TRUE( StringBeginsWith( oc3.keys[i].K1(), "row_list_test2"));
-    EXPECT_EQ(oc3.keys[i].K2(), "col_list_test2_3");
+    EXPECT_EQ(oc3.keys[i].K2(), "col_list_test2_03");
   }
 
 }
@@ -570,38 +556,214 @@ TEST_F(MPIDHTTest, ListTestRowWildcardFull) {
   EXPECT_EQ(kelpie::KELPIE_OK, rc);
   EXPECT_EQ(P.num_rows*P.num_cols, oc.keys.size()); // rows x cols worth of data
   for(int i=0;i<oc.keys.size(); i++) {
-    cout << "  " << oc.keys[i].str() << "  " << oc.capacities[i] << endl;
+    //cout << "  " << oc.keys[i].str() << "  " << oc.capacities[i] << endl;
     EXPECT_EQ(P.ldo_size, oc.capacities[i]);
     EXPECT_TRUE( StringBeginsWith(oc.keys[i].K1(), "row_list_test3"));
     EXPECT_TRUE( StringBeginsWith(oc.keys[i].K2(), "col_list_test3"));
   }
 
-
   //Query2: See if we get everything with col wildcard: "row_list_test3, *"
   kelpie::ObjectCapacities oc2;
-  rc = dht.List(kelpie::Key("row_list_test3_1","*"), &oc2 );
+  rc = dht.List(kelpie::Key("row_list_test3_01","*"), &oc2 );
   EXPECT_EQ(kelpie::KELPIE_OK, rc);
   EXPECT_EQ(P.num_cols, oc2.keys.size());  //Num cols worth of data
   for(int i=0;i<oc2.keys.size(); i++) {
-    cout << "  " << oc2.keys[i].str() << "  " << oc2.capacities[i] << endl;
+    //cout << "  " << oc2.keys[i].str() << "  " << oc2.capacities[i] << endl;
     EXPECT_EQ(P.ldo_size, oc2.capacities[i]);
-    EXPECT_EQ(   oc2.keys[i].K1(), "row_list_test3_1");
+    EXPECT_EQ(   oc2.keys[i].K1(), "row_list_test3_01");
     EXPECT_TRUE( StringBeginsWith(oc2.keys[i].K2(), "col_list_test3"));
   }
 
   //Query3: See if we get a col wildcard: "*, col_list_test3_3
   kelpie::ObjectCapacities oc3;
-  rc = dht.List(kelpie::Key("row_list_test3*","col_list_test3_3"), &oc3 );
+  rc = dht.List(kelpie::Key("row_list_test3*","col_list_test3_03"), &oc3 );
   EXPECT_EQ(kelpie::KELPIE_OK, rc);
   EXPECT_EQ(P.num_rows, oc3.keys.size());  //Num cols worth of data
   for(int i=0;i<oc3.keys.size(); i++) {
-    cout << "  " << oc3.keys[i].str() << "  " << oc3.capacities[i] << endl;
+    //cout << "  " << oc3.keys[i].str() << "  " << oc3.capacities[i] << endl;
     EXPECT_EQ(P.ldo_size, oc3.capacities[i]);
     EXPECT_TRUE( StringBeginsWith( oc3.keys[i].K1(), "row_list_test3"));
-    EXPECT_EQ(oc3.keys[i].K2(), "col_list_test3_3");
+    EXPECT_EQ(oc3.keys[i].K2(), "col_list_test3_03");
   }
 
 }
+
+TEST_F(MPIDHTTest, DropItemTestIndividual) {
+
+  kelpie::Pool dht = dht_full;
+  auto kvs = generateAndPublish(dht, "drop_test1");
+  checkInfo(dht, kvs, false, kelpie::Availability::InLocalMemory);
+
+
+  //Query1: See if we get everything with two wildcards: "row_drop_test1*, *"
+  kelpie::ObjectCapacities oc;
+  rc = dht.List(kelpie::Key("row_drop_test1*","*"), &oc );
+  EXPECT_EQ(kelpie::KELPIE_OK, rc);
+  EXPECT_EQ(P.num_rows*P.num_cols, oc.keys.size()); // rows x cols worth of data
+  for(int i=0;i<oc.keys.size(); i++) {
+    //cout << "  " << oc.keys[i].str() << "  " << oc.capacities[i] << endl;
+    EXPECT_EQ(P.ldo_size, oc.capacities[i]);
+    EXPECT_TRUE( StringBeginsWith(oc.keys[i].K1(), "row_drop_test1"));
+    EXPECT_TRUE( StringBeginsWith(oc.keys[i].K2(), "col_drop_test1"));
+  }
+
+  auto rng = std::default_random_engine {};
+  std::shuffle(kvs.begin(), kvs.end(), rng);
+
+  //Remove each one, item by item
+  for(size_t i=kvs.size(); i>0; ) {
+    i--;
+    //cout <<string(80,'-')<<endl;
+    //cout <<"NEWTEST: Looking for "<<kvs[i].first.str()<<endl;
+    kelpie::object_info_t col_info;
+    //Verify this item exists
+    rc = dht.Info(kvs[i].first, &col_info);
+    //cout <<"Looking result "<<col_info.str()<<endl;
+    EXPECT_NE( kelpie::Availability::Unavailable, col_info.col_availability);
+    EXPECT_EQ(kelpie::KELPIE_OK, rc);
+
+    //Blocking drop of individual item
+    //cout <<"Dropping "<<kvs[i].first.str()<<endl;
+    rc = dht.BlockingDrop(kvs[i].first);
+    EXPECT_EQ(kelpie::KELPIE_OK, rc);
+
+
+    //Verify this item exists
+    //cout <<"Checking for "<<kvs[i].first.str()<<endl;
+    rc = dht.Info(kvs[i].first, &col_info);
+    EXPECT_EQ(kelpie::Availability::Unavailable, col_info.col_availability);
+    //EXPECT_EQ(kelpie::KELPIE_ENOENT, rc);
+    //cout <<"Check result was "<<col_info.str()<<endl;
+  }
+
+  //Sanity check: do the same list and make sure no entries
+  //cout<<"Sanity check: verifying no entries\n";
+  kelpie::ObjectCapacities oc2;
+  rc = dht.List(kelpie::Key("row_drop_test1*","*"), &oc2 );
+  //cout<<"Number of items originally: "<<oc.keys.size() <<" after: " <<oc2.keys.size()<<endl;
+  EXPECT_EQ(kelpie::KELPIE_OK, rc);
+  EXPECT_EQ(0,oc2.keys.size());
+}
+
+TEST_F(MPIDHTTest, DropItemTestWildCol) {
+
+  kelpie::Pool dht = dht_full;
+  auto kvs = generateAndPublish(dht, "drop_test2");
+  checkInfo(dht, kvs, false, kelpie::Availability::InLocalMemory);
+
+  //Query1: See if we get everything with two wildcards: "row_drop_test2*, *"
+  kelpie::ObjectCapacities oc;
+  rc = dht.List(kelpie::Key("row_drop_test2*", "*"), &oc);
+  EXPECT_EQ(kelpie::KELPIE_OK, rc);
+  EXPECT_EQ(P.num_rows*P.num_cols, oc.keys.size()); // rows x cols worth of data
+  for(int i = 0; i<oc.keys.size(); i++) {
+    //cout << "  " << oc.keys[i].str() << "  " << oc.capacities[i] << endl;
+    EXPECT_EQ(P.ldo_size, oc.capacities[i]);
+    EXPECT_TRUE(StringBeginsWith(oc.keys[i].K1(), "row_drop_test2"));
+    EXPECT_TRUE(StringBeginsWith(oc.keys[i].K2(), "col_drop_test2"));
+  }
+
+  //Drop type 1: Remove all of row0.  ie row_00, *
+  {
+    kelpie::object_info_t row_info;
+    kelpie::Key  row_key("row_drop_test2_00");
+    kelpie::Key drop_key("row_drop_test2_00","*");
+    rc = dht.RowInfo(row_key, &row_info);
+    EXPECT_EQ(kelpie::KELPIE_OK, rc);
+    EXPECT_EQ(P.num_cols, row_info.row_num_columns);
+
+    rc = dht.BlockingDrop(drop_key);
+    EXPECT_EQ(kelpie::KELPIE_OK, rc);
+
+    rc = dht.RowInfo(row_key, &row_info);
+    EXPECT_EQ(kelpie::KELPIE_ENOENT, rc);
+    EXPECT_EQ(0, row_info.row_num_columns);
+  }
+
+  //Drop Type 2: Remove first 10 cols of row1. ie row_01, col_0*
+  {
+    kelpie::object_info_t row_info;
+    kelpie::Key  row_key("row_drop_test2_01");
+    kelpie::Key drop_key("row_drop_test2_01","col_drop_test2_0*");
+    rc = dht.RowInfo(row_key, &row_info);
+    EXPECT_EQ(kelpie::KELPIE_OK, rc);
+    EXPECT_EQ(P.num_cols, row_info.row_num_columns); //Should be 10 cols there
+
+    //Do the drop
+    rc = dht.BlockingDrop(drop_key);
+    EXPECT_EQ(kelpie::KELPIE_OK, rc);
+
+    //Check for the whole row. Should be missing 10 columns
+    rc = dht.RowInfo(row_key, &row_info);
+    EXPECT_EQ(kelpie::KELPIE_OK, rc);
+    EXPECT_EQ(P.num_cols-10, row_info.row_num_columns);
+
+    //ReCheck but use the drop wildcard. Should show 0
+    rc = dht.RowInfo(drop_key, &row_info);
+    EXPECT_EQ(kelpie::KELPIE_ENOENT, rc);
+    EXPECT_EQ(0, row_info.row_num_columns);
+
+
+  }
+
+}
+
+TEST_F(MPIDHTTest, ResultCollect) {
+
+
+  kelpie::Pool pools[] = { dht_full, dht_front, dht_back, dht_single_self, dht_single_other };
+  int num_pools = 5;
+
+
+  int num_to_sync=10;
+  kelpie::ResultCollector sync1(num_to_sync);
+  lunasa::DataObject ldo1(1024);
+  set<kelpie::Key> keys;
+  for(int i=0; i<num_to_sync; i++) {
+    kelpie::Key key("sync-test-"+to_string(i));
+    rc = pools[ i%num_pools ].Publish(key, ldo1, sync1);
+    keys.insert(key);
+    EXPECT_EQ(kelpie::KELPIE_OK, rc);
+  }
+
+  //Wait for all ops to complete
+  sync1.Sync();
+
+  //Verify contents of sync
+  for(int i=0; i<num_to_sync; i++){
+    EXPECT_EQ(kelpie::ResultCollector::RequestType::Publish, sync1.results[i].request_type); //Should all be publish
+    EXPECT_EQ(kelpie::KELPIE_OK, sync1.results[i].rc);
+    EXPECT_EQ( 1024, sync1.results[i].info.col_user_bytes);
+    //cout <<"col: "<<kelpie::availability_to_string(sync1.results[i].info.col_availability)<<endl;
+  }
+
+  //Use info to make sure everything exists
+  for(int i=0; i<num_to_sync; i++) {
+    rc = pools[ i%num_pools ].Info(kelpie::Key("sync-test-"+to_string(i)), nullptr);
+    EXPECT_EQ(0, rc);
+  }
+
+
+  kelpie::ResultCollector sync2(num_to_sync);
+  for(int i=0; i<num_to_sync; i++) {
+    rc = pools[i%num_pools].Want(kelpie::Key("sync-test-"+to_string(i)), sync2);
+    EXPECT_EQ(0,rc);
+  }
+
+  sync2.Sync();
+  for(int i=0; i<num_to_sync; i++) {
+    EXPECT_EQ(kelpie::ResultCollector::RequestType::Want, sync2.results[i].request_type);
+    EXPECT_EQ(kelpie::KELPIE_OK, sync2.results[i].rc);
+    EXPECT_EQ( 1024, sync2.results[i].info.col_user_bytes);
+    EXPECT_EQ( 1024, sync2.results[i].ldo.GetDataSize());
+    EXPECT_EQ(1, keys.count( sync2.results[i].key));
+    keys.erase(sync2.results[i].key);
+  }
+  EXPECT_EQ(0, keys.size());
+
+}
+
+
 
 
 void targetLoop(){
@@ -617,16 +779,8 @@ int main(int argc, char **argv){
 
   faodel::Configuration config(default_config_string);
   config.AppendFromReferences();
-  G.StartAll(argc, argv, config);
+  G.StartAll(argc, argv, config, 4);
 
-  if(G.mpi_size < 4) {
-    if(G.mpi_rank==0)
-      cerr<<"mpi_kelpie_dht needs to be run with at least 4 ranks\n";
-    G.StopAll();
-    return -1;
-  }
-
-  assert(G.mpi_size >= 4 && "mpi_kelpie_dht needs to be 4 or larger");
 
   if(G.mpi_rank==0){
     //Register the dht

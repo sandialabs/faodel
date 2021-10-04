@@ -1,0 +1,75 @@
+# Script 03: Advanced file handling
+#
+#   faodel -v play s03_advanced_file_handling.play
+#
+
+
+config dirman.resources[]  local:/my/place
+config dirman.resources[]  local:[thing]/other/place
+#config bootstrap.debug true
+
+# Set the default pool used in commands that follow. Each command
+# can override this by specifying -p poolname.
+set pool /my/place
+
+print == Dump Some Dirman Path Info ==================================
+rlist /    # Should have 'my' as a member
+rlist /my  # Should have 'place' as a member
+
+print == Showing Info about our Pre-registered pool ==================
+rlist /my/place  # Should give local:/my/place
+rlist /other/place  # Should give local:/my/place
+
+print == Showing contents (expect empty) =============================
+klist *|*        # Nothing here yet
+
+print == Create foobar ===============================================
+kput -M 63k -D 2k  -k foobar
+
+print == See if it's there ===========================================
+kinfo -k foobar
+
+print == Try saving the LDO ==========================================
+ksave -d ./tmp -k foobar
+
+print == Load it into another pool====================================
+kload -d ./tmp -k foobar -p [thing]/other/place
+kput -D 1k -k foobar2 -p [thing]/other/place
+klist -p [thing]/other/place -k *
+klist -k *
+
+print == Reading file foobar and pushing it as 'bozo' ================
+# KPut can read a normal file, wrap it into an ldo, and push it into
+# a pool. For this script we're going to pretend like the file we
+# just saved is a regular file and inject it into the system.
+#
+# note: This isn't the right way to load a saved ldo into a pool,
+#       since it creates two wrappings around your data. This is
+#       just an example of how to push a file.
+kput -f tmp/foobar%06%00 -m ObjectThing -k bozo
+
+
+print == Do a list of First Pool (should be bozo and foobar) =========
+# Verify this new object is in faodel.
+klist -k *|*
+
+print == Get the item (should succeed, but no output) ================
+# Retrieve the object
+kget -k bozo
+
+print == Get Info (should be >64KB) ==================================
+kinfo bozo
+
+print == Push file as a few more keys (3 variants of limbo) ==========
+kput -f tmp/foobar%06%00 -k limbo
+kput -f tmp/foobar%06%00 -k limbo_jimbo
+kput -f tmp/foobar%06%00 -k limbo_timbo
+
+print == List all Limbos (should be 3 limbo*) ========================
+klist limbo*|*
+
+print == List a subset of limbo_* (limbo_jimbo, limbo_timbo) =========
+klist limbo_*|*
+
+print == Make sure no visible in other bucket (foobar, foobar2) ======
+klist -p [thing]/other/place -k *

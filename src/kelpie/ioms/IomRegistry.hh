@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #ifndef KELPIE_IOMREGISTRY_HH
 #define KELPIE_IOMREGISTRY_HH
@@ -44,11 +44,18 @@ public:
   void finish();
 
   void RegisterIom(std::string type, std::string name,  const std::map<std::string,std::string> &settings);
-  void RegisterIomConstructor(std::string type, fn_IomConstructor_t ctor_function);
+  int  RegisterIomFromURL(const faodel::ResourceURL &url);
+
+  void RegisterIomConstructor(std::string type, fn_IomConstructor_t ctor_function, fn_IomGetValidSetting_t valid_settings_function=nullptr);
 
   IomBase * Find(std::string iom_name) { return Find(faodel::hash32(iom_name)); }
   IomBase * Find(iom_hash_t iom_hash);
-  
+
+  std::vector<std::string> GetIomNames() const;
+
+  std::vector<std::string> RegisteredTypes() const;
+  std::vector<std::pair<std::string,std::string>> RegisteredTypeParameters(const std::string &type) const;
+
   //InfoInterface function
   void sstr(std::stringstream &ss, int depth=0, int indent=0) const override;
   
@@ -60,6 +67,7 @@ private:
   std::map<iom_hash_t, IomBase *> ioms_by_hash_post;
   
   std::map<std::string, fn_IomConstructor_t> iom_ctors;
+  std::map<std::string, fn_IomGetValidSetting_t> iom_valid_setting_fns;
 
   void HandleWhookieStatus(const std::map<std::string, std::string> &args, std::stringstream &results);
 };

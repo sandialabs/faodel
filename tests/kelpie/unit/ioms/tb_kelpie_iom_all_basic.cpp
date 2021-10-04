@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #include <iostream>
 #include <vector>
@@ -64,7 +64,7 @@ protected:
   LocalKV *lkv;
 };
 
-TYPED_TEST_CASE_P(IomSimple);
+TYPED_TEST_SUITE_P(IomSimple);
 
 
 struct test_data_t {
@@ -173,12 +173,12 @@ TYPED_TEST_P(IomSimple, UsingConfigurationByRole){
   faodel::Configuration config(default_config_string);
   std::string s;
 
-  s = "myrole.iom.myiom1.type ";  config.Append(s + TypeParam::type_str);
-  s = "myrole.iom.myiom2.type ";  config.Append(s + TypeParam::type_str);
+  s = "myrole.kelpie.iom.myiom1.type ";  config.Append(s + TypeParam::type_str);
+  s = "myrole.kelpie.iom.myiom2.type ";  config.Append(s + TypeParam::type_str);
 
-  config.Append("myrole.iom.myiom1.path",p1);
-  config.Append("myrole.iom.myiom2.path",p2);
-  config.Append("myrole.ioms", "myiom1;myiom2");
+  config.Append("myrole.kelpie.iom.myiom1.path",p1);
+  config.Append("myrole.kelpie.iom.myiom2.path",p2);
+  config.Append("myrole.kelpie.ioms", "myiom1;myiom2");
   config.Append("node_role", "myrole");
   config.AppendFromReferences(); //Normally done in bootstrap
 
@@ -246,7 +246,7 @@ TYPED_TEST_P(IomSimple, iom_registry) {
 
   //See if we can locate each one
   kelpie::internal::IomBase * ioms[3];
-  cout<<"About to look\n";
+  //cout<<"About to look\n";
   ioms[0] = registry.Find("myiom1"); ASSERT_NE(nullptr, ioms[0]);
   ioms[1] = registry.Find("myiom2"); ASSERT_NE(nullptr, ioms[1]);
   ioms[2] = registry.Find("myiom3"); ASSERT_NE(nullptr, ioms[2]);
@@ -278,7 +278,7 @@ TYPED_TEST_P(IomSimple, iom_registry) {
 }
 
 // Must enumerate all tests in the generic fixture class here
-REGISTER_TYPED_TEST_CASE_P(IomSimple,
+REGISTER_TYPED_TEST_SUITE_P(IomSimple,
 			   ldo_gentest,
 			   write_direct,
 			   UsingConfigurationByRole,
@@ -288,12 +288,12 @@ REGISTER_TYPED_TEST_CASE_P(IomSimple,
 // Must enumerate all desired IOM subclasses in this typedef
 typedef ::testing::Types<
   kelpie::internal::IomPosixIndividualObjects
-#ifdef FAODEL_HAVE_LEVELDB
+#if defined(FAODEL_HAVE_LEVELDB)
   , kelpie::internal::IomLevelDB
 #endif
-#ifdef FAODEL_HAVE_HDF5  
+#if defined(FAODEL_HAVE_HDF5)
   , kelpie::internal::IomHDF5
 #endif
   > IomTypes;
 
-INSTANTIATE_TYPED_TEST_CASE_P(IomTypesInstantiation, IomSimple, IomTypes);
+INSTANTIATE_TYPED_TEST_SUITE_P(IomTypesInstantiation, IomSimple, IomTypes);

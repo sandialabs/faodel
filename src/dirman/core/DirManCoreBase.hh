@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #ifndef DIRMAN_DIRECTORYMANAGERCOREBASE_HH
 #define DIRMAN_DIRECTORYMANAGERCOREBASE_HH
@@ -34,7 +34,7 @@ public:
 
   ~DirManCoreBase() override;
 
-  //Boostrap calls are handled in OpBoxCoreUnconfigured. OBCU calls init,
+  //Bootstrap calls are handled in OpBoxCoreUnconfigured. OBCU calls init,
   //start, and finish as directed by bootstrap.
   virtual void start()=0;
   virtual void finish()=0;
@@ -42,7 +42,7 @@ public:
 
   //DirMan Exposed API
   virtual bool Locate(const faodel::ResourceURL &search_url, faodel::nodeid_t *reference_node=nullptr);
-  virtual bool GetDirectoryInfo(const faodel::ResourceURL &url, bool check_local, bool check_remote, faodel::DirectoryInfo *dir_info=nullptr) = 0;
+  virtual bool GetDirectoryInfo(const faodel::ResourceURL &search_url, bool check_local, bool check_remote, faodel::DirectoryInfo *dir_info=nullptr) = 0;
 
   virtual bool DefineNewDir(const faodel::DirectoryInfo &dir_info) = 0;
           bool DefineNewDir(const faodel::ResourceURL &url);

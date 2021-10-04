@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 
 #include <string>
@@ -11,7 +11,7 @@
 
 #include "gtest/gtest.h"
 #include "faodel-common/Common.hh"
-#include "faodel-common/SerializationHelpers.hh"
+#include "faodel-common/SerializationHelpersBoost.hh"
 
 
 
@@ -220,5 +220,42 @@ TEST_F(SerializationTest, BlobPointer) {
   b1.blob_len = b2.blob_len = 0;
   free(foo2);
   free(foo);
+
+}
+
+struct FakeKey {
+  FakeKey() =default;
+  FakeKey(int a_, int b_) : a(StringZeroPad(a_,255)), b(StringZeroPad(b_,255)) {}
+  string a;
+  string b;
+  bool operator== (const FakeKey &other) const { return   (a == other.a) && (b == other.b);  }
+
+  template <typename Archive>
+  void serialize(Archive &ar, const unsigned int version) {
+    ar & a;
+    ar & b;
+  }
+};
+
+
+TEST_F(SerializationTest, LargeNames) {
+
+  //Example to make sure serialization can handle a larger number of objects
+  vector<FakeKey> bignames;
+  for(int i=0; i<128; i++) {
+    for(int j=0; j<128; j++) {
+      bignames.push_back( FakeKey(i,j) );
+    }
+  }
+
+  string packed = BoostPack<vector<FakeKey>>(bignames);
+  cout <<"Packed size is "<<packed.size()<<endl;
+  vector<FakeKey> bignames2 = BoostUnpack<vector<FakeKey>>(packed);
+  EXPECT_EQ(bignames.size(), bignames2.size());
+  if(bignames.size()==bignames2.size()){
+    for(int i=0; i<bignames.size(); i++ ) {
+      EXPECT_EQ(bignames.at(i), bignames2.at(i));
+    }
+  }
 
 }

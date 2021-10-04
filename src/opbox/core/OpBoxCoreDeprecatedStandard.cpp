@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #include <iostream>
 #include <chrono>
@@ -13,11 +13,18 @@
 #include "whookie/Server.hh"
 
 #include "opbox/OpBox.hh"
-#include "opbox/core/OpBoxCoreStandard.hh"
+#include "opbox/core/OpBoxCoreDeprecatedStandard.hh"
 #include "opbox/core/OpBoxCoreUnconfigured.hh"
 
 #include "opbox/core/Singleton.hh" //for registry whookie
 
+#if Faodel_ENABLE_DEBUG_TIMERS
+#define OP_TIMER(a,b) if(op_timer) op_timer->Mark(a,b);
+#define OP_TIMER_DISPATCHED(mbox) if(op_timer) op_timer->MarkDispatched(mbox);
+#else
+#define OP_TIMER(a,b)
+#define OP_TIMER_DISPATCHED(mbox)
+#endif
 
 using namespace std;
 using namespace opbox;
@@ -25,16 +32,16 @@ using namespace opbox;
 namespace opbox {
 namespace internal {
 
-OpBoxCoreStandard::OpBoxCoreStandard()
+OpBoxCoreDeprecatedStandard::OpBoxCoreDeprecatedStandard()
   : LoggingInterface("opbox","Standard"),
     initialized(false),
     running(false),
     shutdown_requested(false) {
 
   op_mutex = faodel::GenerateMutex("pthreads","rwlock");
-
 }
-OpBoxCoreStandard::~OpBoxCoreStandard(){
+
+OpBoxCoreDeprecatedStandard::~OpBoxCoreDeprecatedStandard(){
 
   dbg("standard dtor");
   if (running){
@@ -43,10 +50,8 @@ OpBoxCoreStandard::~OpBoxCoreStandard(){
     finish();
   }
 
-  if(initialized){
+  if(initialized) {
     shutdown_requested=true;
-    //th_progress.join();
-
     op_mutex->WriterLock();
     for(auto op_ptr : active_ops){
       delete op_ptr.second;
@@ -55,7 +60,7 @@ OpBoxCoreStandard::~OpBoxCoreStandard(){
   }
   delete op_mutex;
 
-  dbg("standard dtor done");
+  dbg("OpBoxCoreStandard dtor done");
 }
 
 
@@ -64,14 +69,22 @@ OpBoxCoreStandard::~OpBoxCoreStandard(){
  *
  * @param[in] config Info the user has passed to us for configuring the unit
  */
-void OpBoxCoreStandard::init(const faodel::Configuration &config) {
+void OpBoxCoreDeprecatedStandard::init(const faodel::Configuration &config) {
 
 
   ConfigureLogging(config);
   dbg("private Init");
-  kassert(!initialized, "Attempted to initialize OpBoxCoreStandard more than once");
+  F_ASSERT(!initialized, "Attempted to initialize OpBoxCoreStandard more than once");
 
   opbox::net::Init(config);
+
+  #if Faodel_ENABLE_DEBUG_TIMERS
+    //Only consider timers if the user compiles it in and asks for them
+    bool enable_timers;
+    config.GetBool(&enable_timers, "opbox.enable_timers", "false");
+    if(enable_timers) op_timer = new OpTimer();
+  #endif
+
 
   dbg("Done with opbox::net::Init()");
   opbox::net::RegisterRecvCallback(opbox::internal::HandleIncomingMessage);
@@ -80,8 +93,6 @@ void OpBoxCoreStandard::init(const faodel::Configuration &config) {
       return HandleWhookieStatus(args, results);
   });
 
-  //Start thread
-  //th_progress = thread(&OpBoxCoreStandard::eventLoop, this);
   initialized=true;
 }
 
@@ -90,9 +101,9 @@ void OpBoxCoreStandard::init(const faodel::Configuration &config) {
  * @brief Internal start function (called by OpBoxUnconfigured during bootstrap Initialize)
  *
  */
-void OpBoxCoreStandard::start() {
+void OpBoxCoreDeprecatedStandard::start() {
   dbg("private Start");
-  kassert(initialized, "Attempted to start OpBoxCoreStandard before initialization");
+  F_ASSERT(initialized, "Attempted to start OpBoxCoreStandard before initialization");
   opbox::net::Start();
   running=true;
 }
@@ -102,9 +113,9 @@ void OpBoxCoreStandard::start() {
  * @brief Internal finish function (called by OpBoxUnconfigured during bootstrap Finish)
  *
  */
-void OpBoxCoreStandard::finish() {
+void OpBoxCoreDeprecatedStandard::finish() {
   dbg("private finish");
-  kassert(initialized && running, "Attempted to finish OpBoxCoreStandard that is not started");
+  F_ASSERT(initialized && running, "Attempted to finish OpBoxCoreStandard that is not started");
 
   whookie::Server::deregisterHook("/opbox");
 
@@ -122,6 +133,10 @@ void OpBoxCoreStandard::finish() {
     op_mutex->Unlock();
     initialized=false;
   }
+  if(op_timer) {
+    op_timer->Dump();
+    delete op_timer;
+  }
 
   running=false;
 }
@@ -136,10 +151,12 @@ void OpBoxCoreStandard::finish() {
  * @retval 0 Success
  * @retval -1 Failure
  */
-int OpBoxCoreStandard::doUpdate(mailbox_t my_mailbox, Op *op, OpArgs *args){
+int OpBoxCoreDeprecatedStandard::doAction(mailbox_t my_mailbox, Op *op, OpArgs *args){
 
   WaitingType rc = op->Update(args);
   op->touch();
+
+  OP_TIMER(op,OpTimerEvent::ActionComplete);
 
   switch(rc){
   case WaitingType::done_and_destroy:
@@ -159,7 +176,7 @@ int OpBoxCoreStandard::doUpdate(mailbox_t my_mailbox, Op *op, OpArgs *args){
 
   default:
     //Op is doing something. Keep it in the active queue (or add it if new).
-    if(my_mailbox==0){
+    if(my_mailbox==0) {
       addActiveOp(op); //Sets the mailbox if needed
     }
   }
@@ -175,7 +192,7 @@ int OpBoxCoreStandard::doUpdate(mailbox_t my_mailbox, Op *op, OpArgs *args){
  * @param incoming_message Pointer to the message (memory owned by net)
  * @throws runtime_error if op is unknown or no longer active
  */
-int OpBoxCoreStandard::HandleIncomingMessage(opbox::net::peer_ptr_t peer, message_t *incoming_message){
+int OpBoxCoreDeprecatedStandard::HandleIncomingMessage(opbox::net::peer_ptr_t peer, message_t *incoming_message){
 
   Op *op;
   OpArgs args(peer, incoming_message);
@@ -184,7 +201,7 @@ int OpBoxCoreStandard::HandleIncomingMessage(opbox::net::peer_ptr_t peer, messag
   dbg("Incoming message for mailbox "+to_string(my_mailbox));
 
   //See if this is an unexpected message
-  if(my_mailbox == 0){
+  if(my_mailbox == 0) {
     //New communication. Spin up a new op to andle it.
     op = opbox::internal::CreateNewTargetOp(incoming_message->op_id);
   } else {
@@ -208,9 +225,11 @@ int OpBoxCoreStandard::HandleIncomingMessage(opbox::net::peer_ptr_t peer, messag
     }
     throw std::runtime_error(ss.str());
   }
+  OP_TIMER(op,OpTimerEvent::Incoming);
+
 
   //Call the update and deal with storing the op
-  return doUpdate(my_mailbox, op, &args);
+  return doAction(my_mailbox, op, &args);
 
 }
 
@@ -223,10 +242,11 @@ int OpBoxCoreStandard::HandleIncomingMessage(opbox::net::peer_ptr_t peer, messag
  * @retval 0 Success
  * @retval -1 Failure
  */
-int OpBoxCoreStandard::UpdateOp(Op *op, OpArgs *args){
+int OpBoxCoreDeprecatedStandard::UpdateOp(Op *op, OpArgs *args){
 
+  OP_TIMER(op, OpTimerEvent::Update);
   args->result = 0;
-  int rc =  doUpdate(op->GetAssignedMailbox(), op, args);
+  int rc = doAction(op->GetAssignedMailbox(), op, args);
   return rc;
 }
 
@@ -237,9 +257,9 @@ int OpBoxCoreStandard::UpdateOp(Op *op, OpArgs *args){
  * @param[in] op A user-created op (ownership transferred to opbox)
  * @param[out] resulting_mailbox The mailbox generated for this op
  */
-int OpBoxCoreStandard::LaunchOp(Op *op, mailbox_t *resulting_mailbox){
-  kassert(initialized && running, "Attempted to StartOp when OpBoxCoreStandard that is not running");
-  kassert(op!=nullptr, "Tried starting a null op");
+int OpBoxCoreDeprecatedStandard::LaunchOp(Op *op, mailbox_t *resulting_mailbox){
+  F_ASSERT(initialized && running, "Attempted to StartOp when OpBoxCoreStandard that is not running");
+  F_ASSERT(op != nullptr, "Tried starting a null op");
 
   dbg("LaunchOp "+op->getOpName());
 
@@ -249,6 +269,8 @@ int OpBoxCoreStandard::LaunchOp(Op *op, mailbox_t *resulting_mailbox){
   OpArgs args(UpdateType::start);
   args.result = 0;
 
+  OP_TIMER(op,OpTimerEvent::Launch);
+
   WaitingType rc = op->Update(&args);
   if(rc == WaitingType::done_and_destroy){
     dbg("LaunchOp update completed w/ done+destroy");
@@ -256,7 +278,6 @@ int OpBoxCoreStandard::LaunchOp(Op *op, mailbox_t *resulting_mailbox){
     if(resulting_mailbox) *resulting_mailbox = MAILBOX_UNSPECIFIED;
 
     args.result = 0;
-
     return 0;
 
   } else {
@@ -265,7 +286,6 @@ int OpBoxCoreStandard::LaunchOp(Op *op, mailbox_t *resulting_mailbox){
     if(resulting_mailbox) *resulting_mailbox = op->GetAssignedMailbox();
 
     args.result = 0;
-
     return 0;
   }
 }
@@ -279,7 +299,7 @@ int OpBoxCoreStandard::LaunchOp(Op *op, mailbox_t *resulting_mailbox){
  * @retval 0 Success
  * @retval -1 Failure
  */
-int OpBoxCoreStandard::TriggerOp(mailbox_t mailbox, shared_ptr<OpArgs> args){
+int OpBoxCoreDeprecatedStandard::TriggerOp(mailbox_t mailbox, shared_ptr<OpArgs> args){
 
   args->result = 0;
   Op *op = getActiveOp(mailbox);
@@ -294,7 +314,9 @@ int OpBoxCoreStandard::TriggerOp(mailbox_t mailbox, shared_ptr<OpArgs> args){
     return -1; //Not found
   }
 
-  return doUpdate(mailbox, op, args.get());
+  OP_TIMER(op,OpTimerEvent::Trigger);
+
+  return doAction(mailbox, op, args.get());
 
 }
 
@@ -306,7 +328,7 @@ int OpBoxCoreStandard::TriggerOp(mailbox_t mailbox, shared_ptr<OpArgs> args){
  * @retval op A pointer to the op we want
  * @retval nullptr The op was not found
  */
-Op * OpBoxCoreStandard::getActiveOp(mailbox_t mailbox){
+Op * OpBoxCoreDeprecatedStandard::getActiveOp(mailbox_t mailbox){
 
   if(mailbox==0) return nullptr;
   Op *op;
@@ -324,10 +346,10 @@ Op * OpBoxCoreStandard::getActiveOp(mailbox_t mailbox){
  *
  * @param[in] op The op in question (may trigger the assignment of a mailbox id)
  */
-void OpBoxCoreStandard::addActiveOp(Op *op){
-  kassert(op!=nullptr, "Null active op");
+void OpBoxCoreDeprecatedStandard::addActiveOp(Op *op){
+  F_ASSERT(op != nullptr, "Null active op");
   mailbox_t mailbox = op->GetAssignedMailbox();
-  kassert(mailbox!=0, "Op had a zero-value mailbox");
+  F_ASSERT(mailbox != 0, "Op had a zero-value mailbox");
   op_mutex->WriterLock();
   active_ops[mailbox] = op;
   op_mutex->Unlock();
@@ -339,8 +361,8 @@ void OpBoxCoreStandard::addActiveOp(Op *op){
  *
  * @param[in] mailbox An identifier for the op we want to delete
  */
-void OpBoxCoreStandard::endActiveOp(mailbox_t mailbox){
-  kassert(mailbox!=0, "Op had a zero-value mailbox");
+void OpBoxCoreDeprecatedStandard::endActiveOp(mailbox_t mailbox){
+  F_ASSERT(mailbox != 0, "Op had a zero-value mailbox");
   Op *op;
   op_mutex->WriterLock();
   auto it = active_ops.find(mailbox);
@@ -352,6 +374,21 @@ void OpBoxCoreStandard::endActiveOp(mailbox_t mailbox){
   op_mutex->Unlock();
 }
 
+/**
+ * @brief Count the number of active Ops that ObBox has (useful for shutdown)
+ * @param[in] op_id Optional op_id field to search on. If set, only include ops that match
+ * @retval COUNT the number of ops that are active
+ */
+int OpBoxCoreDeprecatedStandard::GetNumberOfActiveOps(unsigned int op_id) {
+  if(op_id==0) return active_ops.size();
+  int count=0;
+  op_mutex->ReaderLock();
+  for(auto &mbox_opptr : active_ops){
+    if (mbox_opptr.second->getOpID() == op_id) count++;
+  }
+  op_mutex->Unlock();
+  return count;
+}
 
 /**
  * @brief HandleWhookieStatus Process a request from Whookie to get status information
@@ -359,7 +396,7 @@ void OpBoxCoreStandard::endActiveOp(mailbox_t mailbox){
  * @param[in] args    The map of k/v parameters the user sent in this request
  * @param[in] results The stringstream to write results to
  */
-void OpBoxCoreStandard::HandleWhookieStatus(
+void OpBoxCoreDeprecatedStandard::HandleWhookieStatus(
                     const std::map<std::string,std::string> &args,
                     std::stringstream &results) {
 
@@ -380,7 +417,7 @@ void OpBoxCoreStandard::HandleWhookieStatus(
  * @param[in] depth  How many layers deeper into the component we should go
  * @param[in] indent How many spaces to indent this component
  */
-void OpBoxCoreStandard::sstr(stringstream &ss, int depth, int indent) const {
+void OpBoxCoreDeprecatedStandard::sstr(stringstream &ss, int depth, int indent) const {
   if(depth<0) return;
   ss << string(indent,' ') << "[OpBoxCore] "
      << " Type: " << GetType()

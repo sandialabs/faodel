@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 
 #ifndef UGNI_CONNECTION_HPP_
@@ -35,6 +35,7 @@ private:
         std::string       hostname;
         uint32_t          addr;
         uint32_t          port;
+        std::string       fingerprint;
         uint32_t          local_addr;
         NNTI_instance_id  instance;
         char             *smsg_msg_buffer;
@@ -53,6 +54,7 @@ private:
                 hostname                 = peer.at("hostname");
                 addr                     = nnti::util::str2uint32(peer.at("addr"));
                 port                     = nnti::util::str2uint32(peer.at("port"));
+                fingerprint              = peer.at("fingerprint");
                 local_addr               = nnti::util::str2uint32(peer.at("local_addr"));
                 instance                 = nnti::util::str2uint32(peer.at("instance"));
                 smsg_msg_buffer          = (char*)nnti::util::str2uint64(peer.at("smsg_msg_buffer"));

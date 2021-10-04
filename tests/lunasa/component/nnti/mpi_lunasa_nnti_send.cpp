@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #include "gtest/gtest.h"
 #include <mpi.h>
@@ -194,7 +194,6 @@ TEST_F(LunasaSendTest, basic) {
 
   // Currently, only works for two MPI ranks
   int partner_rank = mpi_rank ^0x1;
-  int partner_id;
   faodel::nodeid_t partner_nodeid;
 
   MPI_Request request;

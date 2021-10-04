@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #include <iostream>
 
@@ -15,10 +15,10 @@ using namespace faodel;
 
 namespace kelpie {
 
-PoolBase::PoolBase(const faodel::ResourceURL &pool_url)
+PoolBase::PoolBase(const faodel::ResourceURL &pool_url, pool_behavior_t behavior_flags_)
   : LoggingInterface("kelpie.pool"),
     pool_url(pool_url), lkv(nullptr), iom(nullptr), iom_hash(0),
-    behavior_flags(PoolBehavior::DefaultBaseClass) {
+    behavior_flags(behavior_flags_) {
 
   //Unconfigure pool is empty
   if(pool_url.Type() == "unconfigured") return;
@@ -26,11 +26,18 @@ PoolBase::PoolBase(const faodel::ResourceURL &pool_url)
   kelpie::internal::getLKV(&lkv);
 
   default_bucket = pool_url.bucket;
+  string new_bucket = pool_url.GetOption("bucket");
+  if(!new_bucket.empty()) {
+    default_bucket = bucket_t(new_bucket);
+  }
+
+
   my_nodeid = net::GetMyID();
 
   auto iom_name = pool_url.GetOption("iom");
-  if(iom_name!="") {
-
+  if(!iom_name.empty()) {
+    //User has provided us with an IOM to attach to this pool. Pull settings from the url.
+    //IMPORTANT: /local/iom is not usually handled here. Look at LocalPool's ctor
     if(iom_name.compare(0,2, "0x")==0) {
       unsigned long val;
       stringstream ss;

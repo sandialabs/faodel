@@ -1,4 +1,10 @@
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
+
 #include <iostream>
+#include <thread>
+#include <chrono>
 
 #include "whookie/client/Client.hh"
 
@@ -17,6 +23,7 @@ bool dumpHelpWhookieClient(string subcommand) {
 whookie-get arguments:
   -h/--html               : Return the data in html format
   -t/--text               : Return the page in plain text
+  -x S                    : Repeat this command evert S seconds
   url                     : the url to fetch
 
 The whookie-get command provides a way for you to issue queries to a faodel
@@ -39,7 +46,8 @@ int checkWhookieClientCommands(const std::string &cmd, const vector<string> &arg
 
 void whookieClientParseBasicArgs(const vector<string> &args,
                                  string *url_string,
-                                 string *format) {
+                                 string *format,
+                                 int *sleep_interval) {
 
   *url_string ="";
 
@@ -47,7 +55,15 @@ void whookieClientParseBasicArgs(const vector<string> &args,
     string s = args[i];
     if(      (s == "-h") || (s == "--html")) *format="html";
     else if( (s == "-t") || (s == "--text")) *format="text";
-    else if (s.at(0)=='-') {
+    else if( (s == "-x") ) {
+      i++;
+      if(i==args.size()) {
+        cerr <<"Missing a value for -x ?\n";
+        exit(-1);
+      }
+      *sleep_interval = atoi(args[i].c_str());
+
+    } else if (s.at(0)=='-') {
       cerr << "Unrecognized option '" << s << "'\n";
       exit(-1);
     } else if( *url_string != "") {
@@ -69,8 +85,9 @@ int whookieClientGet(const vector<string> &args) {
 
   string mode, url;
   string format="text";
+  int sleep_interval=0;
 
-  whookieClientParseBasicArgs(args, &url, &format);
+  whookieClientParseBasicArgs(args, &url, &format, &sleep_interval);
 
   if(url.compare(0,7,"http://") || (url.size()<8)) {
     cerr<<"URL must begin with 'http://'. Received '"<<url<<"'\n";
@@ -112,9 +129,14 @@ int whookieClientGet(const vector<string> &args) {
 
     path += "&format="+format;
 
-    string data;
-    whookie::retrieveData(host, port, path, &data);
-    cout <<data;
+    do {
+      string data;
+      whookie::retrieveData(host, port, path, &data);
+      cout << data;
+      if(sleep_interval) {
+        std::this_thread::sleep_for(std::chrono::seconds(sleep_interval));
+      }
+    } while(sleep_interval!=0);
   }
   return 0;
 }

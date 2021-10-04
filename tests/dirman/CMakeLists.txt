@@ -1,5 +1,4 @@
 include_directories( mpi )
-SET(EXTRA_TEST_LIBS "-lz -ldl")
 
 
 set(SERIAL_TEST_LIBS
@@ -8,7 +7,6 @@ set(SERIAL_TEST_LIBS
   GTest::Main
   Boost::program_options
   Boost::serialization
-  ${EXTRA_TEST_LIBS}
 )
 set(MPI_TEST_LIBS ${SERIAL_TEST_LIBS})
 

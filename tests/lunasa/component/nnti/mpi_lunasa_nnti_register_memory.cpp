@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #include <chrono>
 #include <ratio>
@@ -188,7 +188,6 @@ int seed = clock();
 
 
 TEST_F(LunasaRegistrationTest, RandomAllocationRaw) {
-  int i;
   void *memory[NUMBER];
   size_t *num_bytes = new size_t[NUMBER];
 
@@ -229,7 +228,6 @@ TEST_F(LunasaRegistrationTest, RandomAllocationRaw) {
 
 
 TEST_F(LunasaRegistrationTest, RandomAllocationLunasa) {
-  int i;
   DataObject *memory = new DataObject[NUMBER];
   size_t *num_bytes = new size_t[NUMBER];
 
@@ -289,7 +287,7 @@ int main(int argc, char *argv[]) {
   lunasa::RegisterPinUnpin(RegisterMemory, UnregisterMemory);
 
   assert(whookie::Server::IsRunning() && "Whookie not started before NetNnti started");
-  faodel::nodeid_t nodeid = whookie::Server::GetNodeID();
+  //faodel::nodeid_t nodeid = whookie::Server::GetNodeID();
 
   transport = nnti::transports::factory::get_instance(config);
   transport->start();

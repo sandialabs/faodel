@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #include <iostream>
 #include <fstream>
@@ -26,7 +26,7 @@ DirectoryOwnerCache::~DirectoryOwnerCache(){
   }
 }
 void DirectoryOwnerCache::Init(const faodel::Configuration &config, string threading_model, string mutex_type){
-  kassert(mutex== nullptr, "Initialized more than once");
+  F_ASSERT(mutex == nullptr, "Initialized more than once");
   ConfigureLogging(config);
   mutex = GenerateMutex(threading_model, mutex_type);
 }
@@ -158,8 +158,8 @@ void DirectoryOwnerCache::sstr(stringstream &ss, int depth, int indent) const {
 
 bool DirectoryOwnerCache::_Lookup(const faodel::ResourceURL &url, nodeid_t *node_id){
 
-  kassert(node_id!=nullptr, "Invalid node_id");
-  kassert(url.Valid(), "Invalid url given to RIC:"+url.GetFullURL());
+  F_ASSERT(node_id != nullptr, "Invalid node_id");
+  F_ASSERT(url.Valid(), "Invalid url given to RIC:"+url.GetFullURL());
 
   string bucket_path_name = url.GetBucketPathName();
 

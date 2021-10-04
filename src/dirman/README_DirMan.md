@@ -47,7 +47,9 @@ centralized implementation currently overwrites the nodeid with the
 root node. Users should only populate that path and directory portions
 of the ResourceURL when passing a ResourceURL into dirman.
 
-Example Use: Consider the case where an OpBox application needs to
+Example Scenario
+----------------
+Consider the case where an OpBox application needs to
 connect to a separate array of nodes that store data objects in
 memory. In order to simplify how nodeid information is passed between
 applications, we would expect three jobs to run. First, a single node
@@ -62,6 +64,43 @@ provided dirman root nodeid to connect with the root, obtain the list
 of nodes for the array, and then start using the list. As this example
 illustrates, dirman provides a scalable way to share runtime
 information without having to write node information to files.
+
+DirMan Cores
+------------
+There are currently three types of dirman cores that can be used:
+
+- **Centralized** (default): The centralized dirman core assigns one node
+  in the platform to store all dirman information. While this node may perform
+  other FAODEL functions, it must be started before the other nodes. The central
+  dirman node has `dirman.host_root true` specified in its configuration file.
+  All other nodes must have a pointer to this node specified in either
+  their config (eg `dirman.root_node 0x1234`), a dirman root node file, or
+  an environment variable (see `Root Node Resolution` for more info).
+- **Static**: In the specialized scenario where all information about 
+  resources is known at start time, users may use the `static` dirman
+  core and plug all the information into the configuration.
+- **None**: In some test scenarios, it is useful to launch services without
+  a dirman service. This option disables dirman services from running, and
+  is not useful in normal workloads.
+
+Root Node Resolution
+--------------------
+When operating in the `centralized` mode, users must provide information to
+their services about how to find the root dirman node. FAODEL checks for
+this information using the following process:
+
+1. `dirman.root_node` in Configuration: The easiest way to pass the root
+   node id is to just place it in the configuration. This technique works
+   especially well if you're using mpisyncstart and you specify the rank
+   in the job that is the root via `dirman.root_node_mpi 0`.
+2. `dirman.root_node.file` in Configuration: The second option is to read
+   a file to learn the id of the root node. This method works well when the
+   root node is also configured with `dirman.write_root file`.
+3. Environment variable `FAODEL_DIRMAN_ROOT_NODE_FILE`: This option allows
+   users to point to the root node file using an environment variable.
+4. Environment variable `FAODEL_DIRMAN_ROOT_NODE`: The last option allows
+   users to specify the root node as an environment variable.
+
 Build and Configuration Settings
 ================================
 
@@ -85,7 +124,25 @@ Run-Time Options
 When the DirMan service starts, it examines the Configuration object
 for the following run-time options:
 
-| Property              | Type        | Default  | Description                                         |
-| --------------------- | ----------- | -------- | --------------------------------------------------- |
-| dirman.host_root      | bool        | false    | When true, this node is the dirman root node        |
-| dirman.root_node      | nodeid      | ""       | The nodeid of the root node (hex value)             |
+| Property              | Type                    | Default     | Description                                                            |
+| --------------------- | ----------------------- | ----------- | ---------------------------------------------------------------------- |
+| dirman.type           | none,static,centralized | centralized | Static assumes all info is in config, centralized uses a single server |
+| dirman.host_root      | bool                    | false       | When true, this node is the dirman root node                           |
+| dirman.write_root     | filename                | ""          | Instruct the root node to write its id to a file                       |
+| dirman.root_node      | nodeid                  | ""          | Use the node id supplied here to reference the root node (hex value)   |
+| dirman.root_node.file | filename                | ""          | Read the file and use its contents to identify the root node           |
+| dirman.resource[]     | url                     | ""          | Define a static resource in the configuration                          |
+
+note: the `dirman.resource` command is typically used when `mpisyncstart` is
+enabled, as it provides users with an easy way to define resources that the
+mpi job will host. For example, a user might distribute a kelpie pool in their
+job via:
+
+```
+mpisyncstart.enable  true   # Use mpisyncstart service to let us map ranks to faodel nodes
+dirman.root_node_mpi 0      # Set rank 0 as the dirman root
+
+dirman.resources_mpi[]  rft:/my/pool   ALL  # Make a pool across all ranks
+dirman.resources_mpi[]  dht:/my/meta   END  # Make a pool w/ just the last rank 
+dirman.resources_mpi[]  dht:/my/first  0-3  # Make a pool on the first four ranks
+```

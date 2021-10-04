@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 /**
  * @file nnti_transport.hpp
@@ -185,9 +185,9 @@ public:
     /**
      * @brief Retrieves the next message from the unexpected list.
      *
-     * \param[in]  dst_hdl        Buffer where the message is delivered.
-     * \param[in]  dst_offset     Offset into dst_hdl where the message is delivered.
-     * \param[out] reseult_event  Event describing the message delivered to dst_hdl.
+     * \param[in]  dst_hdl       Buffer where the message is delivered.
+     * \param[in]  dst_offset    Offset into dst_hdl where the message is delivered.
+     * \param[out] result_event  Event describing the message delivered to dst_hdl.
      * \return A result code (NNTI_OK or an error)
      */
     virtual NNTI_result_t
@@ -202,7 +202,7 @@ public:
      * \param[in]  unexpected_event  Event describing the message to retrieve.
      * \param[in]  dst_hdl           Buffer where the message is delivered.
      * \param[in]  dst_offset        Offset into dst_hdl where the message is delivered.
-     * \param[out] reseult_event     Event describing the message delivered to dst_hdl.
+     * \param[out] result_event      Event describing the message delivered to dst_hdl.
      * \return A result code (NNTI_OK or an error)
      */
     virtual NNTI_result_t

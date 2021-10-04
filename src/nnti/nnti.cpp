@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 /**
  * @file nnti.cpp
@@ -61,7 +61,6 @@ NNTI_result_t NNTI_init(
         NNTI_transport_t          *trans_hdl)
 {
     NNTI_result_t  rc = NNTI_OK;
-    const char    *url = (my_url==nullptr) ? "" : my_url;
 
     setup_logging();
 
@@ -80,8 +79,6 @@ NNTI_result_t NNTI_initialized(
         const NNTI_transport_id_t  trans_id,
         int                       *is_init)
 {
-    NNTI_result_t                rc = NNTI_OK;
-
     *is_init = nnti::transports::factory::exists(trans_id);
     if (*is_init) {
         nnti::transports::transport *transport = nnti::transports::factory::get_instance(trans_id);
@@ -746,8 +743,6 @@ NNTI_result_t NNTI_cancelall(
         const uint32_t  wid_count)
 {
     NNTI_result_t       rc=NNTI_OK;
-    NNTI_transport_id_t id=NNTI_TRANSPORT_NULL;
-    uint32_t            i=0;
 
     nnti::transports::transport *t=nullptr;
 
@@ -834,8 +829,6 @@ NNTI_result_t NNTI_waitany(
         NNTI_status_t  *status)
 {
     NNTI_result_t       rc=NNTI_OK;
-    NNTI_transport_id_t id=NNTI_TRANSPORT_NULL;
-    uint32_t            i=0;
 
     nnti::transports::transport *t=nullptr;
 
@@ -878,8 +871,6 @@ NNTI_result_t NNTI_waitall(
         NNTI_status_t  *status)
 {
     NNTI_result_t rc=NNTI_OK;
-    NNTI_transport_id_t id=NNTI_TRANSPORT_NULL;
-    uint32_t i=0;
 
     nnti::transports::transport *t=nullptr;
 

@@ -1,11 +1,10 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 
-#include <stdio.h>
-#include <time.h>
-#include <inttypes.h>
+#include <ctime>
+#include <cinttypes>
 
 #include <memory>
 
@@ -24,7 +23,7 @@ using namespace faodel;
 namespace kelpie {
 
 LocalKVCell::LocalKVCell()
-  : availability(Availability::Unavailable), hold_until(0),
+  : availability(Availability::Unavailable), hold_until(0), drop_requested(false),
     time_offloaded(0) {
   time_posted = getTime();
   time_accessed = time_posted;
@@ -50,7 +49,7 @@ bool LocalKVCell::operator<( const LocalKVCell &x) const {
  * @todo implement flush to disk
  */
 int LocalKVCell::evict(const Key &key, const Availability new_availability, lunasa::DataObject *new_owners_ldo){
-  KTODO("Evict cell");
+  F_TODO("Evict cell");
 #if 0
   if(!in_memory) return KELPIE_OK;
   if(!in_disk) {
@@ -65,7 +64,7 @@ int LocalKVCell::evict(const Key &key, const Availability new_availability, luna
 }
 
 bool LocalKVCell::isDroppable(){
-  if((waiting_nodes_list.size()>0) || (waiting_ops_list.size())) return false;
+  if( waiting_ops_list.size() + callback_list.size() > 0 ) return false;
   if(availability!=Availability::InLocalMemory) return false;  //todo
 
   uint32_t t = getTime();
@@ -74,25 +73,35 @@ bool LocalKVCell::isDroppable(){
   return true;
 }
 
+#if 0
 void LocalKVCell::getInfo(kv_col_info_t *col_info){
   if(!col_info) return;
 
   auto num_receivers = static_cast<uint32_t>(waiting_nodes_list.size());
   if(!num_receivers) num_receivers = static_cast<uint32_t>(waiting_ops_list.size());
-  col_info->num_bytes = ldo.GetUserSize();
+  col_info->num_user_bytes = ldo.GetUserSize();
   col_info->num_col_receiver_nodes = num_receivers;
   col_info->num_col_dependencies = static_cast<uint32_t>(waiting_nodes_list.size()  + waiting_ops_list.size());
   col_info->availability=availability;
 }
+#endif
 
-/**
- * @brief Add a requesting node to the list of nodes that want this data
- * @param[in] requesting_node The (non-local) node that wants the data
- */
-void LocalKVCell::appendWaitingList(nodeid_t requesting_node){
-  if(requesting_node!=NODE_LOCALHOST)
-    waiting_nodes_list.insert(requesting_node);
+void LocalKVCell::getInfo(object_info_t *info) {
+  if(!info) return;
+  info->col_user_bytes = ldo.GetUserSize();
+  info->col_dependencies = waiting_ops_list.size() + callback_list.size();
+  info->col_availability = availability;
 }
+
+
+///**
+// * @brief Add a requesting node to the list of nodes that want this data
+// * @param[in] requesting_node The (non-local) node that wants the data
+// */
+//void LocalKVCell::appendWaitingList(nodeid_t requesting_node){
+//  if(requesting_node!=NODE_LOCALHOST)
+//    waiting_nodes_list.insert(requesting_node);
+//}
 
 /**
  * @brief Add an op mailbox to the list of nodes that want this data
@@ -116,55 +125,44 @@ void LocalKVCell::appendCallbackList(fn_want_callback_t callback){
 void LocalKVCell::dispatchCallbacksAndNotifications(LocalKVRow *row, const Key &key){
 
   //Bail out if no dependencies
-  if((callback_list.size()==0)      &&
-     (waiting_nodes_list.size()==0) &&
-     (waiting_ops_list.size()==0)      ) return;
+  if( callback_list.empty() && waiting_ops_list.empty() ) return;
 
-  //cout <<"LKV Cell: dispatch callbacks for "<<key.str() <<" has "
-  //     <<callback_list.size()<<" callbacks, "
-  //     <<waiting_nodes_list.size()<<" nodes, and "
-  //     <<waiting_ops_list.size()<<" ops\n";
 
   //Build a list of actions that backburner should perform
-
   vector<faodel::fn_backburner_work> backburner_work;
-  kv_row_info_t row_info;
-  kv_col_info_t col_info;
-  row->getInfo(&row_info);
-  getInfo(&col_info);
+
+  //Gather info one time for all cbs
+  object_info_t object_info;
+  row->getInfo(key, &object_info);
+  getInfo(&object_info);
+
 
   //Callbacks on the local node
   //cout <<"LKV LocalCBs. NumCBs: "<<callback_list.size()<<" LDO Refs: "<<ldo.internal_use_only.GetRefCount()<<endl;
   for(auto &cb : callback_list){
     //cb(true, key, ldo);
-    lunasa::DataObject ldotmp = ldo; //LDOs don't like member vars
+    lunasa::DataObject ldo_tmp = ldo; //LDOs don't like member vars
     //cout <<"   installing cb LDO Refs: "<<ldo.internal_use_only.GetRefCount()<<endl;
 
-    backburner_work.push_back( [cb, key, ldotmp, row_info, col_info] {
-        cb(true, key, ldotmp, row_info, col_info);
+    backburner_work.emplace_back( [cb, key, ldo_tmp, object_info] {
+        cb(true, key, ldo_tmp, object_info);
         return 0;
       });
 
   }
 
   //Waiting Ops
-  if(waiting_ops_list.size()>0){
+  if(!waiting_ops_list.empty()){
 
     //We need to do some trigger ops here. OpBox spools these up internally
     //(potentially launching on backburner), so just let them do the work
-    auto args = make_shared<OpArgsObjectAvailable>(ldo, row_info, col_info);
+    auto args = make_shared<OpArgsObjectAvailable>(ldo, object_info);
     for(auto &mb : waiting_ops_list) {
       opbox::TriggerOp(mb, std::move(args)); 
     }
     //TODO: Add a function to spool all the mailboxes/opargs up and then
     //      hand over so opbox can deal with bundles
 
-  }
-
-  //Waiting nodes
-  for(auto &nd : waiting_nodes_list){
-    //TODO: schedule a send
-    KWARN("Need to update kelpie for waiting lists")
   }
 
   //cout<<"LKV total backburner jobs adding: "<<backburner_work.size()<<endl;
@@ -174,7 +172,6 @@ void LocalKVCell::dispatchCallbacksAndNotifications(LocalKVRow *row, const Key &
 
   //Clear out dependency lists
   callback_list.clear();
-  waiting_nodes_list.clear();
   waiting_ops_list.clear();
 
 }

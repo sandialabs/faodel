@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #ifndef OPBOX_OPREGISTRY_HH
 #define OPBOX_OPREGISTRY_HH
@@ -38,7 +38,7 @@ public:
 
   void RegisterOp(int op_id, std::string op_name, fn_OpCreate_t func);
   void DeregisterOp(int op_id, bool ignore_lock_warning=false);
-
+  std::string GetOpName(int op_id) const;
 
   void Start() { finalized=true; }
   void Finish();

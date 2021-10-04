@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #include <string>
 #include <map>
@@ -142,16 +142,22 @@ namespace kelpie {
       const cass_byte_t* payload
     */
    
-    void
+    rc_t
     IomCassandra::WriteObject( faodel::bucket_t bucket,
 			       const kelpie::Key& key,
-			       const lunasa::DataObject &ldo ) {
-      WriteObjects( bucket, { kvpair( key, ldo ) } );
+			       const lunasa::DataObject &ldo )
+    {
+      try {
+        internal_WriteObject( bucket, { kvpair( key, ldo ) } );
+        return 0;
+      } catch (std::runtime_error &e) {
+        return 1;
+      }
     }
 
 
     void
-    IomCassandra::WriteObjects( faodel::bucket_t bucket,
+    IomCassandra::internal_WriteObject( faodel::bucket_t bucket,
 				const std::vector< kvpair >& kvpairs )
     {
       size_t wr_amt = 0;
@@ -165,8 +171,9 @@ namespace kelpie {
       cass_future_wait( fut );
       rc = cass_future_error_code( fut );
       if( rc not_eq CASS_OK ) {
-	std::cerr << "Cassandra batch write preparation failed: " << fut << std::endl;
-	return;
+        std::stringstream ss;
+        ss << "IomCassandra::Cassandra batch write preparation failed: " << fut;
+        throw std::runtime_error(ss.str());
       }
 
       const CassPrepared* prep = cass_future_get_prepared( fut );
@@ -195,7 +202,9 @@ namespace kelpie {
       cass_future_wait( fut );
       rc = cass_future_error_code( fut );
       if( rc not_eq CASS_OK ) {
-	std::cerr << "Cassandra batch write failed: " << fut << std::endl;
+        std::stringstream ss;
+        ss << "IomCassandra::Cassandra batch write failed: " << fut;
+        throw std::runtime_error(ss.str());
       } else {
 	stat_wr_requests += kvpairs.size();
 	stat_wr_bytes += wr_amt;
@@ -366,7 +375,7 @@ namespace kelpie {
 
 
     rc_t
-    IomCassandra::GetInfo( faodel::bucket_t bucket, const kelpie::Key& key, kv_col_info_t* col_info )
+    IomCassandra::GetInfo( faodel::bucket_t bucket, const kelpie::Key& key, object_info_t *info )
     {
       rc_t krc;
       CassError crc = CASS_OK;
@@ -374,10 +383,10 @@ namespace kelpie {
       CassStatement* stmt = nullptr;
       std::string select_cql = "SELECT meta_size, data_size FROM " + keyspace_table_ + " WHERE bucket = ? AND key = ?";
 
-      // currently makes zero sense to call this with a null col_info pointer, so zero the struct
+      // currently makes zero sense to call this with a null info pointer, so zero the struct
       // if the pointer is not null and bail out otherwise
-      if( col_info not_eq nullptr ) {
-	     col_info->Wipe();
+      if( info not_eq nullptr ) {
+	     info->Wipe();
       } else {
 	     return KELPIE_EINVAL;
       }
@@ -398,11 +407,11 @@ namespace kelpie {
 	  const CassRow* row = cass_result_first_row( result );
 	  cass_value_get_int64( cass_row_get_column( row, 0 ), &ms );
 	  cass_value_get_int64( cass_row_get_column( row, 1 ), &ds );
-	  col_info->num_bytes = ms + ds;
-	  col_info->availability = kelpie::Availability::InDisk;
+	  info->col_user_bytes = ms + ds;
+	  info->col_availability = kelpie::Availability::InDisk;
 	  krc = KELPIE_OK;	  
 	} else {
-	  col_info->availability = kelpie::Availability::Unavailable;
+	  info->col_availability = kelpie::Availability::Unavailable;
 	  krc = KELPIE_ENOENT;
 	}
 
@@ -414,6 +423,7 @@ namespace kelpie {
 
       return krc;
     }
+
 
   }
 }

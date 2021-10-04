@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 
 #ifndef UGNI_ATOMIC_OP_HPP_
@@ -75,8 +75,6 @@ public:
     void
     set(nnti::datatype::nnti_work_id *wid)
     {
-        const nnti::datatype::ugni_work_request &wr = (const nnti::datatype::ugni_work_request &)wid->wr();
-
         id_  = next_id_.fetch_add(1);
         wid_ = wid;
         state_ = op_state::INIT;
@@ -261,7 +259,7 @@ private:
 
         return op_state::CLEANUP;
     }
-    op_state
+    void
     update_stats(void)
     {
         nnti::datatype::nnti_work_request &wr = wid_->wr();

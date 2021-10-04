@@ -1,13 +1,13 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #include <iostream>
 #include <sstream>
-#include <assert.h>
 
 #include <string.h> //memcpy
 #include <pthread.h>
+#include <sys/stat.h>
 
 #include "faodelConfig.h"
 
@@ -76,7 +76,23 @@ void DeregisterDataObjectType(dataobject_type_t tag) {
 bool DumpDataObject(const DataObject &ldo, faodel::ReplyStream &rs) {
   return internal::Singleton::impl.dataobject_type_registry.DumpDataObject(ldo, rs);
 }
+/**
+ * @brief Read a DataObject from disk and store it in a new DataObject
+ * @param[in] filename The name of the DataObject to load from disk
+ * @retval DataObject The object
+ * @throw runtime_error if file cannot be read
+ */
+DataObject LoadDataObjectFromFile(std::string filename) {
 
+  uint32_t header_size = lunasa::DataObject::GetHeaderSize();
+  struct stat results;
+  if( (stat(filename.c_str(), &results) != 0) || (results.st_size < header_size)) {
+    throw std::runtime_error("Could not read Lunasa DataObject '"+filename+"'");
+  }
+  lunasa::DataObject ldo(results.st_size - header_size);
+  ldo.readFromFile(filename.c_str());
+  return ldo;
+}
 
 
 // Note: The Lunasa class is just a wrapper that makes calls to the singleton

@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #include <iostream>
 #include <vector>
@@ -130,7 +130,13 @@ void setNodeID(internal_use_only_t iuo, NodeID nodeid) {
 void Init(const Configuration &config, fn_register last_component) {
 
   string last_component_name = last_component(); //Calls registration
-  return BSCORE.Init(config);
+  if(!BSCORE.HasComponent(last_component_name)) {
+    throw std::runtime_error("Bootstrap did not know about "+last_component_name+". This may happen when multiple entities use FAODEL\n"
+                             "  and one starts without knowing that other services are needed. Make sure the entity that calls\n"
+                             "  bootstrap::init has all components in it.\n");
+  }
+  BSCORE.Init(config);
+  return;
 }
 
 /**
@@ -153,6 +159,11 @@ void Start() {
 void Start(const Configuration &config, fn_register last_component) {
 
   string last_component_name = last_component(); //Calls registration
+  if(!BSCORE.HasComponent(last_component_name)) {
+    throw std::runtime_error("Bootstrap did not know about "+last_component_name+". This may happen when multiple entities use FAODEL\n"
+                             "  and one starts without knowing that other services are needed. Make sure the entity that calls\n"
+                             "  bootstrap::start has all components in it.\n");
+  }
   return BSCORE.Start(config);
 }
 
@@ -194,6 +205,14 @@ std::string GetState() {
  */
 bool IsStarted() {
   return BSCORE.IsStarted();
+}
+
+/**
+ * @brief Disaplay current number of bootstrap Initialization calls that have not yet had a Finish issued for them
+ * @return NumberUsers The current count
+ */
+int GetNumberOfUsers() {
+  return BSCORE.GetNumberOfUsers();
 }
 
 /**

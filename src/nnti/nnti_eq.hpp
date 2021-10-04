@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 /**
  * @file nnti_eq.hpp
@@ -57,7 +57,7 @@ private:
     class simple_reservation_manager
     : public reservation_manager {
     private:
-        const uint64_t                           max_reservations_;
+        const int64_t                            max_reservations_;
         std::atomic<nnti::datatype::reservation> outstanding_reservations_;
     public:
         simple_reservation_manager(
@@ -105,8 +105,7 @@ private:
         }
         bool
         return_reservation(
-            nnti::datatype::reservation &r)
-        {
+            nnti::datatype::reservation &r) override {
             return true;
         }
     };
@@ -161,10 +160,10 @@ public:
     nnti_event_queue(
         bool     require_reservation,
         uint64_t size)
-        : require_reservation_(require_reservation),
+        : nnti_datatype(NNTI_dt_event_queue),
+          require_reservation_(require_reservation),
           q_size_(size),
-          q_(size),
-          nnti_datatype(NNTI_dt_event_queue)
+          q_(size)
     {
         if (require_reservation) {
             reservation_manager_ = new simple_reservation_manager(q_size_);
@@ -180,13 +179,13 @@ public:
         bool                         require_reservation,
         uint64_t                     size,
         nnti::transports::transport *transport)
-        : require_reservation_(require_reservation),
+        : nnti_datatype(transport,
+                        NNTI_dt_event_queue),
+          require_reservation_(require_reservation),
           q_size_(size),
           q_(size),
           cb_(transport, default_eq_callback()),
-          cb_context_(nullptr),
-          nnti_datatype(transport,
-                        NNTI_dt_event_queue)
+          cb_context_(nullptr)
     {
         if (require_reservation) {
             reservation_manager_ = new simple_reservation_manager(q_size_);
@@ -204,13 +203,13 @@ public:
         nnti::datatype::nnti_event_callback  cb,
         void                                *cb_context,
         nnti::transports::transport         *transport)
-        : require_reservation_(require_reservation),
+        : nnti_datatype(transport,
+                        NNTI_dt_event_queue),
+          require_reservation_(require_reservation),
           q_size_(size),
           q_(size),
           cb_(cb),
-          cb_context_(cb_context),
-          nnti_datatype(transport,
-                        NNTI_dt_event_queue)
+          cb_context_(cb_context)
     {
         if (require_reservation) {
             reservation_manager_ = new simple_reservation_manager(q_size_);

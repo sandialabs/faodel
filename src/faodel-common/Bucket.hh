@@ -1,11 +1,12 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #ifndef FAODEL_COMMON_BUCKET_HH
 #define FAODEL_COMMON_BUCKET_HH
 
 #include <sstream>
+#include <stdexcept>
 
 #include "faodel-common/FaodelTypes.hh"
 
@@ -46,18 +47,12 @@ const bucket_t BUCKET_UNSPECIFIED(0, internal_use_only);
 /**
  * @brief An exception used to deal with bad bucket string parsing
  */
-class BucketParseError : public std::exception {
-private:
-  std::string msg;
+class BucketParseError : public std::runtime_error {
 public:
-  BucketParseError() : msg("") {}
-  BucketParseError(std::string s) : msg(s) {}
-
-  const char* what() const throw() override {
-    std::stringstream ss;
-    ss << "Format problem while parsing Bucket string: " << msg << std::endl;
-    return ss.str().c_str();
-  }
+  BucketParseError()
+    : std::runtime_error( "Format problem while parsing Bucket string" ) {}
+  explicit BucketParseError( const std::string& s )
+    : std::runtime_error( "Format problem while parsing Bucket string: " + s ) {}
 };
 
 } // namespace faodel

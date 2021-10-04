@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #include <iostream>
 #include <stdexcept>
@@ -15,6 +15,7 @@ using namespace kelpie;
 //Statics: Standard id/name info for an op
 const unsigned int OpKelpieGetBounded::op_id = const_hash("OpKelpieGetBounded");
 const string OpKelpieGetBounded::op_name = "OpKelpieGetBounded";
+bool OpKelpieGetBounded::debug_enabled = false;
 
 //Statics: This op has a static localkv pointer. lkv lives inside KelpieCore instance
 LocalKV * OpKelpieGetBounded::lkv = nullptr;
@@ -23,10 +24,14 @@ LocalKV * OpKelpieGetBounded::lkv = nullptr;
  * @brief Internal startup command for setting static variables
  *
  * @param[in] iuo Designates this function is for internal use only
+ * @param[in] config Pointer to configuration so that kelpie.op.getbounded settings can be retrieved
  * @param[in] new_lkv A pointer to the kelpie localkv we should uses_allocator
  */
-void OpKelpieGetBounded::configure(faodel::internal_use_only_t iuo, LocalKV *new_lkv) {
+void OpKelpieGetBounded::configure(faodel::internal_use_only_t iuo, const faodel::Configuration *config, LocalKV *new_lkv) {
   lkv = new_lkv;
+  if(config) {
+    config->GetComponentLoggingSettings(&OpKelpieGetBounded::debug_enabled, nullptr, nullptr, "kelpie.op.getbounded");
+  }
 }
 
 
@@ -34,7 +39,6 @@ void OpKelpieGetBounded::configure(faodel::internal_use_only_t iuo, LocalKV *new
 /**
  * @brief Create a new Get Object operation
  *
-
  * @param[in] target_node The target node to publish data to
  * @param[in] target_ptr The target node's peer pointer
  * @param[in] bucket The bucket namespace for this object
@@ -62,7 +66,7 @@ OpKelpieGetBounded::OpKelpieGetBounded(
     bucket(bucket), key(key),
     cb_opget_result(cb_result)  {
 
-  kassert(expected_ldo_user_size>0, "GetBounded op given a zero byte ldo?");
+  F_ASSERT(expected_ldo_user_size > 0, "GetBounded op given a zero byte ldo?");
 
   //Create space for the requested data
   ldo_data = lunasa::DataObject(0, expected_ldo_user_size, lunasa::DataObject::AllocatorType::eager);
@@ -85,7 +89,7 @@ OpKelpieGetBounded::OpKelpieGetBounded(
 OpKelpieGetBounded::OpKelpieGetBounded(Op::op_create_as_target_t t)
   : Op(t), state(State::trgt_getbounded_start), ldo_msg()  {
   //No work to do - done in target's state machine
-  peer = 0;
+  peer = nullptr;
   GetAssignedMailbox();  //For safety, get a mailbox. Not needed everywhere?
 }
 
@@ -94,14 +98,14 @@ OpKelpieGetBounded::OpKelpieGetBounded(Op::op_create_as_target_t t)
  * @brief Destructor for OpKelpieGetBounded
  */
 OpKelpieGetBounded::~OpKelpieGetBounded(){
-  //cout <<"OpKelpieGetBounded() dtor : state is "<<GetStateName()<<endl;
   if(state!=State::done){
-    KTODO("GetBounded dtor called when not in done state");
+    F_TODO("GetBounded dtor called when not in done state");
   }
 }
 
 //ORIGIN: Send the initial request
 WaitingType OpKelpieGetBounded::smo_GetBounded_Send(){
+  dbg("Send bounded request for "+key.str());
   net::SendMsg(peer, std::move(ldo_msg));
   return updateState(State::orig_getbounded_wait_for_ack, WaitingType::waiting_on_cq);
 }
@@ -114,69 +118,37 @@ WaitingType OpKelpieGetBounded::smt_GetBounded_Start(OpArgs *args) {
   nbr    = imsg->net_buffer_remote;  //Copy the remote pointers
   bucket = imsg->bucket;
   key    = imsg->ExtractKey();
-  auto target_iom = imsg->iom_hash;
 
-  //cout <<"OPDHT-TRG: message is get bounded for "<<key.str()<<endl;
+
+  dbg("Received new bounded request for "+key.str());
 
   //Create an ack message (though success may change below)
   auto omsg = msg_direct_status_t::AllocAck(ldo_msg, &imsg->hdr);  //Success changed below
 
-  //Lookup data
-  rc_t rc = lkv->get(imsg->bucket, key, mailbox, &ldo_data, &omsg->row_info, &omsg->col_info);
+  //Have the lkv take care of all the fetching. We either get ok, or op is queued up
+  rc_t rc = lkv->getForOp(bucket, key, mailbox, imsg->behavior_flags, imsg->iom_hash,
+                          &ldo_data, &omsg->object_info);
 
-
-  //TODO: Provide row/col info back in ack
-
-  //When miss, see if we need to try loading from an iom
-  if((rc!=0) && (target_iom!=0)){
-
-    auto *iom = kelpie::internal::Singleton::impl.core->FindIOM(target_iom);
-    if(iom==nullptr) {
-      throw runtime_error("OpKelpieGetBounded attempted to read key "+key.str()+" to a node with a bad iom");
-    }
-    rc = iom->ReadObject(imsg->bucket, key, &ldo_data);
-
-    if(rc==0) {
-      //TODO: We need to post this, without triggering our mailbox to be sent
-      auto target_behavior_flags = PoolBehavior::ChangeRemoteToLocal(imsg->behavior_flags);
-      lkv->put(imsg->bucket, key, ldo_data, target_behavior_flags, &omsg->row_info, &omsg->col_info);
-    }
-  }
-
-
-  if(rc==0){
-    //cout <<"OPDHT-TRG Result is ready and am putting\n";
-    //Data was in memory, get ready to send it back
+  if(rc==KELPIE_OK) {
+    dbg("Item located. Starting to send data");
     //TODO: Does put check lengths at all?
     net::Put(peer, ldo_data, &nbr, AllEventsCallback(this));
     omsg->Success(true);
     return updateState(State::trgt_getbounded_wait_for_rdma, WaitingType::waiting_on_cq);
 
   } else {
-    //cout <<"OPDHT-TRG Result not ready\n";
-
-
-    //Option 1: Just send a nack
-    //omsg->Success(false);
-    //net::SendMsg(peer, ldo_msg);
-    //return updateStateDone();
-
-    //Option 2: Stall this op and wait for the data
+    dbg("Item not found locally. Stalling op and sending a nack\n");
     return updateState(State::trgt_getbounded_wait_for_data, WaitingType::wait_on_user);
-
-    //Option 3?: Stall this op and wait/timeout for the data
-
   }
 }
 
 //TARGET: Data now available.  Start the RDMA.
 WaitingType OpKelpieGetBounded::smt_GetBounded_WaitData(OpArgs *args){
 
-  //cout <<"OPDHT-TRG: getbounded wait for data\n";
-
   //See if this is a timeout
-  if(args->type == opbox::UpdateType::timeout){
+  if(args->type == opbox::UpdateType::timeout) {
     //Send a nack and be done. Message ready to go, just toggle the success
+    dbg("Timeout waiting for data. Sending nack.");
     auto omsg = ldo_msg.GetDataPtr<msg_direct_status_t *>();
     omsg->Success(false);
     net::SendMsg(peer, std::move(ldo_msg));
@@ -189,6 +161,8 @@ WaitingType OpKelpieGetBounded::smt_GetBounded_WaitData(OpArgs *args){
     throw std::runtime_error("OpKelpieGetBounded_Target was expecting user trigger in GetBounded_WaitData()?");
   }
 
+  dbg("Data available. Sending.");
+
   //Data now available. Setup send
   auto opargs = reinterpret_cast<OpArgsObjectAvailable *>(args);
   ldo_data = opargs->ldo;  //Transfer ownership here
@@ -200,7 +174,7 @@ WaitingType OpKelpieGetBounded::smt_GetBounded_WaitData(OpArgs *args){
 //TARGET: RDMA PUT is Done, send the ACK notification
 WaitingType OpKelpieGetBounded::smt_GetBounded_WaitRDMA(OpArgs *args) {
 
-  //cout <<"OPDHT-TRG: getbounded wait for rdma, sending ack\n";
+  dbg("Data transfer done. Sending an ack");
   args->VerifyTypeOrDie(UpdateType::put_success, op_name);  //TODO: Add better error handling
 
   //RDMA done, now send an ACK message
@@ -214,11 +188,9 @@ WaitingType OpKelpieGetBounded::smo_GetBounded_WaitAck(OpArgs *args) {
 
   auto imsg = args->ExpectMessageOrDie<msg_direct_status_t *>();
 
-  //cout <<"OPXFER-ORG getbounded "<< (imsg->Success() ? "Success":"Fail") <<imsg->str();
-
+  dbg("Received completion. Status is "+std::to_string(imsg->Success()));
   cb_opget_result(imsg->Success(), key, ldo_data);
 
-  //cout <<"OPXFER-ORG: Done with callback\n";
   return updateStateDone();
 }
 
@@ -233,7 +205,7 @@ WaitingType OpKelpieGetBounded::Update(opbox::OpArgs *args) {
   case State::orig_getbounded_wait_for_ack:    return smo_GetBounded_WaitAck(args);
   case State::done:                            return updateStateDone();
   }
-  KFAIL();
+  F_FAIL();
   return WaitingType::error;
 }
 
@@ -251,6 +223,6 @@ std::string OpKelpieGetBounded::GetStateName() const {
   case State::orig_getbounded_wait_for_ack:    return "Origin-GetBounded-WaitForAck";
   case State::done:                            return "Done";
   }
-  KFAIL();
+  F_FAIL();
 }
 

@@ -1,8 +1,8 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
-// logging_interface example
+// logging-interface example
 //
 // This LoggingInterface is a simple way for us to plug logging operations into
 // classes. In order to use it, you need to provide a name for the

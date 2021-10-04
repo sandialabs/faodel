@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #ifndef DIRMAN_DIRECTORYMANAGERCOREUNCONFIGURED_HH
 #define DIRMAN_DIRECTORYMANAGERCOREUNCONFIGURED_HH
@@ -29,7 +29,7 @@ public:
   //DirMan Exposed API. Most of these will call Panic() to catch an unconfigured system
   std::string GetType() const override { return "unconfigured"; };
   bool Locate(const faodel::ResourceURL &search_url, faodel::nodeid_t *reference_node=nullptr) override;
-  bool GetDirectoryInfo(const faodel::ResourceURL &url, bool check_local, bool check_remote, faodel::DirectoryInfo *dir_info) override;
+  bool GetDirectoryInfo(const faodel::ResourceURL &search_url, bool check_local, bool check_remote, faodel::DirectoryInfo *dir_info) override;
   bool DefineNewDir(const faodel::DirectoryInfo &dir_info) override;
   bool HostNewDir(const faodel::DirectoryInfo &dir_info) override;
   bool JoinDirWithName(const faodel::ResourceURL &url, std::string name, faodel::DirectoryInfo *dir_info=nullptr) override;

@@ -8,7 +8,6 @@ set(SERIAL_TEST_LIBS
   services            # only used in backburner_ldo test
   GTest::GTest
   GTest::Main
-  ${EXTRA_TEST_LIBS}
   )
 
 set( MPI_TEST_LIBS
@@ -27,6 +26,7 @@ add_serial_test(  tb_lunasa_basic_allocations    component       true  )
 add_serial_test(  tb_lunasa_ldo                  component       true  )
 add_serial_test(  tb_lunasa_backburner_ldo       component       true  )
 add_serial_test(  tb_lunasa_generic_data_bundle  component       true  )
+add_serial_test(  tb_lunasa_dataobjectpacker     component       true  )
 add_serial_test(  tb_lunasa_performance          component       true  )
 add_serial_test(  tb_lunasa_threaded_performance component       true  )
 add_serial_test(  tb_lunasa_statistics           component       true  )

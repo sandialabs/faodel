@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #include <assert.h>
 
@@ -76,7 +76,7 @@ WaitingType OpRapidFire::UpdateOrigin(OpArgs *args) {
   switch(state){
   case State::start:
     //Message is already packed and peer is set. Fire and forget.
-    KTODO("The Origin constructor sets the initial state to 'snd_OneAtATime'.  Can the 'start' state be eliminated?");
+    F_TODO("The Origin constructor sets the initial state to 'snd_OneAtATime'.  Can the 'start' state be eliminated?");
     return WaitingType::waiting_on_cq;
 
 
@@ -126,7 +126,7 @@ WaitingType OpRapidFire::UpdateOrigin(OpArgs *args) {
     return WaitingType::done_and_destroy;
   }
   //Shouldn't be here
-  KFAIL();
+  F_FAIL();
   return WaitingType::error;
 }
 
@@ -163,7 +163,7 @@ WaitingType OpRapidFire::UpdateTarget(OpArgs *args) {
   case State::done:
     return WaitingType::done_and_destroy;
   }
-  KHALT("Missing state");
+  F_HALT("Missing state");
   return WaitingType::done_and_destroy;
 }
 
@@ -173,6 +173,6 @@ string OpRapidFire::GetStateName() const {
   case State::snd_OneAtATime:        return "Sender-One-At-A-Time";
   case State::done:                  return "Done";
   }
-  KFAIL();
+  F_FAIL();
   return "Unknown";
 }

@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #ifndef KELPIE_KELPIECOREBASE_HH
 #define KELPIE_KELPIECOREBASE_HH
@@ -16,6 +16,7 @@
 
 #include "kelpie/pools/PoolRegistry.hh"
 #include "kelpie/ioms/IomRegistry.hh"
+#include "kelpie/common/ComputeRegistry.hh"
 
 namespace kelpie {
 namespace internal {
@@ -46,11 +47,14 @@ public:
   //Pool Management
   virtual void RegisterPoolConstructor(std::string pool_name, fn_PoolCreate_t ctor_function) = 0;
   virtual Pool Connect(const faodel::ResourceURL &resource_url) = 0;
+  virtual std::vector<std::string> GetRegisteredPoolTypes() const = 0;
 
-  //IOM Management
-  virtual void RegisterIomConstructor(std::string type, fn_IomConstructor_t ctor_function) = 0;
-  internal::IomBase * FindIOM(std::string iom_name) { return FindIOM(faodel::hash32(iom_name)); }
-  virtual internal::IomBase * FindIOM(iom_hash_t iom_hash) = 0;
+  //Pool Server
+  virtual int JoinServerPool(const faodel::ResourceURL &url, const std::string &optional_node_name) = 0;
+
+  //IO Module
+  IomRegistry iom_registry;
+  ComputeRegistry compute_registry;
 
 protected:
 

@@ -1,4 +1,4 @@
-set(PROJECT_NAME info_interface)
+set(PROJECT_NAME ex_common_info-interface)
 
 
 
@@ -6,11 +6,16 @@ set(SOURCES
    info_interface.cpp
 )
 
+# When doing a standalone build, use the Faodel::common imported target
+if(NOT DEFINED EXAMPLE_LIBS)
+    set( EXAMPLE_LIBS Faodel::common )
+endif()
+
 
 add_executable(${PROJECT_NAME} ${HEADERS} ${SOURCES})
 set_target_properties(${PROJECT_NAME} PROPERTIES LINKER_LANGUAGE CXX )
 
-target_link_libraries(${PROJECT_NAME} ${EXAMPLES_LIBS})
+target_link_libraries(${PROJECT_NAME} ${EXAMPLE_LIBS})
 
 install(TARGETS ${PROJECT_NAME}
         EXPORT faodelExampleTargets

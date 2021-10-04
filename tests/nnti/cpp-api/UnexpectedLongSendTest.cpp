@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 
 #include "nnti/nnti_pch.hpp"
@@ -98,7 +98,8 @@ TEST_F(NntiUnexpectedLongSendTest, start1) {
 
     NNTI_peer_t peer_hdl;
 
-    uint32_t msg_size = 4096;
+//    uint32_t msg_size = 4096;
+    uint32_t msg_size = 4095;  // not 4-byte aligned
 
     nnti::datatype::nnti_event_callback null_cb(t, (NNTI_event_callback_t)0);
 

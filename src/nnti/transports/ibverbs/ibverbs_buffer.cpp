@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 
 #include "nnti/nnti_pch.hpp"
@@ -35,14 +35,6 @@ ibverbs_buffer::ibverbs_buffer()
     mr = nullptr;
     return;
 }
-//ibverbs_buffer::ibverbs_buffer(
-//    nnti::transports::ibverbs_transport *transport,
-//    NNTI_buffer_p_t                     *packable)
-//: nnti_buffer(transport,
-//              packable)
-//{
-//    return;
-//}
 ibverbs_buffer::ibverbs_buffer(
     nnti::datatype::ibverbs_buffer &b)
 : nnti_buffer(b),
@@ -229,7 +221,6 @@ ibverbs_buffer::post_receive(void)
 {
     NNTI_result_t         rc = NNTI_OK;
     int                   ibv_rc;
-    enum ibv_access_flags access;
     struct ibv_recv_wr    rq_wr, *bad_wr;
     struct ibv_sge        sge;
 

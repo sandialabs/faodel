@@ -1,6 +1,6 @@
 # SBL: A Simplified Interface to Boost.Log
 
-Simplified Boost.Log (SBL) provides an easy to use interface to 
+Simplified Boost.Log (SBL) provides an easyto use interface to 
 Boost.Log.  Many key features of Boost.Log are available including 
 multiple sinks, application created channels, per-sink severity 
 filter and per-channel severity filters.

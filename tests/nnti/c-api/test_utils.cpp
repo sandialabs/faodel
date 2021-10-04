@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 
 #include "nnti/nntiConfig.h"
@@ -72,7 +72,6 @@ send_target_hdl(NNTI_transport_t  transport,
     NNTI_result_t rc=NNTI_OK;
 
     NNTI_event_t        event;
-    NNTI_event_t        result_event;
     uint32_t            which;
     NNTI_work_request_t base_wr = NNTI_WR_INITIALIZER;
 
@@ -129,7 +128,6 @@ recv_target_hdl(NNTI_transport_t transport,
     NNTI_event_t        event;
     NNTI_event_t        result_event;
     uint32_t            which;
-    NNTI_work_request_t base_wr = NNTI_WR_INITIALIZER;
 
     uint32_t msgs_received=0;
     while (1) {
@@ -153,7 +151,6 @@ recv_target_hdl(NNTI_transport_t transport,
 
     *peer_hdl   = event.peer;
 
-cleanup:
     return rc;
 }
 
@@ -169,7 +166,6 @@ send_hdl(NNTI_transport_t    transport,
     NNTI_result_t rc=NNTI_OK;
 
     NNTI_event_t        event;
-    NNTI_event_t        result_event;
     uint32_t            which;
     NNTI_work_request_t base_wr = NNTI_WR_INITIALIZER;
 
@@ -227,7 +223,6 @@ recv_hdl(NNTI_transport_t    transport,
     NNTI_event_t        event;
     NNTI_event_t        result_event;
     uint32_t            which;
-    NNTI_work_request_t base_wr = NNTI_WR_INITIALIZER;
 
     uint32_t msgs_received=0;
     while (1) {
@@ -252,7 +247,6 @@ recv_hdl(NNTI_transport_t    transport,
 
     *peer_hdl   = event.peer;
 
-cleanup:
     return rc;
 }
 
@@ -267,7 +261,6 @@ send_ack(NNTI_transport_t    transport,
     NNTI_result_t rc=NNTI_OK;
 
     NNTI_event_t        event;
-    NNTI_event_t        result_event;
     uint32_t            which;
     NNTI_work_request_t base_wr = NNTI_WR_INITIALIZER;
 
@@ -312,9 +305,9 @@ recv_ack(NNTI_transport_t    transport,
     NNTI_result_t rc=NNTI_OK;
 
     NNTI_event_t        event;
-    NNTI_event_t        result_event;
+//    NNTI_event_t        result_event;
     uint32_t            which;
-    NNTI_work_request_t base_wr = NNTI_WR_INITIALIZER;
+//    NNTI_work_request_t base_wr = NNTI_WR_INITIALIZER;
 
     log_debug("test_utils", "recv_ack - enter");
 
@@ -332,7 +325,6 @@ recv_ack(NNTI_transport_t    transport,
 
     *peer_hdl   = event.peer;
 
-cleanup:
     log_debug("test_utils", "recv_ack - exit");
 
     return rc;
@@ -410,7 +402,6 @@ send_data(NNTI_transport_t   transport,
     NNTI_result_t rc=NNTI_OK;
 
     NNTI_event_t        event;
-    NNTI_event_t        result_event;
     uint32_t            which;
     NNTI_work_request_t base_wr = NNTI_WR_INITIALIZER;
 
@@ -453,9 +444,7 @@ recv_data(NNTI_transport_t transport,
 {
     NNTI_result_t rc=NNTI_OK;
 
-    NNTI_event_t        result_event;
     uint32_t            which;
-    NNTI_work_request_t base_wr = NNTI_WR_INITIALIZER;
 
     uint32_t msgs_received=0;
     while (1) {
@@ -470,7 +459,6 @@ recv_data(NNTI_transport_t transport,
         }
     }
 
-cleanup:
     return rc;
 }
 
@@ -485,7 +473,6 @@ get_data(NNTI_transport_t   transport,
     NNTI_result_t rc=NNTI_OK;
 
     NNTI_event_t        event;
-    NNTI_event_t        result_event;
     uint32_t            which;
     NNTI_work_request_t base_wr = NNTI_WR_INITIALIZER;
 
@@ -531,7 +518,6 @@ put_data(NNTI_transport_t   transport,
     NNTI_result_t rc=NNTI_OK;
 
     NNTI_event_t        event;
-    NNTI_event_t        result_event;
     uint32_t            which;
     NNTI_work_request_t base_wr = NNTI_WR_INITIALIZER;
 

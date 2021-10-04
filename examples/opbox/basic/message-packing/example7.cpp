@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #include <string>
 #include <memory>
@@ -99,7 +99,7 @@ example7_cereal_messages()
        << "*********************************"
        << endl;
   
-  lunasa::DataObject *ldo;
+  lunasa::DataObject ldo;
 
   FancyPants my_pants( "britches", "red", 4 );
 
@@ -121,7 +121,7 @@ example7_cereal_messages()
   // arbitrary struct. Perhaps there's a better way to do this but I couldn't
   // figure it out.
   ldo = opbox::net::NewMessage( sizeof( message_t ) + my_cerealized_pants.size() );
-  message_t *msg = reinterpret_cast< message_t* >( ldo->dataPtr() );
+  message_t *msg = reinterpret_cast< message_t* >( ldo.GetDataPtr() );
 
   // Use the size of the marshaled buffer in the FB builder as the length of the payload
   msg->body_len = my_cerealized_pants.size();
@@ -129,10 +129,10 @@ example7_cereal_messages()
   std::memcpy( msg->body, my_cerealized_pants.data(), msg->body_len );
 
   cout << "Cerealized buffer size is " << msg->body_len << endl;
-  cout << "LDO size is " << ldo->dataSize() << endl;
+  cout << "LDO size is " << ldo.GetDataSize() << endl;
 
   // Get the message back out of the LDO, as though we'd received it from a sender
-  auto *msg2 = reinterpret_cast< message_t* >( ldo->dataPtr() );
+  auto *msg2 = reinterpret_cast< message_t* >( ldo.GetDataPtr() );
 
   string more_cerealized_pants( msg->body, msg->body_len );
 
@@ -149,6 +149,4 @@ example7_cereal_messages()
     // All done. Let's see what happened.
   cout << "Original pants:" << endl << my_pants << endl;  
   cout << "unpacked pants:" << endl << my_other_pants;
-
-  delete ldo;
 }

@@ -42,6 +42,10 @@ request_handler::request_handler() {
       dumpAbout(args, results);
     });
 
+  registerHook("/proc", [this] (const map<string, string> &args, stringstream &results) {
+      dumpProc(args, results);
+  });
+
 }
 
 void request_handler::handle_request(const request& req, reply& rep) {
@@ -196,6 +200,73 @@ libraries.)");
   rs.Finish();
 
 }
+
+void request_handler::dumpProc(const map<string,string> &args, stringstream &results){
+
+  vector<pair<string,string>> cmds = {
+          { "io",     "I/O statistics (number of bytes I/O has read/written)"},
+          { "limits", "Hard/soft limits for OS resources"},
+          { "sched",  "Scheduling stats (time is in ms)"},
+          { "stat",   "One-line stats about the process"},
+          { "statm",  "One-line stats about memory in Pages (ProgramSize,RSS,Shared,Text,0,data+stack,0)"},
+          { "status", "Human version of stat and statm"}
+  };
+
+  auto myMakeLink = [](const std::string name) {
+      return "<a href=\"/proc&item="+name+"\">/proc/self/"+name+"</a>";
+  };
+
+  //See if we're the top page
+  auto k_v = args.find("item");
+
+  if(k_v != args.end()) {
+    for(auto &item_info : cmds) {
+      if(k_v->second == item_info.first) {
+        auto args_mod = args;
+        string file_name = "/proc/self/"+k_v->second;
+        faodel::ReplyStream rs(args, file_name, &results);
+        if(rs.IsHTML()) {
+          rs.mkSection("Current "+file_name);
+          rs.mkText(item_info.second);
+        }
+        string line;
+        ifstream ifs(file_name);
+        stringstream ss;
+        if(ifs.is_open()) {
+          while(getline(ifs, line)) {
+            ss<<line<<"\n";
+          }
+          ifs.close();
+        }
+        rs.mkPlainText(ss.str());
+        if(rs.IsHTML()) {
+          rs.mkText("<br><a href=\"/proc\">Return to /proc</a>");
+        }
+        rs.Finish();
+        return;
+      }
+    }
+    //Didn't find - bail out and dump main menu
+  }
+
+  faodel::ReplyStream rs(args, "Process Info", &results);
+  rs.mkSection("Proc Info",1);
+  rs.mkText(R"(
+The following are links to different /proc/self files that you can use to get more info
+about this process's runtime. Remember to add &format=text to get the plain text.)");
+
+  rs.tableBegin("Proc Info");
+  rs.tableTop({"Item", "About"});
+  for(auto &item_info : cmds) {
+    rs.tableRow( { myMakeLink(item_info.first), item_info.second });
+  }
+  rs.tableEnd();
+  rs.Finish();
+  return;
+
+}
+
+
 // note: not safe to insert hooks here? random crashes observed
 
 pair<string,string> request_handler::splitString(const string &item, char delim){

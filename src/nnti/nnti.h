@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 /**
  * @file nnti.h
@@ -68,6 +68,7 @@ NNTI_result_t NNTI_get_url(
 /**
  * @brief Get the process ID of this process.
  *
+ * \param[in]  trans_hdl A handle to an activated transport.
  * \param[out] pid   the process ID of this process
  * \return A result code (NNTI_OK or an error)
  *
@@ -79,6 +80,7 @@ NNTI_result_t NNTI_get_pid(
 /**
  * @brief Get attributes of the transport.
  *
+ * \param[in]  trans_hdl A handle to an activated transport.
  * \param[out] attrs   the current attributes
  * \return A result code (NNTI_OK or an error)
  *
@@ -116,10 +118,12 @@ NNTI_result_t NNTI_disconnect(
 /**
  * @brief Create an event queue.
  *
- * \param[in]  trans_hdl A handle to an activated transport.
- * \param[in]  size      The number of events the queue can hold.
- * \param[in]  flags     Control the behavior of the queue.
- * \param[out] eq        The new event queue.
+ * \param[in]  trans_hdl  A handle to an activated transport.
+ * \param[in]  size       The number of events the queue can hold.
+ * \param[in]  flags      Control the behavior of the queue.
+ * \param[in]  cb         A callback that gets called for events delivered to eq.
+ * \param[in]  cb_context A blob of data that is passed to each invocation of cb.
+ * \param[out] eq         The new event queue.
  * \return A result code (NNTI_OK or an error)
  */
 NNTI_result_t NNTI_eq_create(
@@ -145,6 +149,7 @@ NNTI_result_t NNTI_eq_destroy(
  * \param[in]  eq_list   A list of event queues to wait on.
  * \param[in]  eq_count  The number of event queues in the list.
  * \param[in]  timeout   The amount of time (in milliseconds) to wait.
+ * \param[out] which     The index of the eq that received an event.
  * \param[out] event     The details of the event.
  * \return A result code (NNTI_OK or an error)
  */
@@ -160,7 +165,7 @@ NNTI_result_t NNTI_eq_wait(
  *
  * \param[in]  dst_hdl        Buffer where the message is delivered.
  * \param[in]  dst_offset     Offset into dst_hdl where the message is delivered.
- * \param[out] reseult_event  Event describing the message delivered to dst_hdl.
+ * \param[out] result_event   Event describing the message delivered to dst_hdl.
  * \return A result code (NNTI_OK or an error)
  */
 NNTI_result_t NNTI_next_unexpected(
@@ -171,10 +176,10 @@ NNTI_result_t NNTI_next_unexpected(
 /**
  * @brief Retrieves a specific message from the unexpected list.
  *
- * \param[in]  unexpect_event  Event describing the message to retrieve.
- * \param[in]  dst_hdl         Buffer where the message is delivered.
- * \param[in]  dst_offset      Offset into dst_hdl where the message is delivered.
- * \param[out] reseult_event   Event describing the message delivered to dst_hdl.
+ * \param[in]  unexpected_event  Event describing the message to retrieve.
+ * \param[in]  dst_hdl           Buffer where the message is delivered.
+ * \param[in]  dst_offset        Offset into dst_hdl where the message is delivered.
+ * \param[out] result_event      Event describing the message delivered to dst_hdl.
  * \return A result code (NNTI_OK or an error)
  */
 NNTI_result_t NNTI_get_unexpected(

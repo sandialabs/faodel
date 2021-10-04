@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #ifndef OPBOX_MESSAGEHEADER_HH
 #define OPBOX_MESSAGEHEADER_HH
@@ -54,8 +54,9 @@ struct message_t {
   mailbox_t         src_mailbox;  //!< ID to use when communicating back with origin
   mailbox_t         dst_mailbox;  //!< ID to use at the target (usually 0 for most ops)
   uint32_t          op_id;        //!< The id for this type of op (a hash of its name)
-  uint16_t          user_flags;   //!< small place for user to put simple flags
-  uint16_t          body_len;     //!< Length of this message's body (should be less than MTU - sizeof(message_t))
+  uint16_t          user_flags;   //!< Small place for user to put simple flags
+  uint16_t          user_flags2;  //!< Reserved for future use
+  uint32_t          body_len;     //!< Length of this message's body (should be less than MTU - sizeof(message_t))
 
   //Body follows next. We use the non-compliant zero-length array here to make pointers easier
   char              body[0];      //!< Starting point for any other op-specific data in this message
@@ -68,12 +69,12 @@ struct message_t {
   bool IsExpected(uint32_t expected_op_id, uint16_t flag_mask, uint16_t expected_flags);
 
   //Helpers for filling in standard request/reply fields
-  void SetStandardRequest(faodel::nodeid_t dst, mailbox_t src_mailbox, uint32_t op_id, uint16_t user_flags=0, uint16_t body_len=0);
-  void SetStandardReply(const message_t *hdr, uint16_t user_flags=0, uint16_t body_len=0);
+  void SetStandardRequest(faodel::nodeid_t dst, mailbox_t src_mailbox, uint32_t op_id, uint16_t user_flags=0, uint32_t body_len=0);
+  void SetStandardReply(const message_t *hdr, uint16_t user_flags=0, uint32_t body_len=0);
 
 
   //Provide InfoInterface w/o inheritance (which would add an extra 8 bytes to structure)
-  void sstr(std::stringstream &ss, int depth=0, int indent=0) const;
+  void sstr(std::stringstream &ss, int depth=0, int indent=0) const; //Note: not override since not inherited
   std::string str(int depth=0, int indent=0) const;
 
 };

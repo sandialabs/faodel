@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #include <iostream>
 #include <sstream>
@@ -166,7 +166,7 @@ MutexWrapperTypeID GetMutexTypeID(std::string threading_model, std::string mutex
   }
   #endif
 
-  kassert(false, "Unable to resolve Mutex Wrapper for threading model/type "+threading_model+"/"+mutex_type+".\n"
+  F_ASSERT(false, "Unable to resolve Mutex Wrapper for threading model/type "+threading_model+"/"+mutex_type+".\n"
           "         library may not have right compile flags (eg, -lpthread)\n");
 
   return MutexWrapperTypeID::ERROR;
@@ -191,8 +191,8 @@ MutexWrapper * GenerateMutexByTypeID(MutexWrapperTypeID mutex_type_id) {
  default: ;
   }
   //Here by mistake
-  kassert(false, "Unable to resolve Mutex Wrapper "+to_string(mutex_type_id)+"\n"+
-          "         library may not have right compile flags (eg, -lpthread)\n");
+  F_ASSERT(false, "Unable to resolve Mutex Wrapper "+to_string(mutex_type_id)+"\n"+
+                  "         library may not have right compile flags (eg, -lpthread)\n");
   return nullptr;
 
 }

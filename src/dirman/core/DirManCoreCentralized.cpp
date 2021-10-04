@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 
 #include <fstream>
@@ -41,6 +41,8 @@ DirManCoreCentralized::DirManCoreCentralized(const faodel::Configuration &config
     dbg("Am hosting root");
     root_id = my_node;
 
+    info("Root node link: "+root_id.GetHttpLink());
+    info("Node node id:   "+root_id.GetHex());
     //See if we've been instructed to write to a file
     if(!write_root_filename.empty()) {
       dbg("Root is writing file "+write_root_filename);
@@ -50,6 +52,7 @@ DirManCoreCentralized::DirManCoreCentralized(const faodel::Configuration &config
         throw std::runtime_error("dirman root node failed to write_root_filename "+write_root_filename);
       }
       f << my_node.GetHex() <<endl;
+      f << my_node.GetHttpLink()<<endl;
       f.close();
     }
   }
@@ -168,6 +171,7 @@ bool DirManCoreCentralized::GetDirectoryInfo(const faodel::ResourceURL &url, boo
     }
 
   }
+  return false;
 }
 
 /**
@@ -323,13 +327,13 @@ bool DirManCoreCentralized::discoverParent(const ResourceURL &resource_url, node
 }
 
 bool DirManCoreCentralized::cacheForeignDir(const DirectoryInfo &dir_info) {
-  KTODO("cacheForeignDir");
+  F_TODO("cacheForeignDir");
 }
 bool DirManCoreCentralized::lookupRemote(faodel::nodeid_t nodeid, const faodel::ResourceURL &resource_url, DirectoryInfo *dir_info){
-  KTODO("lookupRemote");
+  F_TODO("lookupRemote");
 }
 bool DirManCoreCentralized::joinRemote(faodel::nodeid_t parent_node, const faodel::ResourceURL &child_url, bool send_detailed_reply){
-  KTODO("joinRemote");
+  F_TODO("joinRemote");
 }
 
 /**

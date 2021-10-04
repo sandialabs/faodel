@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 /*
  * sbl_logger.cpp
@@ -96,7 +96,7 @@ namespace sbl  {
     {
         const char *file;
         char buf1[256];
-        char buf2[256];
+        char buf2[1024];
 
         /* path from last '/' */
         file = strrchr(file_name, '/');

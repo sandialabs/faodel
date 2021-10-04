@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 /**
  * @file nnti_connection.hpp
@@ -47,6 +47,9 @@ private:
         std::string hostname;
         uint32_t    addr;
         uint32_t    port;
+        uint64_t    gid1;
+        uint64_t    gid2;
+        std::string fingerprint;
         uint32_t    lid;
         uint32_t    cmd_qpn;
         uint32_t    rdma_qpn;
@@ -61,9 +64,12 @@ private:
             }
 
             try {
-                hostname = peer.at("hostname");
+                hostname     = peer.at("hostname");
                 addr         = nnti::util::str2uint32(peer.at("addr"));
                 port         = nnti::util::str2uint32(peer.at("port"));
+                gid1         = nnti::util::str2uint64(peer.at("gid1"));
+                gid2         = nnti::util::str2uint64(peer.at("gid2"));
+                fingerprint  = peer.at("fingerprint");
                 lid          = nnti::util::str2uint32(peer.at("lid"));
                 cmd_qpn      = nnti::util::str2uint32(peer.at("cmd_qpn"));
                 rdma_qpn     = nnti::util::str2uint32(peer.at("rdma_qpn"));
@@ -83,23 +89,14 @@ private:
 
     connection_params                    peer_params_;
 
-    uint32_t                             cmd_msg_size_;
-    uint32_t                             cmd_msg_count_;
-
-    nnti::core::ibverbs_cmd_buffer      *cmd_buf_;
-
 public:
     ibverbs_connection(
         nnti::transports::ibverbs_transport *transport,
         uint32_t                             cmd_msg_size,
         uint32_t                             cmd_msg_count)
     : nnti_connection(),
-      transport_(transport),
-      cmd_msg_size_(cmd_msg_size),
-      cmd_msg_count_(cmd_msg_count)
+      transport_(transport)
     {
-        int rc;
-
         setup_command_qp();
         setup_rdma_qp();
         setup_long_get_qp();
@@ -115,17 +112,15 @@ public:
         const std::map<std::string,std::string> &peer)
     : nnti_connection(),
       transport_(transport),
-      cmd_msg_size_(cmd_msg_size),
-      cmd_msg_count_(cmd_msg_count),
       peer_params_(peer)
     {
-        int rc;
-
         nnti::core::nnti_url url = nnti::core::nnti_url(peer_params_.hostname, peer_params_.port);
 
         peer_pid_ = url.pid();
         peer_     = new nnti::datatype::nnti_peer(transport, url);
         peer_->conn(this);
+
+        fingerprint_ = peer_params_.fingerprint;
 
         setup_command_qp();
         setup_rdma_qp();
@@ -138,6 +133,9 @@ public:
         log_debug("", "hostname     = %s",  peer_params_.hostname.c_str());
         log_debug("", "addr         = %lu", peer_params_.addr);
         log_debug("", "port         = %d",  peer_params_.port);
+        log_debug("", "gid1         = %lu", peer_params_.gid1);
+        log_debug("", "gid2         = %lu", peer_params_.gid2);
+        log_debug("", "fingerprint  = %s",  peer_params_.fingerprint.c_str());
         log_debug("", "lid          = %d",  peer_params_.lid);
         log_debug("", "cmd_qpn      = %d",  peer_params_.cmd_qpn);
         log_debug("", "rdma_qpn     = %d",  peer_params_.rdma_qpn);
@@ -156,8 +154,6 @@ public:
     peer_params(
         const std::map<std::string,std::string> &params)
     {
-        int rc;
-
         peer_params_ = connection_params(params);
 
         nnti::core::nnti_url url = nnti::core::nnti_url(peer_params_.hostname, peer_params_.port);
@@ -167,6 +163,9 @@ public:
         log_debug("", "hostname     = %s",  peer_params_.hostname.c_str());
         log_debug("", "addr         = %lu", peer_params_.addr);
         log_debug("", "port         = %d",  peer_params_.port);
+        log_debug("", "gid1         = %lu", peer_params_.gid1);
+        log_debug("", "gid2         = %lu", peer_params_.gid2);
+        log_debug("", "fingerprint  = %s",  peer_params_.fingerprint.c_str());
         log_debug("", "lid          = %d",  peer_params_.lid);
         log_debug("", "cmd_qpn      = %d",  peer_params_.cmd_qpn);
         log_debug("", "rdma_qpn     = %d",  peer_params_.rdma_qpn);
@@ -177,7 +176,6 @@ public:
     peer_params(
         const std::string &params)
     {
-        int rc;
         std::map<std::string,std::string> param_map;
 
         std::istringstream iss(params);
@@ -196,6 +194,9 @@ public:
         log_debug("", "hostname     = %s",  peer_params_.hostname.c_str());
         log_debug("", "addr         = %lu", peer_params_.addr);
         log_debug("", "port         = %d",  peer_params_.port);
+        log_debug("", "gid1         = %lu", peer_params_.gid1);
+        log_debug("", "gid2         = %lu", peer_params_.gid2);
+        log_debug("", "fingerprint  = %s",  peer_params_.fingerprint.c_str());
         log_debug("", "lid          = %d",  peer_params_.lid);
         log_debug("", "cmd_qpn      = %d",  peer_params_.cmd_qpn);
         log_debug("", "rdma_qpn     = %d",  peer_params_.rdma_qpn);
@@ -260,7 +261,6 @@ public:
     void
     transition_to_ready(void)
     {
-        int rc=NNTI_OK;
         int min_rnr_timer;
         int ack_timeout;
         int retry_count;
@@ -273,6 +273,8 @@ public:
         transition_qp_from_reset_to_ready(cmd_qp_,
                                           peer_params_.cmd_qpn,
                                           peer_params_.lid,
+                                          peer_params_.gid1,
+                                          peer_params_.gid2,
                                           min_rnr_timer,
                                           ack_timeout,
                                           retry_count);
@@ -283,6 +285,8 @@ public:
         transition_qp_from_reset_to_ready(rdma_qp_,
                                           peer_params_.rdma_qpn,
                                           peer_params_.lid,
+                                          peer_params_.gid1,
+                                          peer_params_.gid2,
                                           min_rnr_timer,
                                           ack_timeout,
                                           retry_count);
@@ -293,6 +297,8 @@ public:
         transition_qp_from_reset_to_ready(long_get_qp_,
                                           peer_params_.long_get_qpn,
                                           peer_params_.lid,
+                                          peer_params_.gid1,
+                                          peer_params_.gid2,
                                           min_rnr_timer,
                                           ack_timeout,
                                           retry_count);
@@ -425,6 +431,8 @@ private:
         struct ibv_qp *qp,
         uint32_t       peer_qpn,
         int            peer_lid,
+        uint64_t       peer_gid1,
+        uint64_t       peer_gid2,
         int            min_rnr_timer,
         int            ack_timeout,
         int            retry_count)
@@ -465,12 +473,36 @@ private:
         memset(&attr, 0, sizeof(attr));
         attr.qp_state           = IBV_QPS_RTR;
         attr.max_dest_rd_atomic = 1;
-        attr.ah_attr.dlid       = peer_lid;
-        attr.ah_attr.port_num   = transport_->nic_port_;
         attr.path_mtu           = IBV_MTU_1024;
         attr.rq_psn             = 0;
         attr.dest_qp_num        = peer_qpn;
         attr.min_rnr_timer      = min_rnr_timer; /* delay before sending RNR NAK */
+        attr.ah_attr.dlid       = peer_lid;
+        attr.ah_attr.port_num   = transport_->nic_port_;
+        attr.ah_attr.is_global  = 0;
+
+        if (transport_->is_roce_)
+        {
+            ibv_gid tmp_gid;
+            
+            attr.ah_attr.is_global = 1;
+            *(uint64_t*)&(attr.ah_attr.grh.dgid.raw[0]) = peer_gid1;
+            *(uint64_t*)&(attr.ah_attr.grh.dgid.raw[8]) = peer_gid2;
+            attr.ah_attr.grh.flow_label = 1;
+            attr.ah_attr.grh.hop_limit = 16;
+            attr.ah_attr.grh.sgid_index = transport_->nic_gid_idx_;
+            attr.ah_attr.grh.traffic_class = 0;
+
+            log_debug("ibverbs_connection", "This is RoCE - setting sgid_index to %d", attr.ah_attr.grh.sgid_index);
+
+            ibv_ah *ah = ibv_create_ah(transport_->pd_, &attr.ah_attr);
+            if (ah == NULL) {
+                log_error("ibverbs_connection", "ibv_create_ah failed - gid not operational");
+            } else {
+                ibv_destroy_ah(ah);
+            }
+        }
+
         if (ibv_modify_qp(qp, &attr, mask)) {
             log_error("ibverbs_connection", "failed to modify qp from INIT to RTR state");
         }
@@ -502,6 +534,8 @@ private:
         struct ibv_qp *qp,
         uint32_t       peer_qpn,
         int            peer_lid,
+        uint64_t       peer_gid1,
+        uint64_t       peer_gid2,
         int            min_rnr_timer,
         int            ack_timeout,
         int            retry_count)
@@ -523,6 +557,8 @@ private:
         transition_qp_from_reset_to_ready(qp,
                                           peer_qpn,
                                           peer_lid,
+                                          peer_gid1,
+                                          peer_gid2,
                                           min_rnr_timer,
                                           ack_timeout,
                                           retry_count);

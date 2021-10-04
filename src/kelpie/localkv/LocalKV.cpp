@@ -1,16 +1,19 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
-#include <stdio.h>
-#include <string.h>
+#include <cstdio>
+#include <cstring>
 #include <iostream>
 
 #include "faodel-common/Debug.hh"
 #include "kelpie/localkv/LocalKV.hh"
+#include "kelpie/ioms/IomBase.hh"
+#include "kelpie/core/Singleton.hh"
 
 using namespace std;
 using namespace faodel;
+using namespace kelpie::lkv;
 
 namespace kelpie {
 
@@ -44,14 +47,10 @@ LocalKV::~LocalKV(){
  */
 rc_t LocalKV::Init(const Configuration &config){
 
-  kassert(!configured, "Attempted to call LocalKV Init more than once");
+  F_ASSERT(!configured, "Attempted to call LocalKV Init more than once");
 
   //Enable our configuration
   ConfigureLogging(config);
-
-
-  //Set our max capacity
-  config.GetInt(&max_capacity, "kelpie.lkv.max_capacity","1M");
 
   //Create our mutex
   table_mutex = config.GenerateComponentMutex("kelpie.lkv", "rwlock");
@@ -76,9 +75,9 @@ rc_t LocalKV::Init(const Configuration &config){
  * @param[in] bucket The user id that is marked as the bucket of this data
  * @param[in] key The key used to reference this data
  * @param[in] new_ldo The Lunasa Data Object that the lkv will use to reference an object
- * @param[in] behavior_flags Infor about how the lkv should handle new data
- * @param[out] row_info Information about the row, after update
- * @param[out] col_info Information about the column, after update
+ * @param[in] behavior_flags Info about how the lkv should handle new data
+ * @param[in] iom Pointer to the iom that may be affected by this put
+ * @param[out] info Information about the row/column, after update
  * @retval KELPIE_OK Success with no triggers
  * @retval KELPIE_TODO Success with triggers that need to be handled
  * @retval KELPIE_EEXIST Entry already exists and therefore was not written
@@ -88,23 +87,28 @@ rc_t LocalKV::Init(const Configuration &config){
 rc_t LocalKV::put(bucket_t bucket, const Key &key,
                     lunasa::DataObject const &new_ldo,
                     pool_behavior_t behavior_flags,
-                    kv_row_info_t *row_info,
-                    kv_col_info_t *col_info){
+                    internal::IomBase *iom,
+                    object_info_t *info) {
 
-  kassert(key.valid(), "Put given invalid key");
+  F_ASSERT(key.valid(), "Put given invalid key");
 
-  dbg("Put "+bucket.GetHex()+"|"+key.str()+" length "+to_string(new_ldo.GetUserSize()));
+  dbg("Put "+bucket.GetHex()+"|"+key.str()+" length "+to_string(new_ldo.GetUserSize())+" behavior: "+to_string(behavior_flags));
 
-  bool create_if_missing = (behavior_flags & PoolBehavior::WriteToLocal); //Some pools just need to notify others
-  bool trigger_dependency_check = true;
+  //Only create if writing to local, but always see if we trigger dependencies
+  lambda_flags_t lambda_flags = LambdaFlags::TRIGGER_DEPENDENCIES;
+  if (behavior_flags & PoolBehavior::WriteToLocal) {
+    lambda_flags |= lkv::LambdaFlags::CREATE_IF_MISSING;
+  }
 
+  rc_t rc = doColOp(bucket, key,
+                    lambda_flags, //Pub triggers dependencies, and may need create
+                    info,
+                    [&new_ldo, key, behavior_flags] (LocalKVRow &row, LocalKVCell &col, bool previously_existed) {
 
-  rc_t rc = doColOp(bucket, key, create_if_missing, trigger_dependency_check, row_info, col_info, //Pub creates if missing and triggers deps
-                    [&new_ldo, key] (LocalKVRow &row, LocalKVCell &col, bool previously_existed) {
-
-                      //TODO: update to truely use new behaviors. Currently, this ignores a WriteToLocal=0 if dependencies or entry exist
-                      if(col.availability==Availability::InLocalMemory){
-                        //Existing version? ignore?
+                      //Bail out if this already exists in memory and we aren't overwriting things.
+                      if( (col.availability==Availability::InLocalMemory) &&
+                          (!(behavior_flags & PoolBehavior::EnableOverwrites))  ) {
+                        //Exists - ignore updates
                         return KELPIE_EEXIST;
                       }
                       //New item. Entry created, we just need to fill in the data
@@ -115,6 +119,19 @@ rc_t LocalKV::put(bucket_t bucket, const Key &key,
                       return KELPIE_OK;
                     });
 
+  dbg("put to lkv returned "+to_string(rc));
+
+  //See if we need to write out to storage
+  if(behavior_flags & PoolBehavior::WriteToIOM) {
+    if(iom) {
+      rc_t rc2 = iom->WriteObject(bucket, key, new_ldo);
+      if(rc==KELPIE_OK) rc=rc2; //Capture first error code
+    } else {
+      rc=KELPIE_EIO; //Asked us to use an IOM but it didn't work
+    }
+  }
+
+
   return rc;
 }
 
@@ -123,8 +140,7 @@ rc_t LocalKV::put(bucket_t bucket, const Key &key,
  * @param[in] bucket The user id that is marked as the bucket of this data
  * @param[in] key The key used to reference this data
  * @param[out] ext_ldo A new (reference counted) ldo that provides access to the data stored in the lkv
- * @param[out] row_info Information about the row this ldo is/should live in
- * @param[out] col_info Information about the column this ldo is/should live in
+ * @param[out] info Information about the row this ldo is/should live in
  * @retval KELPIE_OK Succes
  * @retval KELPIE_ENOENT Data not here, but node was placed on waiting list
  * @retval KELPIE_WAITING Data not here, but request has already been made
@@ -135,15 +151,15 @@ rc_t LocalKV::put(bucket_t bucket, const Key &key,
  */
 rc_t LocalKV::get(faodel::bucket_t bucket, const Key &key,
                     lunasa::DataObject *ext_ldo,
-                    kv_row_info_t *row_info,
-                    kv_col_info_t *col_info) {
+                    object_info_t *info) {
 
-  kassert(key.valid(), "get given invalid key");
+  F_ASSERT(key.valid(), "get given invalid key");
 
   dbg("Get "+bucket.GetHex()+"|"+key.str());
 
-  rc_t rc = doColOp(bucket, key, false, false, //<--don't create an entry if it doesn't exist, don't trigger deps
-                    row_info, col_info,
+  rc_t rc = doColOp(bucket, key,
+                    lkv::LambdaFlags::DONT_CREATE_OR_TRIGGER, //<--Get doesn't create or trigger
+                    info,
                     [ext_ldo] (LocalKVRow &row, LocalKVCell &col, bool previously_existed) {
 
                       if(col.availability == Availability::InLocalMemory){
@@ -156,91 +172,112 @@ rc_t LocalKV::get(faodel::bucket_t bucket, const Key &key,
   return rc;
 }
 
-#if 0 //Do we need this anymore
-/**
- * @brief Get a Lunasa Data Object back for a desired key, if available
- * @param[in] bucket The user id that is marked as the bucket of this data
- * @param[in] key The key used to reference this data
- * @param[in] requesting_node_id The node that wants the data, in cases where a node should be put on the waiting list
- * @param[out] ext_ldo A new (reference counted) ldo that provides access to the data stored in the lkv
- * @param[out] row_info Information about the row this ldo is/should live in
- * @param[out] col_info Information about the column this ldo is/should live in
- * @retval KELPIE_OK Succes
- * @retval KELPIE_ENOENT Data not here, but node was placed on waiting list
- * @retval KELPIE_WAITING Data not here, but request has already been made
- * @retval KELPIE_TODO Needed load from disk
- * @retval KELPIE_EINVAL Invalid input (eg, requesting_node_id was UNSPECIFIED)
- * @note This version passes back an ldo reference to the data. Modifying the data could have side effects.
- * @todo Put some logic here to disable wait lists?
- */
-rc_t LocalKV::get(bucket_t bucket, const Key &key,
-                    nodeid_t requesting_node_id_if_missing,
-                    lunasa::DataObject *ext_ldo,
-                    kv_row_info_t *row_info,
-                    kv_col_info_t *col_info) {
 
-  kassert(key.valid(), "get given invalid key");
+rc_t LocalKV::getAvailable(faodel::bucket_t bucket, const Key &key,
+                           std::map<Key, lunasa::DataObject> &ldos) {
+
+  F_ASSERT(key.valid(), "getAvailable given invalid key");
+  F_ASSERT(!key.IsRowWildcard(), "getAvailable given a row wildcard");
 
   dbg("Get "+bucket.GetHex()+"|"+key.str());
 
-  rc_t rc = doColOp(bucket, key, true, false, //<--Creates a node dependency if missing, but don't trigger dep check
-                    row_info, col_info,
-                    [ext_ldo, &requesting_node_id_if_missing] (LocalKVRow &row, LocalKVCell &col, bool previously_existed) {
+  rc_t rc=KELPIE_ENOENT;
 
+  if(!key.IsColWildcard()) {
+    lunasa::DataObject ldo;
+    rc = get(bucket, key, &ldo, nullptr);
+    if(rc==KELPIE_OK) {
+      ldos[key] = ldo;
+    }
+  } else {
 
-                      if(col.availability == Availability::InMemory){
-                        if(ext_ldo)    *ext_ldo = col.ldo;
-                        return KELPIE_OK;
-                      }
-                      //Add to the wait list. TODO: send back waiting?
-                      col.appendWaitingList(requesting_node_id_if_missing);
-                      return KELPIE_ENOENT;
+    //Col wildcard
+    rc = doRowOp(bucket, key,
+                 lkv::LambdaFlags::DONT_CREATE_OR_TRIGGER, //<--Get doesn't create or trigger
+                 nullptr,
+                 [&ldos, key](LocalKVRow &row, bool previously_existed) {
 
-                      //TODO: check local for not here?
-                    });
+                     vector<string> col_names;
+                     row.getActiveColumnNamesCapacities(key.K2(), &col_names, nullptr);
+
+                     for(auto &name : col_names) {
+                       auto *cell = row.getCol(name);
+                       if((cell) && (cell->availability == Availability::InLocalMemory)) {
+                         ldos[Key(key.K1(), name)] = cell->ldo;
+                       }
+                     }
+                     return (!ldos.empty()) ? KELPIE_OK : KELPIE_ENOENT;
+                 });
+  }
   return rc;
 }
-#endif
+
+
 
 /**
  * @brief Get a Lunasa Data Object back for a desired key. Leave mailbox dependency if not available
  * @param[in]  bucket The user id that is marked as the bucket of this data
  * @param[in]  key The key used to reference this data
  * @param[in]  mailbox_if_missing An op mailbox to wakeup if the object isn't available
+ * @param[in]  behavior_flags Specifies whether a load from iom gets cached here when miss and in iom
+ * @param[in]  iom_hash The hash of the iom to consult if item is not found in memory
  * @param[out] ext_ldo A new (reference counted) ldo that provides access to the data stored in the lkv
- * @param[out] col_info Information about the column this ldo is/should live in
- * @param[out] row_info Information about the row this ldo is/should live in
- * @retval KELPIE_OK Succes
+ * @param[out] info Information about the row/column this ldo is/should live in
+ * @retval KELPIE_OK Success, item found and returned in this call
  * @retval KELPIE_ENOENT Data not here, but node was placed on waiting list
- * @retval KELPIE_WAITING Data not here, but request has already been made
- * @retval KELPIE_TODO Needed load from disk
- * @retval KELPIE_EINVAL Invalid input (eg, requesting_node_id was UNSPECIFIED)
+ * @retval KELPIE_EIO The requested iom could not be found, but op was placed in waiting list
  * @note This version passes back an ldo reference to the data. Modifying the data could have side effects.
- * @todo Put some logic here to disable wait lists?
  */
-rc_t LocalKV::get(faodel::bucket_t bucket, const Key &key,
+rc_t LocalKV::getForOp(faodel::bucket_t bucket, const Key &key,
                     opbox::mailbox_t mailbox_if_missing,
+                    pool_behavior_t behavior_flags,
+                    iom_hash_t iom_hash,
                     lunasa::DataObject *ext_ldo,
-                    kv_row_info_t *row_info,
-                    kv_col_info_t *col_info) {
+                    object_info_t *info) {
 
-  kassert(key.valid(), "get given invalid key");
+  F_ASSERT(key.valid(), "get given invalid key");
 
   dbg("Get "+bucket.GetHex()+"|"+key.str());
 
-  rc_t rc = doColOp(bucket, key, true, false, //<--Creates a mailbox dependency if missing, but don't trigger dep check
-                    row_info, col_info,
-                    [ext_ldo, mailbox_if_missing] (LocalKVRow &row, LocalKVCell &col, bool previously_existed) {
+  rc_t rc = doColOp(bucket, key,
+                    LambdaFlags::CREATE_IF_MISSING, //Get: creates mailbox dependency but doesn't trigger a dependency check
+                    info,
+                    [bucket, key, behavior_flags, iom_hash, ext_ldo, mailbox_if_missing] (LocalKVRow &row, LocalKVCell &col, bool previously_existed) {
 
+                      //See if this item is in memory
                       if(col.availability == Availability::InLocalMemory){
                         if(ext_ldo)    *ext_ldo = col.ldo;
                         return KELPIE_OK;
                       }
-                      //Add to the wait list. TODO: send back waiting?
-                      col.appendWaitingList(mailbox_if_missing);
-                      return KELPIE_ENOENT;
 
-                      //TODO: check local for not here?
+                      //Not here. See if we need to load from disk
+                      rc_t rc = KELPIE_ENOENT;
+                      if(iom_hash!=0) {
+                        auto iom = kelpie::internal::FindIOM(iom_hash);
+
+                        if(iom==nullptr) {
+                          rc = KELPIE_EIO; //IOM not found
+                        } else {
+                          rc = iom->ReadObject(bucket, key, ext_ldo);
+                          if(rc==KELPIE_OK) {
+                            //Loaded it from disk. Do we keep a copy?
+                            if(behavior_flags & PoolBehavior::ReadToRemote) {
+                              col.availability = Availability::InLocalMemory;
+                              col.ldo = *ext_ldo;
+                              col.time_posted = col.getTime();
+                            } else {
+                              //Don't cache, but keep a record of it
+                              col.availability = Availability::InDisk;
+                            }
+                            return KELPIE_OK;
+                          }
+                        }
+                      }
+
+                      //Not in memory and not in disk. Add op to waiting list
+                      col.appendWaitingList(mailbox_if_missing);
+                      return rc; //This is KELPIE_ENOENT unless iom not found (KELPIE_EIO)
+
                     });
   return rc;
 }
@@ -254,8 +291,7 @@ rc_t LocalKV::get(faodel::bucket_t bucket, const Key &key,
  * @param[in] mem_ptr A raw pointer to where the data should be copied
  * @param[in] max_size The maximum amount of data to copy
  * @param[out] copied_size The amount of data actually copied out
- * @param[out] row_info Optional information about the row
- * @param[out] col_info Optional information about the column
+ * @param[out] info Optional information about the row/column
  * @remark This only copies from the user's DATA section of an LDO (not the meta)
  * @retval KELPIE_OK Success
  * @retval KELPIE_ENOENT Data not here, but node was placed on waiting list
@@ -266,19 +302,18 @@ rc_t LocalKV::get(faodel::bucket_t bucket, const Key &key,
 rc_t LocalKV::getData(bucket_t bucket, const Key &key,
                     void *mem_ptr, size_t max_size,
                     size_t *copied_size,
-                    kv_row_info_t *row_info,
-                    kv_col_info_t *col_info){
+                    object_info_t *info){
 
   //No locks here. All handled by getRef
 
-  kassert(key.valid(), "getData given invalid key");
+  F_ASSERT(key.valid(), "getData given invalid key");
 
   lunasa::DataObject ldo_ref;
   size_t tmp_copied_size;
 
   tmp_copied_size = 0;
 
-  rc_t rc = get(bucket, key, &ldo_ref, row_info, col_info);
+  rc_t rc = get(bucket, key, &ldo_ref, info);
   if(rc==KELPIE_OK){
     //tmp_copied_size = (max_size<ldo_ref.capacity()) ? max_size : ldo_ref.capacity();
     tmp_copied_size = (max_size<ldo_ref.GetDataSize()) ? max_size : ldo_ref.GetDataSize();
@@ -295,47 +330,40 @@ rc_t LocalKV::getData(bucket_t bucket, const Key &key,
  *
  * @param[in] bucket The user id that is marked as the bucket of this data
  * @param[in] key The key used to reference this data
- * @param[in] requesting_node_id_if_missing The node that is requesting this info (if a remote node is requesting)
  * @param[in] caller_will_fetch_if_missing For designating that a network request will be made to retrieve if not here
  * @param[in] callback The function to execute when this item becomes available
  * @return rc_t
  */
-rc_t LocalKV::want(bucket_t bucket, const Key &key,
-                    nodeid_t requesting_node_id_if_missing,
+rc_t LocalKV::wantLocal(bucket_t bucket, const Key &key,
                     bool caller_will_fetch_if_missing,
                     fn_want_callback_t callback){
 
-  kassert(key.valid(), "want given invalid key");
+  F_ASSERT(key.valid(), "want given invalid key");
 
   dbg("Want "+bucket.GetHex()+"|"+key.str());
 
   rc_t rc = doColOp(bucket, key,
-                    true,  false,    //Creates entry if missing, but does not dispatch callbacks
-                    nullptr, nullptr,
-                    [callback,key,requesting_node_id_if_missing,caller_will_fetch_if_missing] (LocalKVRow &row, LocalKVCell &col, bool previously_existed) {
+                    LambdaFlags::CREATE_IF_MISSING,    //Creates entry if missing, but does not dispatch callbacks
+                    nullptr,
+                    [callback,key, caller_will_fetch_if_missing] (LocalKVRow &row, LocalKVCell &col, bool previously_existed) {
 
                       //Is available
                       if(col.availability==Availability::InLocalMemory){
 
                         if(callback!=nullptr){
                           //Pass info about the row/col back
-                          kv_row_info_t row_info;
-                          kv_col_info_t col_info;
-                          row.getInfo(&row_info);
-                          col.getInfo(&col_info);
-                          callback(true, key, col.ldo, row_info, col_info);
+                          object_info_t info;
+                          row.getInfo(key, &info);
+                          col.getInfo(&info);
+                          callback(true, key, col.ldo, info);
                         }
                         return KELPIE_OK;
                       }
 
 
                       //Not here. Make a note of it
-                      if(requesting_node_id_if_missing==NODE_LOCALHOST){
-                        if(callback!=nullptr){
+                      if(callback!=nullptr){
                           col.appendCallbackList(callback);
-                        }
-                      } else {
-                        col.appendWaitingList(requesting_node_id_if_missing);
                       }
 
                       bool already_requested = (col.availability == Availability::Requested);
@@ -355,83 +383,101 @@ rc_t LocalKV::want(bucket_t bucket, const Key &key,
 /**
  * @brief Drop a k/v by key name, freeing space
  * @param[in] bucket The user id that is marked as the bucket of this data
- * @param[in] key The key used to reference this data
- * @return rc_t
+ * @param[in] key_prefix The key used to reference this data. Key row/col may end in '*' for prefix matching
+ * @retval KELPIE_OK Item found and drop
+ * @retval KELPIE_ENOENT Item not found
  */
-rc_t LocalKV::drop(bucket_t bucket, const Key &key){
+rc_t LocalKV::drop(bucket_t bucket, const Key &key_prefix){
 
-  kassert(key.valid(), "drop given invalid key");
+  F_ASSERT(key_prefix.valid(), "drop given invalid key_prefix");
 
-  dbg("Drop "+bucket.GetHex()+"|"+key.str());
+  dbg("Drop "+bucket.GetHex()+"|"+key_prefix.str());
 
-  rc_t rc = doRowOp(bucket, key,
-                    false,
-                    nullptr,
-                    [&key] (LocalKVRow &row, bool previously_existed) {
+  int found_items=0;
 
-                 //Try to drop the cell
-                 LocalKVCell *cell = row.getCol(key);
-                 if(!cell) return KELPIE_ENOENT;
-                 if(!cell->isDroppable()) return KELPIE_WAITING;  //TODO: Should be put on a queue for delete later
-                 delete cell;
+  vector<string> check_rows;   //Candidate rows to inspect
+  vector<string> recheck_rows; //Rows where drops happened and may be removals
 
-                 if(key.K2()=="") row.col_single=nullptr;
-                 else             row.cols.erase(key.K2());
+  //Determine which rows to look at
+  if(!key_prefix.IsRowWildcard()) {
+    //Exact match on K1, partial match on K2
+    check_rows.push_back(key_prefix.K1());
 
-                 //Check to see if whole row is empty
-                 if(row.isDroppable())
-                   return KELPIE_RECHECK;
+  } else {
+    //Search for possible rows
+    string prefix = makeRowname(bucket, key_prefix.K1());
+    prefix.erase(prefix.size()-1); //remove the trailing *
 
-                 return KELPIE_OK;
-               });
-
-  //When nothing left, we may need to recheck to get rid of the old row
-  if(rc==KELPIE_RECHECK){
-    table_mutex->WriterLock();
-    string fullrowname = makeRowname(bucket, key);
-    LocalKVRow *row = getRow(fullrowname);
-    if(row==nullptr){
-      //Nothing to delete. Someone beat us to it?
-      table_mutex->Unlock();
-      return KELPIE_OK;
-    }
-    if(row->isDroppable()){
-      delete row;
-      rows.erase(fullrowname);
+    table_mutex->ReaderLock();
+    for(auto name_rowptr = rows.lower_bound(prefix); name_rowptr!=rows.end(); ++name_rowptr) {
+      if(StringBeginsWith(name_rowptr->first, prefix))
+        check_rows.push_back(name_rowptr->second->rowname);
     }
     table_mutex->Unlock();
-    rc=KELPIE_OK;
   }
 
-  return rc;
+  //Inspect each row that matches row key and delete matching columns.
+  for(auto &rowname : check_rows) {
+    rc_t rc = doRowOp(bucket, Key(rowname),
+                      false,
+                      nullptr,
+                      [&key_prefix, &found_items](LocalKVRow &row, bool previously_existed) {
+
+                          found_items += row.dropColumns(key_prefix.K2());
+
+                          //Check to see if whole row is gone. If so, remember it for cleanup
+                          return (row.isEmpty()) ? KELPIE_RECHECK : KELPIE_OK;
+                      });
+
+    if(rc == KELPIE_RECHECK) recheck_rows.push_back(rowname);
+  }
+
+  //Cleanup: Search for rows that can be deleted
+  if(!recheck_rows.empty()) {
+    table_mutex->WriterLock();
+    for(auto &rowname : recheck_rows) {
+      string fullrowname = makeRowname(bucket, Key(rowname));
+      LocalKVRow *row = getRow(fullrowname);
+      if((row) && (row->isEmpty())) {
+        delete row;
+        rows.erase(fullrowname);
+      }
+    }
+    table_mutex->Unlock();
+  }
+
+  return (found_items) ? KELPIE_OK : KELPIE_ENOENT;
+
 }
 
 /**
  * @brief Perform a search for keys that match a specific pattern
  * @param[in] bucket The bucket id we should limit the search to
- * @param[in] key_prefix The key to search for. Row and/or Key may end in '*' for prefix matching
- * @param[out] opject_capacities The results in this localkv that matched the key_prefix
+ * @param[in] key_prefix The key to search for. Row and/or Column may end in '*' for prefix matching
+ * @param[in] iom Pointer to iom related to this operation
+ * @param[out] object_capacities The results in this localkv that matched the key_prefix
  * @retval KELPIE_OK Found matches
  * @retval KELPIE_ENOENT Did not find matches
  */
 rc_t LocalKV::list(bucket_t bucket, const Key &key_prefix,
+                    internal::IomBase *iom,
                     ObjectCapacities *object_capacities) {
 
 
-  kassert(key_prefix.valid(), "list given an invalid key");
+  F_ASSERT(key_prefix.valid(), "list given an invalid key");
 
   dbg("List "+key_prefix.str());
 
-  bool row_wildcard = StringEndsWith(key_prefix.K1(), "*");
   bool found_items=false;
+  bool needs_an_iom_check = (iom!=nullptr);
 
-  if(!row_wildcard) {
+  if(!key_prefix.IsRowWildcard()) {
     //Exact row known. Search on the columns
 
     vector<string> col_names;
 
     //Exact match on K1, partial match on K2
-    /*rc_t rc =*/ doRowOp(bucket, key_prefix,
+    doRowOp(bucket, key_prefix,
                       false,
                       nullptr,
                       [&key_prefix, &col_names, &object_capacities] (LocalKVRow &row, bool previously_existed) {
@@ -441,9 +487,14 @@ rc_t LocalKV::list(bucket_t bucket, const Key &key_prefix,
 
     //Convert row's column names into full keys
     for(auto &col_name : col_names) {
-        object_capacities->keys.push_back(Key(key_prefix.K1(), col_name));
+      object_capacities->keys.emplace_back(Key(key_prefix.K1(), col_name));
     }
+
+    //Append any info from iom. Skip the case where we had an exact column name and we got back a result
+    needs_an_iom_check = needs_an_iom_check && ( key_prefix.IsColWildcard() || (col_names.size()==1));
+
     found_items = (col_names.size()!=0); //Only report what we found in this function
+
 
   } else {
     //Fuzzy Row Name
@@ -466,34 +517,54 @@ rc_t LocalKV::list(bucket_t bucket, const Key &key_prefix,
         row->unlock();
 
         //Append all keys for each column to the output
-        for(auto c : col_names) {
-          object_capacities->keys.push_back(Key(row_name, c));
+        for(auto &c : col_names) {
+          object_capacities->keys.emplace_back(Key(row_name, c));
         }
         found_items |= (col_names.size()!=0); //Only report what we found in this function
       }
     }
     table_mutex->Unlock();
   }
+
+  if(needs_an_iom_check) {
+    ObjectCapacities oc2;
+    iom->ListObjects(bucket, key_prefix, &oc2);
+    object_capacities->Merge(oc2); //Only inserts items that were unknown
+    found_items |= (oc2.Size()>0);
+  }
+
   return (found_items) ? KELPIE_OK : KELPIE_ENOENT;
 }
 
+rc_t LocalKV::doCompute(const string &function_name, const string &args,
+                             bucket_t bucket, const Key &key,
+                             lunasa::DataObject *ext_ldo) {
+
+  map<Key, lunasa::DataObject> ldos;
+  rc_t rc = getAvailable(bucket, key, ldos);
+
+  kelpie::internal::Singleton::impl.core->compute_registry.doCompute(
+          function_name, args,
+          bucket, key,
+          ldos,
+          ext_ldo);
+
+  return rc;
+}
 
 /**
  * @brief Use a lambda to manipulate a column inside the localkv
  * @param[in] bucket The user id that is marked as the bucket of this data
  * @param[in] key The key used to reference this data
- * @param[in] create_if_missing Boolean specifying whether the row/column should be created if missing
- * @param[in] trigger_dependency_check Check to see if this item had waiting actions
- * @param[out] row_info Optional information about the row
- * @param[out] col_info Optional information about the column
+ * @param[in] flags Specific actions to take during lambda (eg create row if missing)
+ * @param[out] info Optional information about the row/column
  * @param[in] func The function to be applied on the column in the local k/v
  * @return rc_t The rc of the Lambda or KELPIE_ENOENT if it was not available when create_if_missing is false
  */
 rc_t LocalKV::doColOp(bucket_t bucket, const Key &key,
-                    bool create_if_missing,
-                    bool trigger_dependency_check,
-                    kv_row_info_t *row_info, kv_col_info_t *col_info,
-                    fn_column_op_t func){
+                    lambda_flags_t flags,
+                    object_info_t *info,
+                    fn_column_op_t func) {
 
   table_mutex->ReaderLock();
   string fullrowname = makeRowname(bucket, key);
@@ -504,10 +575,9 @@ rc_t LocalKV::doColOp(bucket_t bucket, const Key &key,
     //Row not available. Create it or bail out
     table_mutex->Unlock();
 
-    if(!create_if_missing){
-      //done: bail out
-      if(row_info) row_info->Wipe();
-      if(col_info) col_info->Wipe();
+    //Didn't want us to create, so bail out
+    if(!(flags & LambdaFlags::CREATE_IF_MISSING)) {
+      if(info) info->Wipe();
       return KELPIE_ENOENT;
     }
 
@@ -525,10 +595,10 @@ rc_t LocalKV::doColOp(bucket_t bucket, const Key &key,
   table_mutex->Unlock();
 
   //Do the user's op, which may trigger a dependency check after a cell is updated
-  rc_t rc = row->doColOp(key, create_if_missing, trigger_dependency_check, col_info, func);
+  rc_t rc = row->doColOp(key, flags, info, func);
 
   //Create an updated row info for user if requested
-  if(row_info) row->getInfo(row_info);
+  if(info) row->getInfo(key, info);
 
   row->unlock();
 
@@ -539,15 +609,15 @@ rc_t LocalKV::doColOp(bucket_t bucket, const Key &key,
  * @brief Use a lambda to manipulate a row inside the k/v
  * @param[in] bucket The user id that is marked as the bucket of this data
  * @param[in] key The key used to reference this data
- * @param[in] create_if_missing Boolean specifying whether the row/column should be created if missing
- * @param[out] row_info Optional information about the row
+ * @param[in] flags Specific actions to take during lambda (eg create row if missing)
+ * @param[out] info Optional information about the row
  * @param[in] func The function to be applied on the column in the local k/v
  * @return rc_t The rc of the Lambda or KELPIE_ENOENT if it was not available when create_if_missing is false
  */
 rc_t LocalKV::doRowOp(bucket_t bucket, const Key &key,
-                    bool create_if_missing,
-                    kv_row_info_t *row_info,
-                    fn_row_op_t func){
+                    lambda_flags_t flags,
+                    object_info_t *info,
+                    fn_row_op_t func) {
 
   table_mutex->ReaderLock();
   string fullrowname = makeRowname(bucket, key);
@@ -557,9 +627,9 @@ rc_t LocalKV::doRowOp(bucket_t bucket, const Key &key,
     //Row not available. Create it or bail out.
     table_mutex->Unlock();
 
-    if(!create_if_missing){
-      //done: bail out
-      if(row_info) row_info->Wipe();
+    if(!(flags & LambdaFlags::CREATE_IF_MISSING)) {
+      //done: Didn't find and didn't want to create
+      if(info) info->Wipe();
       return KELPIE_ENOENT;
     }
 
@@ -578,49 +648,38 @@ rc_t LocalKV::doRowOp(bucket_t bucket, const Key &key,
   table_mutex->Unlock();
 
   rc_t rc = func(*row, previously_existed);
-  if(row_info) row->getInfo(row_info);
+  if(info) row->getInfo(key, info);
 
   row->unlock();
 
   return rc;
 }
 
-/**
- * @brief Find a particular column by key and return its information
- * @param[in] bucket The user id that is marked as the bucket of this data
- * @param[in] key The key used to reference this data
- * @param[out] col_info Optional information about the column
- * @retval KELPIE_OK if column was here
- * @retval KELPIE_ENOENT if column was not here
- * @retval KELPIE_WAITING we're waiting for this column to be generated
- */
-rc_t LocalKV::getColInfo(bucket_t bucket, const Key &key, kv_col_info_t *col_info) {
-
-  dbg("GetColInfo "+bucket.GetHex()+"|"+key.str());
-  return doColOp(bucket, key, false, false, nullptr, col_info,
-                 [] (LocalKVRow &row, LocalKVCell &cell, bool previously_existed) {
-                   if(cell.availability==Availability::Requested) return KELPIE_WAITING;
-                   return (previously_existed) ? KELPIE_OK : KELPIE_ENOENT;
-                 });
-}
 
 /**
  * @brief Find a particular row by key and return its information
  * @param[in] bucket The user id that is marked as the bucket of this data
  * @param[in] key The key used to reference this data
- * @param[out] row_info Optional information about the row
+ * @param[out] info Optional information about the item
  * @retval KELPIE_OK if row was here
  * @retval KELPIE_ENOENT if row was not here
  * @retval KELPIE_WAITING if row was not here, but has been requested
  */
-rc_t LocalKV::getRowInfo(bucket_t bucket, const Key &key, kv_row_info_t *row_info) {
+rc_t LocalKV::getInfo(bucket_t bucket, const Key &key, object_info_t *info) {
 
   dbg("GetRowInfo "+bucket.GetHex()+"|"+key.str());
-  return doRowOp(bucket, key, false, row_info,
-                 [] (LocalKVRow &row, bool previously_existed) {
-                   if(row.getAvailability()==Availability::Requested) return KELPIE_WAITING;
-                   return (previously_existed) ? KELPIE_OK : KELPIE_ENOENT;
-                 });
+  rc_t rc = doColOp(bucket, key,
+                    LambdaFlags::DONT_CREATE_OR_TRIGGER,
+                    info,
+                    [] (LocalKVRow &row, LocalKVCell &col, bool previously_existed) {
+                        if(row.getAvailability()==Availability::Requested) return KELPIE_WAITING;
+                        return (previously_existed) ? KELPIE_OK : KELPIE_ENOENT;
+                    });
+  if((rc==KELPIE_WAITING) || (!info)) return rc;
+
+  //Check the findings. Wildcards stats don't get generated until after the above lambda is called
+  return (info->row_num_columns!=0) ? KELPIE_OK : KELPIE_ENOENT;
+
 }
 
 
@@ -637,7 +696,7 @@ string LocalKV::makeRowname(bucket_t bucket, const Key &key) {
  * @returns Pointer to the row
  * @note table must already be locked when calling this
  */
-LocalKVRow * LocalKV::getRow(string full_row_name){
+LocalKVRow * LocalKV::getRow(const string &full_row_name){
 
   //printf("GetRow for bucket %d key '%s' fullrowname: '%s\n",bucket, key.str().c_str(), full_row_name.c_str() );
 
@@ -695,7 +754,6 @@ void LocalKV::whookieInfo(faodel::ReplyStream &rs, bool detailed){
   rs.tableBegin("LocalKV");
   rs.tableTop({"Parameter","Setting"});
   rs.tableRow({"Configured:", (configured)?"True":"False"});
-  rs.tableRow({"Max Capacity:", to_string(max_capacity)});
   rs.tableRow({"Current Rows:", to_string(rows.size())});
   rs.tableEnd();
 
@@ -706,22 +764,22 @@ void LocalKV::whookieInfo(faodel::ReplyStream &rs, bool detailed){
     //Print row summaries
     table_mutex->ReaderLock();
     rs.tableBegin("LocalKV Row Summary");
-    rs.tableTop({"FullRowID","RowName","NumCols","FirstColumn", "RowBytes","Subscribers","LocalCallbacks"});
+    rs.tableTop({"FullRowID","RowName","NumCols","FirstColumn", "RowBytes"});
     for(auto rname_rptr : rows){
       rname_rptr.second->lock();
-      kv_row_info_t row_info;
-      rname_rptr.second->getInfo(&row_info);
+      object_info_t info;
+      rname_rptr.second->getInfo(Key(rname_rptr.first), &info);
       string cname=rname_rptr.second->getFirstColumnName();
-      if(cname=="") cname=html::mkLink("(noname)",       "/kelpie/lkv/cell&row="+rname_rptr.first);
-      else          cname=html::mkLink(cname, "/kelpie/lkv/cell&row="+rname_rptr.first+"&col="+cname);
+      if(cname.empty()) cname=html::mkLink("(noname)",       "/kelpie/lkv/cell&row="+rname_rptr.first);
+      else              cname=html::mkLink(cname, "/kelpie/lkv/cell&row="+rname_rptr.first+"&col="+cname);
 
-      rs.tableRow( {rname_rptr.first,
+      rs.tableRow( {
+            rname_rptr.first,
             html::mkLink(rname_rptr.second->rowname,"/kelpie/lkv/row&row="+rname_rptr.first),
-            to_string(row_info.num_cols_in_row),
+            to_string(info.row_num_columns),
             cname,
-            to_string(row_info.row_bytes),
-            to_string(row_info.num_row_receiver_nodes),
-            to_string(row_info.num_row_dependencies)});
+            to_string(info.row_user_bytes)} );
+
       rname_rptr.second->unlock();
     }
     rs.tableEnd();
@@ -729,38 +787,36 @@ void LocalKV::whookieInfo(faodel::ReplyStream &rs, bool detailed){
 
   } else {
     //Print each column in its own row
-    kv_col_info_t col_info;
+    object_info_t info;
 
     table_mutex->ReaderLock();
     rs.tableBegin("LocalKV Full Details");
-    rs.tableTop({"FullRowID","RowName","ColumnName","ColBytes","NodeDependencies","LocalDependencies"});
+    rs.tableTop({"FullRowID","RowName","ColumnName","ColBytes","Dependencies"});
     for(auto rname_rptr : rows){
       rname_rptr.second->lock();
 
       //Pull out the default, no-name column
       if(rname_rptr.second->col_single){
-        rname_rptr.second->col_single->getInfo(&col_info);
+        rname_rptr.second->col_single->getInfo(&info);
         rs.tableRow( {
             rname_rptr.first,
             html::mkLink(rname_rptr.second->rowname,"/kelpie/lkv/row&row="+rname_rptr.first),
             html::mkLink("(noname)","/kelpie/lkv/cell&row="+rname_rptr.first),
-            to_string(col_info.num_bytes),
-            to_string(col_info.num_col_receiver_nodes),
-            to_string(col_info.num_col_dependencies)});
+            to_string(info.col_user_bytes),
+            to_string(info.col_dependencies)});
 
       }
       //Now look at all named columns
-      for(auto cname_cptr : rname_rptr.second->cols){
-
-        cname_cptr.second->getInfo(&col_info);
+      for(auto cname_cptr : rname_rptr.second->cols) {
+        info.Wipe();
+        cname_cptr.second->getInfo(&info);
 
         rs.tableRow( {
             rname_rptr.first,
             html::mkLink(rname_rptr.second->rowname, "/kelpie/lkv/row&row="+rname_rptr.first),
             html::mkLink(cname_cptr.first, "/kelpie/lkv/cell&row="+rname_rptr.first+"&col="+cname_cptr.first),
-            to_string(col_info.num_bytes),
-            to_string(col_info.num_col_receiver_nodes),
-            to_string(col_info.num_col_dependencies)});
+            to_string(info.col_user_bytes),
+            to_string(info.col_dependencies)});
       }
 
       rname_rptr.second->unlock();
@@ -782,7 +838,7 @@ void LocalKV::whookieInfo(faodel::ReplyStream &rs, bool detailed){
 void LocalKV::HandleWhookieRow(const std::map<std::string,std::string> &args, std::stringstream &results){
 
   faodel::ReplyStream rs(args, "Kelpie LocalKV Row", &results);
-  string rname="";
+  string rname;
   auto ritr = args.find("row");
   if(ritr != args.end()) rname=ritr->second;
 
@@ -798,16 +854,13 @@ void LocalKV::HandleWhookieRow(const std::map<std::string,std::string> &args, st
 
     row->lock();
     table_mutex->Unlock();
-    kv_row_info_t ri;
-    row->getInfo(&ri);
+    object_info_t info;
+    row->getInfo(Key(rname), &info);
 
     rs.tableBegin("Row Info");
     rs.tableTop({"Parameter","Setting"});
     rs.tableRow({"Row Name:", row->rowname});
-    rs.tableRow({"Total Bytes:", to_string(ri.row_bytes)});
-    rs.tableRow({"Node Dependencies:", to_string(ri.num_row_receiver_nodes)});
-    rs.tableRow({"Local Dependencies:", to_string(ri.num_row_dependencies)});
-    rs.tableRow({"Availability:", availability_to_string(ri.availability)});
+    rs.tableRow({"Total Bytes:", to_string(info.row_user_bytes)});
     rs.tableRow({"Current Columns:", to_string(row->cols.size()+((row->col_single!=nullptr)?1:0))});
     rs.tableEnd();
     
@@ -842,8 +895,7 @@ void LocalKV::HandleWhookieRow(const std::map<std::string,std::string> &args, st
 void LocalKV::HandleWhookieCell(const std::map<std::string,std::string> &args, std::stringstream &results){
 
   faodel::ReplyStream rs(args, "Kelpie LocalKV Cell", &results);
-  string rname="";
-  string cname="";
+  string rname, cname;
   auto ritr = args.find("row");
   auto citr = args.find("col");
   if(ritr != args.end()) rname=ritr->second;
@@ -873,7 +925,7 @@ void LocalKV::HandleWhookieCell(const std::map<std::string,std::string> &args, s
       rs.tableRow({"Row Name", html::mkLink(row->rowname, "/kelpie/lkv/row&row=" + rname)});
       rs.tableRow({"Column Name", cname_txt});
       rs.tableRow({"Availability:", availability_to_string(col->availability)});
-
+      rs.tableRow({"Dependencies", to_string(col->getNumDependencies())});
       rs.tableRow({"Object Meta Size", to_string(msize)});
       rs.tableRow({"Object Data Size", to_string(dsize)});
       rs.tableRow({"Object User Capacity", to_string(col->ldo.GetUserCapacity())});
@@ -912,9 +964,8 @@ void LocalKV::sstr(stringstream &ss, int depth, int indent) const {
 
   ss << string(indent,' ') << "[LKV] Number of Rows: " << rows.size() <<endl;
   if(depth>0){
-    for(map<string, LocalKVRow *>::const_iterator ii=rows.begin(); ii!=rows.end(); ++ii) {
-      //ss << string(indent+1,' ') << ii->first << " " <<" Number Cols: "<<ii->second->getNumCols()<<endl;
-      ii->second->sstr(ss, depth-1, indent+1);
+    for(auto &name_rowptr : rows) {
+      name_rowptr.second->sstr(ss,depth-1, indent+1);
     }
   }
 }

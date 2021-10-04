@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #ifndef FAODEL_COMMON_CONFIGURATION_HH
 #define FAODEL_COMMON_CONFIGURATION_HH
@@ -98,6 +98,7 @@ public:
   //Pass in additional configuration data
   rc_t Append(const std::string &config_str);
   rc_t Append(const std::string &name, const std::string &val);
+  rc_t AppendIfUnset(const std::string &name, const std::string &val);
   rc_t AppendFromFile(const std::string &file_name);
   rc_t AppendFromReferences();
 
@@ -119,6 +120,7 @@ public:
   rc_t GetInt(int64_t *val, const std::string &name, const std::string &default_value="0") const;
   rc_t GetUInt(uint64_t *uval, const std::string &name, const std::string &default_value="0") const;
   rc_t GetBool(bool *val, const std::string &name, const std::string &default_value="") const;
+  rc_t GetTimeUS(uint64_t *us_val, const std::string &name, const std::string &default_value="0") const;
   rc_t GetPtr(void **val, const std::string &name, void *default_value=nullptr) const;
   rc_t GetFilename(std::string *fname, const std::string &name, const std::string &default_env_var, const std::string &default_value) const;
 
@@ -144,8 +146,8 @@ public:
 
   //Generate a mutex for a component
   rc_t GetDefaultThreadingModel(std::string *threading_model) const;
-  faodel::MutexWrapperTypeID GetComponentMutexTypeID(std::string component_name="", std::string default_mutex_type="default") const;
-  faodel::MutexWrapper * GenerateComponentMutex(std::string component_name="", std::string default_mutex_type="default") const;
+  faodel::MutexWrapperTypeID GetComponentMutexTypeID(const std::string &component_name="", const std::string &default_mutex_type="default") const;
+  faodel::MutexWrapper * GenerateComponentMutex(const std::string &component_name="", const std::string &default_mutex_type="default") const;
 
   //InfoInterface function
   void sstr(std::stringstream &ss, int depth=0, int indent=0) const override;
@@ -153,8 +155,10 @@ public:
 private:
   std::string node_role;
 
-  std::vector<std::string> tokenizeLine(const std::string &str); //Parse a line
-  int addConfigToMap(std::string config); //Parse all the lines in a string
+  int findBestMatch(std::string *value, const std::string &name, const std::string &type_label, const std::string &default_value) const;
+
+  static std::vector<std::string> tokenizeLine(const std::string &str); //Parse a line
+  int addConfigToMap(const std::string &config); //Parse all the lines in a string
 
   std::map<std::string, std::string> config_map; //Holds all the config k/vs
 

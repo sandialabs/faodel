@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 /*
  *  @file: nnti_url.cpp
@@ -80,7 +80,6 @@ void
 nnti_url::hostname2addr(void)
 {
     struct hostent     *host_entry;
-    struct sockaddr_in  skin;
 
     std::lock_guard<std::mutex> lock(hostent_mutex_);
     host_entry = gethostbyname(hostname_.c_str());
@@ -110,9 +109,9 @@ nnti_url::nnti_url(
 
 nnti_url::nnti_url(
     const NNTI_process_id_t pid)
-: pid_(pid),
-  hostname_(""),
-  port_("")
+: hostname_(""),
+  port_(""),
+  pid_(pid)
 {
     url_ = nnti::datatype::nnti_pid::to_url(pid);
 
@@ -137,9 +136,7 @@ nnti_url::nnti_url(
 nnti_url::nnti_url(
     const std::string   &hostname,
     const NNTI_tcp_port  port)
-: nnti_url(
-    hostname,
-    std::to_string(port))
+: nnti_url(hostname, std::to_string(port))
 {
     pid_ = nnti::datatype::nnti_pid::to_pid(*this);
 }

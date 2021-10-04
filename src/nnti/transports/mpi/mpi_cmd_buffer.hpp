@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 
 #ifndef MPI_CMD_BUFFER_HPP_
@@ -39,7 +39,6 @@ private:
     uint32_t                               cmd_count_;
 
     char                                  *cmd_buf_;
-    uint32_t                               cmd_offset_;
 
     std::vector<nnti::core::mpi_cmd_msg*>  msgs_;
 

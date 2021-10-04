@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #ifndef FAODEL_COMMON_BOOTSTRAPINTERNAL_HH
 #define FAODEL_COMMON_BOOTSTRAPINTERNAL_HH
@@ -56,7 +56,7 @@ public:
   bool CheckDependencies(std::string *info_message=nullptr);
   std::vector<std::string> GetStartupOrder();
 
-  void Init(const Configuration &config);
+  bool Init(const Configuration &config);
   void Start();
   void Start(const Configuration &config); //Init and Start
   void Finish(bool clear_list_of_bootstrap_users);
@@ -65,13 +65,21 @@ public:
   bool IsStarted() const { return state==State::STARTED; }
   Configuration GetConfiguration() const { return configuration; }
 
+  int GetNumberOfUsers() const;
+  bool HasComponent(const std::string &component_name) const;
+
   void dumpStatus() const;
   void dumpInfo(faodel::ReplyStream &rs) const;
 
 private:
+
+  void finish_(bool clear_list_of_bootstrap_users);
+
   Configuration configuration;
+  bool show_config_at_init;
   bool halt_on_shutdown;
   bool status_on_shutdown;
+  bool mpisyncstop_enabled;
   uint64_t sleep_seconds_before_shutdown;
   nodeid_t my_node_id;
   bool expandDependencies(std::map<std::string, std::set<std::string>> &dep_lut,
@@ -80,6 +88,9 @@ private:
   bool sortDependencies(std::stringstream &emsg);
 
   std::vector<bstrap_t> bstraps;
+
+  faodel::MutexWrapper *state_mutex; //!< Protects num_init_callers and State
+  int num_init_callers; //!< Number of entities that have called init (or start)
 
   enum class State { UNINITIALIZED, INITIALIZED, STARTED };
   State state;

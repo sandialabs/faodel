@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 /**
  * @file nnti_connection.hpp
@@ -43,6 +43,7 @@ protected:
     uint32_t                   id_;
     NNTI_process_id_t          peer_pid_;
     nnti::datatype::nnti_peer *peer_;
+    std::string                fingerprint_;
 
 public:
     uint32_t index;
@@ -79,7 +80,7 @@ public:
     {
         return id_;
     }
-    virtual const NNTI_process_id_t
+    virtual NNTI_process_id_t
     peer_pid()
     {
         return peer_pid_;
@@ -95,6 +96,11 @@ public:
     peer() const
     {
         return peer_;
+    }
+    virtual std::string
+    fingerprint() const
+    {
+        return fingerprint_;
     }
     /*
      * generate a string that can be added into a URL query string
@@ -118,7 +124,11 @@ public:
     toString()
     {
         std::stringstream out;
-        out << "conn=" << (void*)this << " ; id_=" << id_ << " ; peer_pid_=" << peer_pid_ << " ; peer=" << (void*)peer();
+        out << "conn="           << (void*)this
+            << " ; id_="         << id_
+            << " ; peer_pid_="   << peer_pid_
+            << " ; peer="        << (void*)peer()
+            << " ; fingerprint=" << fingerprint();
         return out.str();
     }
 };

@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #ifndef FAODEL_COMMON_BACKBURNER_HH
 #define FAODEL_COMMON_BACKBURNER_HH
@@ -11,6 +11,7 @@
 #include <mutex>
 #include <chrono>
 
+#include <fcntl.h>
 #include <cinttypes>
 
 #include "faodel-common/Configuration.hh"
@@ -119,6 +120,10 @@ private:
 
       std::map<std::string, fn_backburner_work> registered_poll_functions;
 
+      int notification_pipe[2]; //For pausing thread until work
+
+      std::function<void ()> notifyNewWork;
+      std::function<bool ()> blockUntilWork;
   };
 
   bool configured;

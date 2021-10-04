@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #ifndef DIRMAN_MSG_DIRMAN_HH
 #define DIRMAN_MSG_DIRMAN_HH
@@ -16,7 +16,7 @@ namespace dirman {
  * @brief A message data structure used by dirman ops
  *
  * In addition to the standard opbox message header, a dirman message contains
- * is a URL string or a boost-packed DirInfo. Flags are stored in the hdr_flags
+ * is a URL string or a cereal-packed DirInfo. Flags are stored in the hdr_flags
  * of the message header.
  *
  * A user is expected to call the Allocate(Request/Reply) functions to generate
@@ -27,7 +27,7 @@ typedef struct msg_dirman {
 
   //Body: The body section following hdr contains either:
   //        - a url string
-  //        - a boost-packed DirInfo
+  //        - a cereal-packed DirInfo
   //      bit[4] of hdr_flags specifies which type. Make sure your op id's agree
 
   msg_dirman()=delete;

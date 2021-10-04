@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #ifndef FAODEL_COMMON_NODEID_HH
 #define FAODEL_COMMON_NODEID_HH
@@ -9,6 +9,7 @@
 #include <sstream>
 
 #include <exception>
+#include <stdexcept>
 #include <utility>
 
 #include "faodel-common/FaodelTypes.hh"
@@ -79,19 +80,12 @@ const nodeid_t NODE_UNSPECIFIED(0x00, internal_use_only); //!< For designating t
 /**
  * @brief An exception for capturing error info when parsing a nodeid string
  */
-class NodeIDParseError : public std::exception {
-private:
-  std::string msg;
+class NodeIDParseError : public std::runtime_error {
 public:
-  NodeIDParseError() : msg("") {}
-
-  explicit NodeIDParseError(std::string s) : msg(std::move(s)) {}
-
-  const char* what() const throw() override {
-    std::stringstream ss;
-    ss << "Format problem while parsing NodeID string: " << msg << std::endl;
-    return ss.str().c_str();
-  }
+  NodeIDParseError()
+    : std::runtime_error( "Format problem while parsing NodeID string" ) {}
+  explicit NodeIDParseError( const std::string& s )
+    : std::runtime_error( "Format problem while parsing NodeID string: " + s ) {}
 };
 
 

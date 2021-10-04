@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 //
 //  Test: mpi_kelpie_rft
@@ -97,28 +97,6 @@ lunasa::DataObject generateLDO(int num_words, uint32_t start_val){
   return ldo;
 }
 
-bool ldosEqual(const lunasa::DataObject &ldo1, lunasa::DataObject &ldo2) {
-  if(ldo1.GetMetaSize() != ldo2.GetMetaSize()) { cout<<"Meta size mismatch\n"; return false; }
-  if(ldo1.GetDataSize() != ldo2.GetDataSize()) { cout<<"Data size mismatch\n"; return false; }
-
-  if(ldo1.GetMetaSize() > 0) {
-    auto *mptr1 = ldo1.GetMetaPtr<char *>();
-    auto *mptr2 = ldo2.GetMetaPtr<char *>();
-    for(int i=ldo1.GetMetaSize()-1; i>=0; i--)
-      if(mptr1[i] != mptr2[i]) { cout <<"Meta mismatch at offset "<<i<<endl; return false;}
-  }
-
-  if(ldo1.GetDataSize() > 0) {
-    auto *dptr1 = ldo1.GetDataPtr<char *>();
-    auto *dptr2 = ldo2.GetDataPtr<char *>();
-    for(int i=ldo1.GetDataSize()-1; i>=0; i--)
-      if(dptr1[i] != dptr2[i]) { cout <<"Data mismatch at offset "<<i<<endl; return false; }
-  }
-  return true;  
-}
-
-
-
 
 // Sanity check: This test just checks to make sure the rfts are setup correctly
 TEST_F(MPIRFTTest, CheckRFTs) {
@@ -163,42 +141,39 @@ TEST_F(MPIRFTTest, BasicPubLocal) {
 
   lunasa::DataObject ldo1(64); //dummy
   
-  kelpie::kv_row_info_t row_info;
-  kelpie::kv_col_info_t col_info;
+  kelpie::object_info_t info;
 
   kelpie::Key key1("single_for_full_r0");
   kelpie::Key key2("single_for_full_r0", "part2");
 
   //Publish to full, which sould land here. Result should show in local memory
-  rc = rft_full.Publish(key1, ldo1, &row_info, &col_info);
+  rc = rft_full.Publish(key1, ldo1, &info);
   EXPECT_EQ(KELPIE_OK, rc);
-  EXPECT_EQ(1,  row_info.num_cols_in_row);
-  EXPECT_EQ(64, row_info.row_bytes);
-  EXPECT_EQ(64, col_info.num_bytes);
-  EXPECT_EQ(Availability::InLocalMemory, row_info.availability);
-  EXPECT_EQ(Availability::InLocalMemory, col_info.availability);
+  EXPECT_EQ(1,  info.row_num_columns);
+  EXPECT_EQ(64, info.row_user_bytes);
+  EXPECT_EQ(64, info.col_user_bytes);
+  EXPECT_EQ(Availability::InLocalMemory, info.col_availability);
 
-  rc = rft_full.Publish(key2, ldo1, &row_info, &col_info);
+  rc = rft_full.Publish(key2, ldo1, &info);
   EXPECT_EQ(KELPIE_OK, rc);
-  EXPECT_EQ(2,   row_info.num_cols_in_row);
-  EXPECT_EQ(128, row_info.row_bytes);
-  EXPECT_EQ(64,  col_info.num_bytes);
-  EXPECT_EQ(Availability::InLocalMemory, row_info.availability);
-  EXPECT_EQ(Availability::InLocalMemory, col_info.availability);
+  EXPECT_EQ(2,   info.row_num_columns);
+  EXPECT_EQ(128, info.row_user_bytes);
+  EXPECT_EQ(64,  info.col_user_bytes);
+  EXPECT_EQ(Availability::InLocalMemory, info.col_availability);
 
 
   //See if local
-  col_info.num_bytes=-1;
-  rc = local.Info(key1, &col_info); 
+  info.col_user_bytes=-1;
+  rc = local.Info(key1, &info);
   EXPECT_EQ(KELPIE_OK, rc);
-  EXPECT_EQ(64,  col_info.num_bytes);
-  EXPECT_EQ(Availability::InLocalMemory, col_info.availability);
+  EXPECT_EQ(64,  info.col_user_bytes);
+  EXPECT_EQ(Availability::InLocalMemory, info.col_availability);
 
-  col_info.num_bytes=-1;
-  rc = local.Info(key2, &col_info); 
+  info.col_user_bytes=-1;
+  rc = local.Info(key2, &info);
   EXPECT_EQ(KELPIE_OK, rc);
-  EXPECT_EQ(64,  col_info.num_bytes);
-  EXPECT_EQ(Availability::InLocalMemory, col_info.availability);
+  EXPECT_EQ(64,  info.col_user_bytes);
+  EXPECT_EQ(Availability::InLocalMemory, info.col_availability);
 
 
 }
@@ -209,49 +184,46 @@ TEST_F(MPIRFTTest, BasicPubRemote) {
   int *x = ldo1.GetDataPtr<int *>();
   for(int i=0; i<64/sizeof(int); i++)
     x[i]=i;
-  
-  kelpie::kv_row_info_t row_info;
-  kelpie::kv_col_info_t col_info;
+
+  kelpie::object_info_t info;
 
   kelpie::Key key1("single_for_back_r0");
   kelpie::Key key2("single_for_back_r0", "part2");
 
-  rc = rft_back.Publish(key1, ldo1, &row_info, &col_info);
+  rc = rft_back.Publish(key1, ldo1, &info);
   EXPECT_EQ(KELPIE_OK, rc);
-  EXPECT_EQ(1,  row_info.num_cols_in_row);
-  EXPECT_EQ(64, row_info.row_bytes);
-  EXPECT_EQ(64, col_info.num_bytes);
-  EXPECT_EQ(Availability::InRemoteMemory, row_info.availability);
-  EXPECT_EQ(Availability::InRemoteMemory, col_info.availability);
+  EXPECT_EQ(1,  info.row_num_columns);
+  EXPECT_EQ(64, info.row_user_bytes);
+  EXPECT_EQ(64, info.col_user_bytes);
+  EXPECT_EQ(Availability::InRemoteMemory, info.col_availability);
 
-  rc = rft_back.Publish(key2, ldo1, &row_info, &col_info);
+  rc = rft_back.Publish(key2, ldo1, &info);
   EXPECT_EQ(KELPIE_OK, rc);
-  EXPECT_EQ(2,   row_info.num_cols_in_row);
-  EXPECT_EQ(128, row_info.row_bytes);
-  EXPECT_EQ(64,  col_info.num_bytes);
-  EXPECT_EQ(Availability::InRemoteMemory, row_info.availability);
-  EXPECT_EQ(Availability::InRemoteMemory, col_info.availability);
+  EXPECT_EQ(2,   info.row_num_columns);
+  EXPECT_EQ(128, info.row_user_bytes);
+  EXPECT_EQ(64,  info.col_user_bytes);
+  EXPECT_EQ(Availability::InRemoteMemory, info.col_availability);
 
 
   //Verify these are NOT local
-  rc = local.Info(key1, &col_info);  EXPECT_EQ(KELPIE_ENOENT, rc);
-  rc = local.Info(key2, &col_info);  EXPECT_EQ(KELPIE_ENOENT, rc);
+  rc = local.Info(key1, &info);  EXPECT_EQ(KELPIE_ENOENT, rc);
+  rc = local.Info(key2, &info);  EXPECT_EQ(KELPIE_ENOENT, rc);
 
 
   //See if its on rank0
-  rc = rft_back0.Info(key1, &col_info);
+  rc = rft_back0.Info(key1, &info);
   EXPECT_EQ(KELPIE_OK, rc);
-  EXPECT_EQ(64,  col_info.num_bytes);
-  EXPECT_EQ(Availability::InRemoteMemory, col_info.availability);
+  EXPECT_EQ(64,  info.col_user_bytes);
+  EXPECT_EQ(Availability::InRemoteMemory, info.col_availability);
 
   //See if its on rank1
-  rc = rft_back1.Info(key1, &col_info);
+  rc = rft_back1.Info(key1, &info);
   EXPECT_EQ(KELPIE_ENOENT, rc);
 
   lunasa::DataObject ldo2;
   rc = rft_back0.Need(key1, &ldo2);
   EXPECT_EQ(rc, KELPIE_OK);
-  EXPECT_TRUE(ldosEqual(ldo1,ldo2));
+  EXPECT_EQ(0, ldo1.DeepCompare(ldo2));
 
 }
 
@@ -273,9 +245,7 @@ int main(int argc, char **argv){
 
   faodel::Configuration config(default_config_string);
   config.AppendFromReferences();
-  G.StartAll(argc, argv, config);
-
-  assert(G.mpi_size >= 3 && "mpi_kelpie_rft needs to be 3 or larger");
+  G.StartAll(argc, argv, config, 3);
 
 
   if(G.mpi_rank==0){

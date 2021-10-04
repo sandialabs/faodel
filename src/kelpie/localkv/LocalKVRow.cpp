@@ -1,9 +1,8 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
-#include <stdio.h>
-#include <string.h>
+#include <cstring>
 
 #include "kelpie/localkv/LocalKVCell.hh"
 #include "kelpie/localkv/LocalKVRow.hh"
@@ -34,25 +33,25 @@ LocalKVRow::~LocalKVRow(){
 /**
  * @brief Do a lambda on a desired column. Create if it doesn't exist
  * @param[in] key Key to look for (key.K2 is only part used)
- * @param[in] create_if_missing Create the column if its missing
- * @param[in] trigger_dependency_check After a cell update, see if we need to trigger any callbacks
- * @param[out] col_info (Optional) pass back information about the column, after op
+ * @param[in] flags Specific actions to take during lambda (eg create row if missing)
+ * @param[out] info Optional pass back information about the column, after op
  * @param[in] func Lambda to execute on the column
  * @returns return code of lambda, or KELPIE_ENOENT if
  *
  * NOTE: row_info is filled in the next layer up, at LocalKV::doColOp
  */
-rc_t LocalKVRow::doColOp(const Key &key, bool create_if_missing, bool trigger_dependency_check,
-                         kv_col_info_t *col_info,  fn_column_op_t func){
+rc_t LocalKVRow::doColOp(const Key &key,
+                         lkv::lambda_flags_t flags,
+                         object_info_t *info,  fn_column_op_t func){
 
   bool previously_existed = true;
   LocalKVCell *cell;
-  if(create_if_missing){
+  if( flags & lkv::LambdaFlags::CREATE_IF_MISSING ) {
     cell = getOrCreateCol(key, &previously_existed);
   } else {
     cell = getCol(key);
     if(cell==nullptr){
-      if(col_info) col_info->Wipe();
+      if(info) info->Wipe();
       return KELPIE_ENOENT;
     }
   }
@@ -62,12 +61,12 @@ rc_t LocalKVRow::doColOp(const Key &key, bool create_if_missing, bool trigger_de
 
   //Cell is updated, so stats should be good. See if this is an operation
   //that needs to trigger any dependencies
-  if(trigger_dependency_check){
+  if( flags & lkv::LambdaFlags::TRIGGER_DEPENDENCIES){
     cell->dispatchCallbacksAndNotifications(this, key);
   }
 
   //Pass back generic cell info if requested
-  if(col_info) cell->getInfo(col_info);
+  if(info) cell->getInfo(info);
 
   cell->time_accessed = cell->getTime();
   return rc;
@@ -78,7 +77,7 @@ rc_t LocalKVRow::doColOp(const Key &key, bool create_if_missing, bool trigger_de
  * @note requires ownership of mutex
  * @returns number of columns
  */
-int LocalKVRow::getNumCols(){
+size_t LocalKVRow::getNumCols() {
   return cols.size() + (col_single!=nullptr);
 }
 
@@ -89,10 +88,10 @@ int LocalKVRow::getNumCols(){
  * @note requires ownership of the mutex
  * @returns Cell or nullptr
  */
-LocalKVCell * LocalKVRow::getCol(const Key &key){
+LocalKVCell * LocalKVRow::getCol(const Key &key) {
 
   //Empty column gets put somewhere special
-  if(key.K2()=="") return col_single;
+  if(key.K2().empty()) return col_single;
 
   //All other columns go in map
   map<string, LocalKVCell *>::iterator it;
@@ -107,10 +106,10 @@ LocalKVCell * LocalKVRow::getCol(const Key &key){
  * @note requires ownership of the mutex
  * @returns Cell or nullptr
  */
-LocalKVCell * LocalKVRow::getCol(const string colname){
+LocalKVCell * LocalKVRow::getCol(const string &colname){
 
   //Empty column gets put somewhere special
-  if(colname=="") return col_single;
+  if(colname.empty()) return col_single;
 
   //All other columns go in map
   map<string, LocalKVCell *>::iterator it;
@@ -148,8 +147,8 @@ LocalKVCell * LocalKVRow::getOrCreateCol(const Key &key, bool *previously_existe
     //Cell previously unknown. Create and add it
 
     cell = new LocalKVCell();
-    if(key.K2()=="") col_single = cell;
-    else             cols[key.K2()] = cell;
+    if(key.K2().empty()) col_single = cell;
+    else                 cols[key.K2()] = cell;
     existed=false;
   }
   if(previously_existed) *previously_existed = existed;
@@ -184,6 +183,12 @@ int LocalKVRow::getActiveColumnNamesCapacities(const string &search_string, vect
     string prefix=search_string;
     prefix.erase(prefix.size()-1);
 
+    //Check no-name column first
+    if(prefix.empty() && (col_single)) {
+      if(names) names->push_back("");
+      if(capacities) capacities->push_back(col_single->getUserSize());
+    }
+
     //Walk through all entries and see if we have a hit
     for(auto name_colptr = cols.lower_bound(prefix); name_colptr!=cols.end(); ++name_colptr) {
       if(name_colptr->second->getUserSize()) { //Only entries with data
@@ -199,58 +204,67 @@ int LocalKVRow::getActiveColumnNamesCapacities(const string &search_string, vect
 }
 
 /**
- * @brief Insert a node into the waiting list for a particular cell.
- * @param[in] colname out column name
- * @param[in] requesting_node_id id of the node that really wants data (for forwarding)
- * @returns
-   @retval KELPIE_OK This item was added and has not been asked for yet
-   @retval KELPIE_EEXIST This item has already been asked for
-*/
-rc_t LocalKVRow::insertWaitingList(string colname, nodeid_t requesting_node_id){
-
-  set<nodeid_t> node_set;
-
-  map<string, set<nodeid_t>>::iterator it;
-  it=col_waiting_list.find(colname);
-
-  if(it!=col_waiting_list.end()){
-    //This entry already on the wait list
-    node_set=it->second;
-    return KELPIE_EEXIST;
-  }
-  node_set.insert(requesting_node_id);
-  col_waiting_list[colname] = node_set;
-
-  return KELPIE_OK;
-}
-
-
-/**
- * @brief Return the list of nodes that have asked for this column before
- * @param[in] colname String name of the column we want
- * @param[out] waiting_list A set containing all of the nodes that are waiting on this entry
- * @note this will clear out the column's waiting list, as it is assumed you're going to handle it
- * @todo check into passing back an empty set
+ * @brief Remove columns that match a search string
+ * @param[in] search_string The column pattern we want. Does prefix match if string ends in '*'
+ * @return The number of columns that the drop command matched
  */
-void LocalKVRow::getWaitingList(string colname, set<nodeid_t> &waiting_list){
+int LocalKVRow::dropColumns(const std::string &search_string) {
 
+  bool col_wildcard = StringEndsWith(search_string, "*");
 
-  map<string, set<nodeid_t>>::iterator it;
-  it=col_waiting_list.find(colname);
+  if(!col_wildcard) {
+    //Find exact match
+    LocalKVCell *cell = getCol(search_string);
+    if(cell == nullptr) return 0;
+    if(cell->isDroppable()) {
+      delete cell;
+      if(search_string.empty()) col_single = nullptr;
+      else cols.erase(search_string);
 
-  if(it!=col_waiting_list.end()){
-    //Found something. Pass the list back, then clear out the entry
-    waiting_list = it->second;
-    col_waiting_list.erase(it);
+    } else {
+      //Cell has things waiting on it. Mark as drop.
+      cell->drop_requested = true;
+    }
+    return 1;
 
-  }// else {
-   // //No members. Be nice and pass back an empty set
-   // set<nodeid_t> node_set;
-   // *waiting_list = node_set;
-  //}
+  } else {
 
-  return;
+    //Do a wildcard search
+    int num_found=0;
+
+    //Adjust the search name so it doesn't end in *
+    string prefix=search_string;
+    prefix.erase(prefix.size()-1);
+
+    //Check no-name column first
+    if(prefix.empty() && (col_single)) {
+      num_found++;
+      delete col_single;
+      col_single = nullptr;
+    }
+
+    //Walk through all entries and see if we have a hit
+    vector<string> delete_names;
+    for(auto name_colptr = cols.lower_bound(prefix); name_colptr!=cols.end(); ++name_colptr) {
+      if(StringBeginsWith(name_colptr->first, prefix)) {
+        num_found++;
+        if(name_colptr->second->isDroppable()) {
+          delete name_colptr->second;
+          delete_names.push_back(name_colptr->first);
+        } else {
+          name_colptr->second->drop_requested = true;
+        }
+      }
+    }
+
+    //Remove all the items from the map
+    for(auto &name : delete_names)
+      cols.erase(name);
+
+    return num_found;
+  }
 }
+
 /**
  * @brief Drops a particular key from the table
  * @param[in] key The key to drop
@@ -268,20 +282,33 @@ rc_t LocalKVRow::drop(const Key &key, int drop_options, size_t *dropped_bytes, b
 
     delete cell;
 
-    if(key.K2()=="") col_single=nullptr;
-    else             cols.erase(key.K2());
+    if(key.K2().empty()) col_single=nullptr;
+    else                 cols.erase(key.K2());
   }
   *is_empty = isDroppable();
   return KELPIE_OK;
 }
 
 /**
- * @brief Reports back whether this row is empty and can be deleted
- * @retval TRUE Row is empty and can be dropped
- * @retval FALSE Row has columns, or a list of subscribers waiting for data
+ * @brief Reports back whether this row CAN be dropped (ie, is it free of dependencies)
+ * @retval TRUE Row does not have any dependencies and can be dropped
+ * @retval FALSE Row has columns with dependencies that prevent dropping
  */
-bool LocalKVRow::isDroppable(){
-  return cols.empty() && col_waiting_list.empty();
+bool LocalKVRow::isDroppable() {
+  if((col_single) && (!col_single->isDroppable())) return false;
+  for(auto &name_col : cols) {
+    if(!name_col.second->isDroppable()) return false;
+  }
+  return true;
+}
+
+/**
+ * @brief Determine if this row is empty (ie, no cells in single or cols)
+ * @retval TRUE Row doesn't have cells or waiting dependencies
+ * @retval FALSE Row has at least one cell in it (possibly with a dependency)
+ */
+bool LocalKVRow::isEmpty() {
+  return (col_single==nullptr) && (cols.empty());
 }
 
 
@@ -296,7 +323,7 @@ Availability LocalKVRow::getAvailability() {
   //Set the initial value
   if(col_single) {
     a=col_single->availability;
-  } else if (cols.size()>0) {
+  } else if (!cols.empty()) {
     a=cols.begin()->second->availability;
   } else {
     return Availability::Unavailable;
@@ -314,23 +341,44 @@ Availability LocalKVRow::getAvailability() {
 
 /**
  * @brief Generate summary information for all the cells in this row
- * @param[out] row_info Summary statistics for the row
+ * @param[in] key Optional info that can be used to filter columns via a wildcard
+ * @param[out] info Updates the ROW portion of info
  */
-void LocalKVRow::getInfo(kv_row_info_t *row_info){
+void LocalKVRow::getInfo(const Key &key, object_info_t *info){
 
-  if(!row_info) return;
+  if(!info) return;
+  string prefix_match;
+  if(key.IsColWildcard()) {
+    prefix_match=key.K2();
+    prefix_match.erase( prefix_match.size()-1); //remove the trailing '*'
+  }
 
-  //Sum up all the column bytes
-  ssize_t row_bytes=0;
-  if(col_single) row_bytes=col_single->ldo.GetUserSize();
-  for(auto &name_cellptr : cols)
-    row_bytes += name_cellptr.second->ldo.GetUserSize();
+  if(prefix_match.empty()) {
+    //No '*' provided so we match everything in row
 
-  row_info->row_bytes = row_bytes;
-  row_info->num_cols_in_row = cols.size() + (col_single!=nullptr);
-  row_info->num_row_receiver_nodes = col_waiting_list.size();
-  row_info->num_row_dependencies = 0;  //TODO
-  row_info->availability = getAvailability();
+    //Sum up all the column bytes
+    size_t row_bytes = 0;
+    if(col_single) row_bytes = col_single->getUserSize();
+    for(auto &name_cellptr : cols)
+      row_bytes += name_cellptr.second->getUserSize();
+
+    info->row_user_bytes = row_bytes;
+    info->row_num_columns = getNumCols();
+    return;
+
+  } else {
+    //User gave us a wildcard. This automatically filters out the noname column. Only look at matching cols.
+
+    //Col Wildcard. Compute based on matches
+    info->row_user_bytes = 0;
+    info->row_num_columns = 0;
+    for(auto &name_cellptr : cols) {
+      if( StringBeginsWith(name_cellptr.first, prefix_match) ) {
+        info->row_user_bytes += name_cellptr.second->getUserSize();
+        info->row_num_columns++;
+      }
+    }
+  }
 }
 
 /**
@@ -341,7 +389,7 @@ void LocalKVRow::getInfo(kv_row_info_t *row_info){
  */
 void LocalKVRow::sstr(stringstream &ss, int depth, int indent) const {
 
-  int num_cols = cols.size() + (col_single!=nullptr);
+  //int num_cols = cols.size() + (col_single!=nullptr);
 
   ss << string(indent,' ')+"[Row] '" << rowname;
   if(col_single!=nullptr) {

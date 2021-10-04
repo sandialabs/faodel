@@ -113,6 +113,8 @@
 /* ************************************************
  * XDR configuration
  * ************************************************ */
+#cmakedefine NNTI_HAVE_RPC_TYPES_H   1
+#cmakedefine NNTI_HAVE_RPC_XDR_H     1
 #cmakedefine NNTI_HAVE_XDR_U_INT8_T  1
 #cmakedefine NNTI_HAVE_XDR_U_INT16_T 1
 #cmakedefine NNTI_HAVE_XDR_U_INT32_T 1

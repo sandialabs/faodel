@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #ifndef NNTI_PACKABLE_HPP
 #define NNTI_PACKABLE_HPP
@@ -52,7 +52,7 @@ struct NNTI_null_process_p_t {
 /**
  * @brief Remote process identifier for IB.
  *
- * The <tt>\ref NNTI_ib_process_t</tt> identifies a particular process
+ * The <tt>\ref NNTI_ib_process_p_t</tt> identifies a particular process
  * on a particular node.  If a connection has been established to the
  * represented process, then that connection is identified by 'qp_num'.
  */
@@ -83,7 +83,7 @@ using NNTI_instance_id = uint32_t;
 /**
  * @brief Remote process identifier for Gemini.
  *
- * The <tt>\ref NNTI_ugni_process_t</tt> identifies a particular process
+ * The <tt>\ref NNTI_ugni_process_p_t</tt> identifies a particular process
  * on a particular node.  If a connection has been established to the
  * represented process, then that connection is identified by 'inst_id'.
  */
@@ -108,7 +108,7 @@ struct NNTI_ugni_process_p_t {
 /**
  * @brief Remote process identifier for MPI.
  *
- * The <tt>\ref NNTI_mpi_process_t</tt> identifies a particular process
+ * The <tt>\ref NNTI_mpi_process_p_t</tt> identifies a particular process
  * on a particular node.
  */
 struct NNTI_mpi_process_p_t {
@@ -145,7 +145,7 @@ struct NNTI_local_process_p_t {
 /**
  * @brief A structure to represent a remote processes.
  *
- * The <tt>NNTI_remote_process_t</tt> structure contains the
+ * The <tt>NNTI_remote_process_p_t</tt> structure contains the
  * transport specific info needed to identify a process running
  * on a remote node.
  */

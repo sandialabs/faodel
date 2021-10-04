@@ -14,8 +14,9 @@ set(HEADERS
     common/OpRegistry.hh
     common/Types.hh
     core/Singleton.hh
+    core/OpTimer.hh
     core/OpBoxCoreBase.hh
-    core/OpBoxCoreStandard.hh
+        core/OpBoxCoreDeprecatedStandard.hh
     core/OpBoxCoreThreaded.hh
     core/OpBoxCoreUnconfigured.hh
     net/net.hh
@@ -41,9 +42,10 @@ set(SOURCES
     common/Types.cpp
     core/Singleton.cpp
     core/OpBoxCoreBase.cpp
-    core/OpBoxCoreStandard.cpp
+        core/OpBoxCoreDeprecatedStandard.cpp
     core/OpBoxCoreThreaded.cpp
     core/OpBoxCoreUnconfigured.cpp
+    core/OpTimer.cpp
     ops/Op.cpp
     ops/OpCount.cpp
     ops/OpPing.cpp
@@ -51,7 +53,7 @@ set(SOURCES
 
 add_subdirectory( net )
 
-LIST( APPEND Opbox_imports lunasa ${FaodelNetlib_TARGETS} services whookie common sbl Boost::serialization )
+LIST( APPEND Opbox_imports lunasa ${FaodelNetlib_TARGETS} services whookie common sbl )
 
 add_library( opbox ${HEADERS} ${SOURCES} )
 target_link_libraries( opbox PUBLIC ${Opbox_imports} )

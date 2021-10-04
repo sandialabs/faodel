@@ -63,6 +63,8 @@ private:
   
   void dumpRegisteredHandles(const std::map<std::string,std::string> &args, std::stringstream &results);
   void dumpAbout(const std::map<std::string,std::string> &args, std::stringstream &results);
+  void dumpProc(const std::map<std::string,std::string> &args, std::stringstream &results);
+  void dumpFile(const std::map<std::string,std::string> &args, std::stringstream &results, const std::string &file_name);
 
 };
 

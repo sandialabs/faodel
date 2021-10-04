@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 // Warning: This example currently currently has problems at shutdown
 //          when operations are still in flight.
@@ -179,6 +179,12 @@ int main(int argc, char **argv) {
         std::cout << opt_desc << std::endl;
       G.StopAll();
       return 0;
+    }
+
+    if(G.mpi_size==1) {
+      std::cerr<<"This example needs to be run with multiple mpi ranks\n";
+      G.StopAll();
+      return -1;
     }
 
     participants = G.mpi_size;

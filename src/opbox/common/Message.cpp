@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #include <iostream>
 
@@ -64,7 +64,7 @@ bool message_t::IsExpected(uint32_t expected_op_id, uint16_t flag_mask, uint16_t
  */
 void message_t::SetStandardRequest(faodel::nodeid_t dst_node, mailbox_t src_mailbox,
                                  uint32_t op_id, uint16_t user_flags,
-                                 uint16_t body_len){
+                                 uint32_t body_len){
   this->src = opbox::net::GetMyID();
   this->dst = dst_node;
   this->src_mailbox = src_mailbox;
@@ -82,7 +82,7 @@ void message_t::SetStandardRequest(faodel::nodeid_t dst_node, mailbox_t src_mail
  * @param[in]  body_len   The length of the data immediately following this header
  */
 void message_t::SetStandardReply(const message_t *hdr, uint16_t user_flags,
-                               uint16_t body_len) {
+                               uint32_t body_len) {
   this->src = opbox::net::GetMyID();
   this->dst = hdr->src;
   this->src_mailbox = MAILBOX_UNSPECIFIED;

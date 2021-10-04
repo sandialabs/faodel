@@ -233,7 +233,7 @@ class PERFTOOLS_DLL_DECL PageHeap {
   size_t GetMinSystemAlloc(void) {return kMinSystemAlloc;}
   void SetMinSystemAlloc(size_t min_system_alloc) {
     if( min_system_alloc > kMaxPages ) {
-      printf("ERROR: Minimum system allocation must be less than or equal to %d bytes\n", (kMaxPages << kPageShift));
+      printf("ERROR: Minimum system allocation must be less than or equal to %ld bytes\n", (kMaxPages << kPageShift));
     } else {
       min_system_alloc_ = min_system_alloc;
     }

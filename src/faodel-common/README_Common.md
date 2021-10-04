@@ -80,11 +80,17 @@ Run-Time Options
 The following options are parsed out of a Configuration by different
 components in Common:
 
-| Property                | Type        | Default | Description                                  |
-| ------------------      | ----------- | ------- | -------------------------------------------- |
-| bootstrap.debug         | boolean     | false   | Display debug messages during bootstrap      |
-| config.additional_files | string list | ""      | Load additional info for listed files        |
-| config.purge            | boolean     | false   | Removes all tags and reloads current config  |
+| Property                                | Type        | Default | Description                                  |
+| --------------------------------------  | ----------- | ------- | -------------------------------------------- |
+| bootstrap.debug                         | boolean     | false   | Display debug messages during bootstrap      |
+| bootstrap.show_config_at_init           | boolean     | false   | Display config used at init time             |
+| bootstrap.halt_on_shutdown              | boolean     | false   | Do infinite-wait instead of exit at shutdown |
+| bootstrap.status_on_shutdown            | boolean     | false   | Dump an ok message on successful exit        |
+| bootstrap.exit_on_errors                | boolean     | false   | Exit on errors instead of throwing exception |
+| bootstrap.sleep_seconds_before_shutdown | int         | 0       | Delay Finish shutdown for specified seconds  |
+| mpisyncstop.enable                      | boolean     | false   | Perform an mpi barrier before Finish         |
+| config.additional_files                 | string list | ""      | Load additional info for listed files        |
+| config.purge                            | boolean     | false   | Removes all tags and reloads current config  |
 
 Note: There are multiple suffixes for config.additional_files that can
 be used to control how additional config files are loaded:

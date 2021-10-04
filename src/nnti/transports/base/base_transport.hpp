@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 /**
  * @file base_transport.hpp
@@ -36,14 +36,15 @@ protected:
     NNTI_transport_id_t       trans_id_;
     nnti::core::nnti_url      url_;
     nnti::datatype::nnti_peer me_;
-    faodel::Configuration    config_;
+    uint32_t                  fingerprint_;
+    faodel::Configuration     config_;
 
 public:
     /**
      * @brief Initialize NNTI to use a specific transport.
      *
      * \param[in]  trans_id  The ID of the transport the client wants to use.
-     * \param[in]  my_url    A string that describes the transport parameters.
+     * \param[in]  me        An nnti_peer object that references this process.
      * \return A result code (NNTI_OK or an error)
      *
      */
@@ -55,12 +56,13 @@ public:
      * @brief Initialize NNTI to use a specific transport.
      *
      * \param[in]  trans_id  The ID of the transport the client wants to use.
+     * \param[in]  config    A Configuration object that NNTI should use to configure itself.
      * \return A result code (NNTI_OK or an error)
      *
      */
     base_transport(
         const NNTI_transport_id_t  trans_id,
-        faodel::Configuration    &config);
+        faodel::Configuration     &config);
 
     /**
      * @brief Deactivates a specific transport.

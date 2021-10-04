@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #include "gtest/gtest.h"
 //#include <mpi.h>
@@ -23,7 +23,6 @@ lunasa.lazy_memory_manager malloc
 lunasa.eager_memory_manager malloc
 
 #lkv settings for the server
-server.max_capacity 32M
 server.mutex_type   rwlock
 
 node_role server
@@ -52,7 +51,7 @@ TEST_F(LunasaDataObjectTest, StructSanityCheck) {
   EXPECT_EQ(0,    ldo1.GetMetaSize());
   EXPECT_EQ(1024, ldo1.GetDataSize());
   EXPECT_EQ(1024, ldo1.GetUserSize());
-  EXPECT_EQ(1024, ldo1.GetUserCapacity());
+  EXPECT_LE(1024, ldo1.GetUserCapacity()); //Capacity May be a +4 bytes for safety
   EXPECT_EQ(8,    ldo1.GetHeaderSize()); //Header should be fixed to uin16+uint16+uint32
   EXPECT_EQ(1032, ldo1.GetWireSize());   //Header+user
   //EXPECT_EQ(1072, ldo1.GetRawAllocationSize());  //Sanity check: copied to catch changes in alloc size
@@ -93,7 +92,7 @@ TEST_F(LunasaDataObjectTest, capcityChanges) {
   //stored everything.
 
   DataObject ldo1(1024,64,128, lunasa::DataObject::AllocatorType::eager, 0x2112);
-  EXPECT_EQ(1024, ldo1.GetUserCapacity());
+  EXPECT_LE(1024, ldo1.GetUserCapacity()); //May get more than asked for, fo alignment
   EXPECT_EQ(64,   ldo1.GetMetaSize());
   EXPECT_EQ(128,  ldo1.GetDataSize());
   EXPECT_EQ(192,  ldo1.GetUserSize());
@@ -102,8 +101,8 @@ TEST_F(LunasaDataObjectTest, capcityChanges) {
   rc= ldo1.ModifyUserSizes(256, 512);  EXPECT_EQ(0, rc);
   rc= ldo1.ModifyUserSizes(512, 512);  EXPECT_EQ(0, rc);
   rc= ldo1.ModifyUserSizes(64,  102);  EXPECT_EQ(0, rc);
-  rc= ldo1.ModifyUserSizes(512, 513);  EXPECT_EQ(-1, rc);
-  rc= ldo1.ModifyUserSizes(513, 512);  EXPECT_EQ(-1, rc);
+  rc= ldo1.ModifyUserSizes(512, 517);  EXPECT_EQ(-1, rc); //Note: capacity may be 1024+4 for alignment, try to validate
+  rc= ldo1.ModifyUserSizes(517, 512);  EXPECT_EQ(-1, rc);
 
   //Make sure the sizes are still set to last valid setting
   EXPECT_EQ(64, ldo1.GetMetaSize());

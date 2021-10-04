@@ -1,8 +1,9 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #include <iostream>
+#include <algorithm>
 #include <string.h>
 
 #include "opbox/OpBox.hh"
@@ -37,7 +38,7 @@ void example3_ldo_string_request_reply(){
 
   //Extract the message and then acknowledge all-caps day
   string s = UnpackStringMessage(msg_request);
-  transform(s.begin(), s.end(), s.begin(), ::toupper);
+  std::transform(s.begin(), s.end(), s.begin(), ::toupper);
 
   //Allocate a reply and use the incoming message to fill in fields
   lunasa::DataObject ldo_reply;

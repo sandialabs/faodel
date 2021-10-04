@@ -1,9 +1,9 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #include <iostream>
-#include <kelpie/core/Singleton.hh>
+#include "kelpie/core/Singleton.hh"
 
 #include "kelpie/ops/direct/OpKelpiePublish.hh"
 
@@ -13,6 +13,7 @@ using namespace kelpie;
 //Statics: Standard id/name info for an op
 const unsigned int OpKelpiePublish::op_id = const_hash("OpKelpiePublish");
 const string OpKelpiePublish::op_name = "OpKelpiePublish";
+bool OpKelpiePublish::debug_enabled = false;
 
 //Statics: This op has a static localkv pointer. lkv lives inside KelpieCore instance
 LocalKV * OpKelpiePublish::lkv = nullptr;
@@ -21,10 +22,14 @@ LocalKV * OpKelpiePublish::lkv = nullptr;
  * @brief Internal startup command for setting static variables
  *
  * @param[in] iuo Designates this function is for internal use only
+ * @param[in] config Pointer to configuration so that kelpie.op.publish settings can be retrieved
  * @param[in] new_lkv A pointer to the kelpie localkv we should uses_allocator
  */
-void OpKelpiePublish::configure(faodel::internal_use_only_t iuo, LocalKV *new_lkv) {
+void OpKelpiePublish::configure(faodel::internal_use_only_t iuo, const faodel::Configuration *config, LocalKV *new_lkv) {
   lkv = new_lkv;
+  if(config) {
+    config->GetComponentLoggingSettings(&OpKelpiePublish::debug_enabled, nullptr, nullptr, "kelpie.op.publish");
+  }
 }
 
 
@@ -56,8 +61,9 @@ OpKelpiePublish::OpKelpiePublish(
 
   ldo_data = ldo_users_data;  //We need to keep a copy of the ldo until sent
 
-  bool exceeds = msg_direct_buffer_t::Alloc(ldo_msg, op_id, DirectFlags::CMD_PUBLISH, target_node, GetAssignedMailbox(),
-                                            opbox::MAILBOX_UNSPECIFIED, bucket, key, iom_hash, behavior_flags, &ldo_data);
+  /*bool exceeds =*/ msg_direct_buffer_t::Alloc(ldo_msg, op_id, DirectFlags::CMD_PUBLISH, target_node, GetAssignedMailbox(),
+                                            opbox::MAILBOX_UNSPECIFIED, bucket, key, iom_hash, behavior_flags,
+                                            &ldo_data);
 
 }
 
@@ -71,7 +77,7 @@ OpKelpiePublish::OpKelpiePublish(Op::op_create_as_target_t t)
   : Op(t), state(State::trgt_pub_start), ldo_msg(){
 
   //No work to do - done in target's state machine
-  peer = 0;
+  peer = nullptr;
   target_iom=0;
   target_behavior_flags=0;
   GetAssignedMailbox();  //For safety, get a mailbox. Not needed everywhere?
@@ -94,7 +100,7 @@ OpKelpiePublish::~OpKelpiePublish(){
 WaitingType OpKelpiePublish::smo_Publish_Send(){
   //All origin options start here, but branch out to different states
   //cout <<"OPPUB-ORG: About to send message\n";
-
+  dbg("Sending initial Publish message");
   net::SendMsg(peer, std::move(ldo_msg));
   return updateState(State::orig_pub_wait_for_ack, WaitingType::waiting_on_cq);
 }
@@ -113,15 +119,30 @@ WaitingType OpKelpiePublish::smt_Publish_Start(OpArgs *args) {
   target_behavior_flags = PoolBehavior::ChangeRemoteToLocal(imsg->behavior_flags);
 
   //cout <<"OPPUB-TRG: message is a publish. OMBox="<<imsg->hdr.src_mailbox<<" Meta+Data Length is "<<imsg->meta_plus_data_size<<" key is "<<key.str()<<"\n";
+  dbg("Received new publish for "+key.str()+" length "+std::to_string(imsg->meta_plus_data_size));
 
-  //TODO: See if Kelpie already has this object
+  //Create return ack message
+  msg_direct_status_t::AllocAck(ldo_msg, &imsg->hdr);
+
+  //See if we can ignore this request when it the object already exists
+  if(!(target_behavior_flags & PoolBehavior::EnableOverwrites)) {
+    object_info_t info;
+    rc_t rc = lkv->getInfo(bucket, key, &info);
+    if((rc==KELPIE_OK) && (info.col_availability == Availability::InLocalMemory)) {
+      //The object is here. We can just send an ack back
+      dbg("Object already exists but we don't have permission to overwrite it. Sending an ack.");
+      auto omsg = ldo_msg.GetDataPtr<msg_direct_status_t *>();
+      omsg->Success(true);
+      omsg->remote_rc = KELPIE_EEXIST;
+      net::SendMsg(peer, std::move(ldo_msg));
+      return updateStateDone();
+    }
+    //Item not here or in waiting state. Go ahead and fetch it.
+  }
+
 
   //Allocate space for incoming data
   ldo_data = lunasa::DataObject(0, imsg->meta_plus_data_size, lunasa::DataObject::AllocatorType::eager);
-  //cout <<"OPPUB-TRG ldo allocated size is "<<ldo_data.GetDataSize()<<endl;
-
-  //Create return ack message TODO: move below GET when opbox is safe
-  msg_direct_status_t::AllocAck(ldo_msg, &imsg->hdr);
 
   //Setup RDMA for transferring data
   net::Get(peer, &nbr, ldo_data, AllEventsCallback(this));
@@ -134,10 +155,11 @@ WaitingType OpKelpiePublish::smt_Publish_Start(OpArgs *args) {
 WaitingType OpKelpiePublish::smt_Publish_WaitRDMA(opbox::OpArgs *args){
 
   //cout <<"OPPUB-TRG: got dma done notification. sending ack. Key is "<<key.str()<<"\n";
+  dbg("Finished receiving data for "+key.str());
 
   //FIXME
   if(args->type == UpdateType::send_success) {
-    cout<<"FIXME: got send_success instead of get_success\n";
+    dbg("FIXME: got send_success instead of get_success");
     return WaitingType::waiting_on_cq;
   }
   //FIXME^^
@@ -146,12 +168,16 @@ WaitingType OpKelpiePublish::smt_Publish_WaitRDMA(opbox::OpArgs *args){
 
   auto omsg = ldo_msg.GetDataPtr<msg_direct_status_t *>();
 
-  //Got the data, now store it locally in memory
-  rc_t rc = lkv->put(bucket, key, ldo_data, target_behavior_flags, &omsg->row_info, &omsg->col_info);
+  //Got the data, use the lkv to store it. Translate iom if provided.
+  internal::IomBase *iom = nullptr;
+  if((target_iom!=0) && (target_behavior_flags & PoolBehavior::WriteToIOM)) {
+    iom = kelpie::internal::FindIOM(target_iom);
+  }
+  rc_t rc = lkv->put(bucket, key, ldo_data, target_behavior_flags, iom, &omsg->object_info);
 
   //See if it also goes to an iom
   if((target_iom!=0) && (target_behavior_flags & PoolBehavior::WriteToIOM)){
-    auto *iom = kelpie::internal::Singleton::impl.core->FindIOM(target_iom);
+    auto *iom = kelpie::internal::FindIOM(target_iom);
     if(iom==nullptr) {
       throw runtime_error("OpKelpiePublish attempted to write key "+key.str()+" to a node with a bad iom");
     }
@@ -168,7 +194,8 @@ WaitingType OpKelpiePublish::smt_Publish_WaitRDMA(opbox::OpArgs *args){
 
 //ORIGIN: Wait for an ACK
 WaitingType OpKelpiePublish::smo_Publish_WaitAck(opbox::OpArgs *args) {
-  //cout <<"OPPUB-ORG: got ack\n";
+
+  dbg("Received an ack");
 
   auto imsg = args->ExpectMessageOrDie<msg_direct_status_t *>();
   //TODO: better handling of unexpected arg/message
@@ -176,10 +203,9 @@ WaitingType OpKelpiePublish::smo_Publish_WaitAck(opbox::OpArgs *args) {
   //Got a reply. We no longer have to hold on to the publish data's ldo. If
   //caller specified a callback, pass the result back
   if(cb_info_result!=nullptr){
-    //cout <<"OPPUB-ORG got ack Reply. Need to extract the return code\n";
-    imsg->row_info.ChangeAvailabilityFromLocalToRemote();
-    imsg->col_info.ChangeAvailabilityFromLocalToRemote();
-    cb_info_result(imsg->remote_rc, imsg->row_info, imsg->col_info);
+    dbg("Got ack Reply. Remote rc was "+to_string(imsg->remote_rc)+" success "+ to_string(imsg->Success())+"\n");
+    imsg->object_info.ChangeAvailabilityFromLocalToRemote();
+    cb_info_result(imsg->remote_rc, imsg->object_info);
   }
   return updateStateDone();
 }
@@ -193,9 +219,8 @@ WaitingType OpKelpiePublish::Update(opbox::OpArgs *args){
   case State::trgt_pub_wait_for_rdma:          return smt_Publish_WaitRDMA(args);
   case State::orig_pub_wait_for_ack:           return smo_Publish_WaitAck(args);
   case State::done:                            return updateStateDone();
-  default: ;
   }
-  KFAIL();
+  F_FAIL();
   return WaitingType::error;
 }
 
@@ -211,5 +236,5 @@ std::string OpKelpiePublish::GetStateName() const {
   case State::orig_pub_wait_for_ack:           return "Origin-Publish-WaitForAck";
   case State::done:                            return "Done";
   }
-  KFAIL();
+  F_FAIL();
 }

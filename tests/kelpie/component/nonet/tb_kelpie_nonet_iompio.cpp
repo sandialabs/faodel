@@ -1,19 +1,30 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
+
+// Test: tb_kelpie_nonet_iompio
+//
+// This test sets up a no-net kelpie so we can test writing into a few different
+// pools with pio drivers. The ioms point to locally created temp directories.
+// It uses the Info, List, and Drop command to make sure objects get reported
+// back in the their proper locations.
 
 #include <iostream>
 #include <vector>
 #include <algorithm>
 #include <atomic>
 
+#include "faodelConfig.h"
+#ifdef Faodel_ENABLE_MPI_SUPPORT
 #include <mpi.h>
+#endif
 
 #include "gtest/gtest.h"
 
 #include "kelpie/localkv/LocalKV.hh"
 #include "kelpie/ioms/IomRegistry.hh"
 #include "kelpie/ioms/IomPosixIndividualObjects.hh"
+
 
 
 using namespace std;
@@ -25,9 +36,11 @@ std::string default_config_string = R"EOF(
 
 # For local testing, tell kelpie to use the nonet implementation
 kelpie.type nonet
+dirman.type none
 
-default.iom.type PosixIndividualObjects
-default.ioms     myiom1;myiom2;myiom3
+
+default.kelpie.iom.type  PosixIndividualObjects
+default.kelpie.ioms      myiom1;myiom2;myiom3;myenv1
 # note: additional iom info like path is filled in during SetUp()
 
 # Uncomment these options to get debug info for each component
@@ -37,10 +50,22 @@ default.ioms     myiom1;myiom2;myiom3
 #dirman.debug    true
 #kelpie.debug    true
 
+#kelpie.pool.debug true
+#kelpie.pool.logging_level debug
+#kelpie.pool_registry.debug true
+#kelpie.iom_registry.debug true
+#kelpie.iom.debug true
+#kelpie.lkv.debug true
+
+
+
 # We start/stop multiple times (which lunasa's tcmalloc does not like), so
 # we have to switch to a plain malloc allocator
 lunasa.lazy_memory_manager malloc
 lunasa.eager_memory_manager malloc
+
+# enable when debugging:
+#bootstrap.halt_on_shutdown true
 
 )EOF";
 
@@ -52,19 +77,26 @@ protected:
     char p1[] = "/tmp/gtestXXXXXX";
     char p2[] = "/tmp/gtestXXXXXX";
     char p3[] = "/tmp/gtestXXXXXX";
+    char p4[] = "/tmp/gtextXXXXXX";
+
     string path1 = mkdtemp(p1);
     string path2 = mkdtemp(p2);
     string path3 = mkdtemp(p3);
-    
+    string path4 = mkdtemp(p4);
+
     config.Append(default_config_string);
-    
-    config.Append("iom.myiom1.path", p1);
-    config.Append("iom.myiom2.path", p2);
-    config.Append("iom.myiom3.path", p3);
+    config.Append("kelpie.iom.myiom1.path", p1);
+    config.Append("kelpie.iom.myiom2.path", p2);
+    config.Append("kelpie.iom.myiom3.path", p3);
+    config.Append("kelpie.iom.myenv1.path.env_name", "MY_ENV_VAR");
+
+    setenv("MY_ENV_VAR", "/tmp/bogyz" /*path4.c_str()*/, 1);
+
     bootstrap::Start(config, kelpie::bootstrap);
+
   }
   virtual void TearDown() {
-    bootstrap::FinishSoft();
+    bootstrap::Finish(); //Previously this was FinishSoft?
   }
 
   rc_t rc;
@@ -131,7 +163,7 @@ bool checkLDO(const lunasa::DataObject &ldo, int id) {
 TEST_F(IomPosixIOSimple, BasicIOMWrite) {
 
   int num_items=10;
-  kv_col_info_t ci;
+  object_info_t ci;
   atomic<int> replies_left;
 
   kelpie::Pool plocal0 = kelpie::Connect("local:[my_bucket0]");
@@ -141,6 +173,13 @@ TEST_F(IomPosixIOSimple, BasicIOMWrite) {
   kelpie::Pool piom2   = kelpie::Connect("[my_bucket2]/local/iom/myiom2");
   kelpie::Pool piom3   = kelpie::Connect("[my_bucket3]/local/iom/myiom3");
 
+
+  EXPECT_TRUE(plocal0.Valid());
+  EXPECT_EQ(uint8_t(PoolBehavior::DefaultLocal),     plocal0.GetBehavior());
+  EXPECT_EQ(uint8_t(PoolBehavior::DefaultLocalIOM),  piom2.GetBehavior());
+
+
+
   //Create a bunch of k/vs
   vector<pair<Key,lunasa::DataObject>> kvs;
   for(int i=0; i<num_items; i++){
@@ -148,35 +187,88 @@ TEST_F(IomPosixIOSimple, BasicIOMWrite) {
                      createLDO(i, "bozo-"+to_string(i), i*2) } );
   }
 
-  
-  //Publish to iom2, which plocal0 is aliased to
-  replies_left=num_items;
-  for(int i=0; i<num_items; i++) {
-    piom2.Publish( kvs[i].first, kvs[i].second,
-                   [&replies_left] (rc_t result, kv_row_info_t &ri, kv_col_info_t &ci) {
+  auto fn_countdown = [&replies_left](rc_t result, object_info_t &ci) {
                      //cout <<"Published piom2 "<<ci.str()<<endl;
                      replies_left--;
-                   });
+                   };
+  
+  //Publish to iom2, which plocal0 is aliased to
+  replies_left=num_items + (4*3);
+  for(int i=0; i<num_items; i++) {
+    piom2.Publish( kvs[i].first, kvs[i].second, fn_countdown);
   }
+
+  for(int i=0; i<4; i++) {
+    for(int j=0; j<3; j++) {
+      piom2.Publish(Key("Something_" + to_string(i), "Other_" + to_string(j)),
+                    createLDO(i, "stuff", 10),
+                    fn_countdown);
+    }
+  }
+
   while(replies_left!=0) { sched_yield(); }
 
 
   //Check reads. Should only be available in bucket2 locations
   for(int i=0; i<num_items; i++) {
-    plocal0.Info( kvs[i].first, &ci); EXPECT_EQ(Availability::Unavailable,   ci.availability);
-    plocal2.Info( kvs[i].first, &ci); EXPECT_EQ(Availability::InLocalMemory, ci.availability);
-    piom1.Info(   kvs[i].first, &ci); EXPECT_EQ(Availability::Unavailable,   ci.availability);
-    piom2.Info(   kvs[i].first, &ci); EXPECT_EQ(Availability::InLocalMemory, ci.availability);
+    plocal0.Info( kvs[i].first, &ci); EXPECT_EQ(Availability::Unavailable,   ci.col_availability);
+    plocal2.Info( kvs[i].first, &ci); EXPECT_EQ(Availability::InLocalMemory, ci.col_availability);
+    piom1.Info(   kvs[i].first, &ci); EXPECT_EQ(Availability::Unavailable,   ci.col_availability);
+    piom2.Info(   kvs[i].first, &ci); EXPECT_EQ(Availability::InLocalMemory, ci.col_availability);
   }
 
-  //while(1){}
+
+  //Drop items and see if they're on disk via info commands
+  for(int i=0; i<num_items; i++) {
+    plocal2.Drop( kvs[i].first);
+  }
+  for(int i=0; i<num_items; i++) {
+    plocal2.Info(kvs[i].first, &ci); EXPECT_EQ(Availability::Unavailable, ci.col_availability);
+    piom2.Info(  kvs[i].first, &ci); EXPECT_EQ(Availability::InDisk,      ci.col_availability);
+  }
+
+  //See if the original items are on disk
+
+  { //Test1: search for ("mybigitem","*")
+    ObjectCapacities oc;
+    piom2.List(Key("mybigitem", "*"), &oc);
+    EXPECT_EQ(num_items, oc.Size());
+    //cout <<"num items=" <<oc.keys.size()<<endl;
+  }
+
+  { //Test2: search for ("Something*","Other*")
+    ObjectCapacities oc;
+    piom2.List(Key("Something*", "*"), &oc);
+    EXPECT_EQ(12, oc.Size());
+    //cout <<"num items=" <<oc.keys.size()<<endl;
+  }
+
+  //Try a few different searches we have 1x12 mybigitems and 4x3 Somethings
+  Key ksearch[7]; int expected_num[7];
+  ksearch[0] = Key("mybigitem", "*");          expected_num[0] = num_items;
+  ksearch[1] = Key("Something*", "*");         expected_num[1] = 12;
+  ksearch[2] = Key("Something_1", "Other_2");  expected_num[2] = 1;
+  ksearch[3] = Key("Something_1", "*");        expected_num[3] = 3;
+  ksearch[4] = Key("Something_*", "Other_1");  expected_num[4] = 4;
+  ksearch[5] = Key("Something_*", "Other_X*"); expected_num[5] = 0;
+  ksearch[6] = Key("SomethingX*", "Other_*");  expected_num[6] = 0;
+
+  for(int i=0; i<7; i++) {
+    ObjectCapacities oc;
+    piom2.List(ksearch[i], &oc);
+    EXPECT_EQ(expected_num[i], oc.Size());
+    //cout <<"search for "<<ksearch[i].str()<<"\tExpected: "<<expected_num[i]<<" Actual=" <<oc.keys.size()<<endl;
+    //cout <<oc.str();
+  }
+
+
 }
 
 
 TEST_F(IomPosixIOSimple, write_direct) {
 
   int num_items=1;
-  kv_col_info_t ci;
+  object_info_t ci;
   atomic<int> replies_left;
    
   kelpie::Pool plocal0 = kelpie::Connect("local:[my_bucket0]");
@@ -197,7 +289,7 @@ TEST_F(IomPosixIOSimple, write_direct) {
   //Write to local
   for(int i=0; i<num_items; i++) {
     plocal0.Publish( kvs[i].first, kvs[i].second,
-                    [&replies_left] (rc_t result, kv_row_info_t &ri, kv_col_info_t &ci) {
+                    [&replies_left] (rc_t result, object_info_t &ci) {
                       //cout <<"Published plocal0 "<<ci.str()<<endl;
                       replies_left--;
                     });
@@ -206,16 +298,16 @@ TEST_F(IomPosixIOSimple, write_direct) {
   
   //Check reads. Should only be available in local memory
   for(int i=0; i<num_items; i++) {
-    plocal0.Info( kvs[i].first, &ci); EXPECT_EQ(Availability::InLocalMemory, ci.availability);
-    piom1.Info(  kvs[i].first, &ci);  EXPECT_EQ(Availability::Unavailable,   ci.availability);
-    piom2.Info(  kvs[i].first, &ci);  EXPECT_EQ(Availability::Unavailable,   ci.availability);
+    plocal0.Info( kvs[i].first, &ci); EXPECT_EQ(Availability::InLocalMemory, ci.col_availability);
+    piom1.Info(  kvs[i].first, &ci);  EXPECT_EQ(Availability::Unavailable,   ci.col_availability);
+    piom2.Info(  kvs[i].first, &ci);  EXPECT_EQ(Availability::Unavailable,   ci.col_availability);
   }
   //Drop from local
   for(int i=0; i<num_items; i++) {
     plocal0.Drop( kvs[i].first);
-    plocal0.Info( kvs[i].first, &ci); EXPECT_EQ(Availability::Unavailable, ci.availability);
-    piom1.Info(  kvs[i].first, &ci);  EXPECT_EQ(Availability::Unavailable, ci.availability);
-    piom2.Info(  kvs[i].first, &ci);  EXPECT_EQ(Availability::Unavailable, ci.availability);
+    plocal0.Info( kvs[i].first, &ci); EXPECT_EQ(Availability::Unavailable, ci.col_availability);
+    piom1.Info(  kvs[i].first, &ci);  EXPECT_EQ(Availability::Unavailable, ci.col_availability);
+    piom2.Info(  kvs[i].first, &ci);  EXPECT_EQ(Availability::Unavailable, ci.col_availability);
   }
 
   //Step 2: Using iom1 --------------------------------------------------------------------
@@ -224,7 +316,7 @@ TEST_F(IomPosixIOSimple, write_direct) {
   replies_left=num_items;
   for(int i=0; i<num_items; i++) {
     piom1.Publish( kvs[i].first, kvs[i].second,
-                    [&replies_left] (rc_t result, kv_row_info_t &ri, kv_col_info_t &ci) {
+                    [&replies_left] (rc_t result, object_info_t &ci) {
                      //cout <<"Published piom1 "<<ci.str()<<endl;
                       replies_left--;
                     });
@@ -233,17 +325,17 @@ TEST_F(IomPosixIOSimple, write_direct) {
   
   //Check reads. Should only be available in local memory
   for(int i=0; i<num_items; i++) {
-    plocal0.Info( kvs[i].first, &ci); EXPECT_EQ(Availability::Unavailable,   ci.availability);
-    piom1.Info(  kvs[i].first, &ci); EXPECT_EQ(Availability::InLocalMemory, ci.availability);
-    piom2.Info(  kvs[i].first, &ci); EXPECT_EQ(Availability::Unavailable,   ci.availability);
+    plocal0.Info( kvs[i].first, &ci); EXPECT_EQ(Availability::Unavailable,  ci.col_availability);
+    piom1.Info(  kvs[i].first, &ci); EXPECT_EQ(Availability::InLocalMemory, ci.col_availability);
+    piom2.Info(  kvs[i].first, &ci); EXPECT_EQ(Availability::Unavailable,   ci.col_availability);
   }
   
   //Drop from memory
   for(int i=0; i<num_items; i++) {
     rc = piom1.Drop( kvs[i].first);  EXPECT_EQ(KELPIE_OK, rc);
-    plocal0.Info( kvs[i].first, &ci); EXPECT_EQ(Availability::Unavailable, ci.availability);
-    piom1.Info(  kvs[i].first, &ci); EXPECT_EQ(Availability::InDisk,      ci.availability);  
-    piom2.Info(  kvs[i].first, &ci); EXPECT_EQ(Availability::Unavailable, ci.availability);
+    plocal0.Info( kvs[i].first, &ci); EXPECT_EQ(Availability::Unavailable, ci.col_availability);
+    piom1.Info(  kvs[i].first, &ci); EXPECT_EQ(Availability::InDisk,      ci.col_availability);
+    piom2.Info(  kvs[i].first, &ci); EXPECT_EQ(Availability::Unavailable, ci.col_availability);
   }
 
 
@@ -253,7 +345,7 @@ TEST_F(IomPosixIOSimple, write_direct) {
   replies_left=num_items;
   for(int i=0; i<num_items; i++) {
     piom2.Publish( kvs[i].first, kvs[i].second,
-                    [&replies_left] (rc_t result, kv_row_info_t &ri, kv_col_info_t &ci) {
+                    [&replies_left] (rc_t result, object_info_t &oi) {
                      //cout <<"Published piom2 "<<ci.str()<<endl;
                       replies_left--;
                     });
@@ -263,10 +355,10 @@ TEST_F(IomPosixIOSimple, write_direct) {
 
   //Check reads. Should only be available in local memory
   for(int j=0; j<3; j++) {
-  for(int i=0; i<num_items; i++) {
-    plocal2.Info( kvs[i].first, &ci); EXPECT_EQ(Availability::InLocalMemory, ci.availability);
-    piom2.Info(   kvs[i].first, &ci); EXPECT_EQ(Availability::InLocalMemory, ci.availability);
-  }
+    for(int i=0; i<num_items; i++) {
+      plocal2.Info( kvs[i].first, &ci); EXPECT_EQ(Availability::InLocalMemory, ci.col_availability);
+      piom2.Info(   kvs[i].first, &ci); EXPECT_EQ(Availability::InLocalMemory, ci.col_availability);
+    }
   }
  
 
@@ -274,8 +366,8 @@ TEST_F(IomPosixIOSimple, write_direct) {
   for(int i=0; i<num_items; i++) {
     //cout <<"Working on "<<kvs[i].first.str()<<endl;
     rc = piom2.Drop( kvs[i].first); EXPECT_EQ(KELPIE_OK, rc);
-    plocal2.Info( kvs[i].first, &ci); EXPECT_EQ(Availability::Unavailable, ci.availability); //Bad?
-    piom2.Info(   kvs[i].first, &ci); EXPECT_EQ(Availability::InDisk,      ci.availability);
+    plocal2.Info( kvs[i].first, &ci); EXPECT_EQ(Availability::Unavailable, ci.col_availability); //Bad?
+    piom2.Info(   kvs[i].first, &ci); EXPECT_EQ(Availability::InDisk,      ci.col_availability);
   }  
 
   //cout <<"All done\n";
@@ -285,21 +377,20 @@ TEST_F(IomPosixIOSimple, write_direct) {
 
 int main(int argc, char **argv) {
 
+  int rc=0;
   ::testing::InitGoogleTest(&argc, argv);
 
-  //This app doesn't run mpi, but opbox::net has issues if we run multiple
-  //tests that start/stop the stack
-  
-  int provided, mpi_rank, mpi_size;
-  MPI_Init_thread(&argc, &argv, MPI_THREAD_MULTIPLE, &provided);
-  MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank);
-  MPI_Comm_size(MPI_COMM_WORLD, &mpi_size);
-
-  int rc;
-  if(mpi_rank==0){
+  #ifdef Faodel_ENABLE_MPI_SUPPORT
+    //If we don't do this, lower layers may try start/stopping mpi each time they run, causing ops after Finalize
+    int mpi_rank;
+    MPI_Init(&argc, &argv);
+    MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank);
+    if(mpi_rank==0)
+      rc = RUN_ALL_TESTS();
+    MPI_Finalize();
+  #else
     rc = RUN_ALL_TESTS();
-  }
-  
-  MPI_Finalize();
+  #endif
+
   return rc;
 }

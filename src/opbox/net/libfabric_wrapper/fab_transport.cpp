@@ -1,13 +1,12 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 
 #include <iostream>
 #include <sstream>
 
 #include <sys/unistd.h> //gethostname
-#include <assert.h>
 #include "opbox/net/net.hh"
 #include "opbox/net/peer.hh"
 
@@ -239,7 +238,7 @@ fab_transport::print_addr(fid_ep *ep)
         localaddr = malloc(fi->src_addrlen);
         remoteaddr = malloc(fi->src_addrlen);
         fi_getname (&ep->fid, localaddr, &addrlen);
-        assert(addrlen!=0);
+        F_ASSERT(addrlen!=0, "");
 
         if(localaddr !=NULL) {
             src_addr = (char*) inet_ntoa(((struct sockaddr_in *) localaddr)->sin_addr);
@@ -1018,7 +1017,7 @@ fab_transport::find_and_update_connection(
         //cout << "Inside print addr " <<std::endl;
         remoteaddr = malloc(fi->src_addrlen);
         fi_getpeer (ep, remoteaddr, &addrlen);
-        assert(addrlen!=0);
+        F_ASSERT(addrlen!=0,"");
 
         if(remoteaddr !=NULL){
             src_addr =

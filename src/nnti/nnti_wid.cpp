@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 /**
  * @file nnti_wid.cpp
@@ -108,7 +108,7 @@ nnti_work_id::unlock()
 }
 
 std::string
-nnti_work_id::toString(void) {
+nnti_work_id::toString(void) const {
     std::stringstream out;
     out << "id_==" << id_;
     return out.str();

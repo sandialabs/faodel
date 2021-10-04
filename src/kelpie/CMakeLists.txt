@@ -13,12 +13,14 @@ set( HEADERS_PUBLIC
      ioms/IomBase.hh
      ioms/IomRegistry.hh
      localkv/LocalKV.hh
+     localkv/LocalKVTypes.hh
      localkv/LocalKVCell.hh
      localkv/LocalKVRow.hh
      pools/Pool.hh
 )
 
 set( HEADERS
+     common/ComputeRegistry.hh
      common/OpArgsObjectAvailable.hh
      core/KelpieCoreBase.hh
      core/KelpieCoreNoNet.hh
@@ -26,6 +28,8 @@ set( HEADERS
      core/KelpieCoreUnconfigured.hh
      core/Singleton.hh
      ops/direct/msg_direct.hh
+     ops/direct/OpKelpieCompute.hh
+     ops/direct/OpKelpieDrop.hh
      ops/direct/OpKelpieGetBounded.hh
      ops/direct/OpKelpieGetUnbounded.hh
      ops/direct/OpKelpieList.hh
@@ -35,13 +39,18 @@ set( HEADERS
      pools/PoolBase.hh
      pools/LocalPool/LocalPool.hh
      pools/DHTPool/DHTPool.hh
+     pools/NullPool/NullPool.hh
+     pools/TracePool/TracePool.hh
      pools/PoolRegistry.hh
-     pools/UnconfiguredPool/UnconfiguredPool.hh     
+     pools/ResultCollector.cpp
+     pools/UnconfiguredPool/UnconfiguredPool.hh
+
 )
 
 set( SOURCES
      Kelpie.cpp
      Key.cpp
+     common/ComputeRegistry.cpp
      common/KelpieInternal.cpp
      common/ObjectCapacities.cpp
      common/OpArgsObjectAvailable.cpp
@@ -58,18 +67,22 @@ set( SOURCES
      localkv/LocalKVCell.cpp
      localkv/LocalKVRow.cpp
      ops/direct/msg_direct.cpp
+     ops/direct/OpKelpieCompute.cpp
+     ops/direct/OpKelpieDrop.cpp
      ops/direct/OpKelpieGetBounded.cpp
      ops/direct/OpKelpieGetUnbounded.cpp
      ops/direct/OpKelpieList.cpp
      ops/direct/OpKelpieMeta.cpp
      ops/direct/OpKelpiePublish.cpp
-     pools/LocalPool/LocalPool.cpp
      pools/DHTPool/DHTPool.cpp
+     pools/LocalPool/LocalPool.cpp
+     pools/NullPool/NullPool.cpp
+     pools/TracePool/TracePool.cpp
      pools/Pool.cpp
      pools/PoolBase.cpp
      pools/PoolRegistry.cpp
+     pools/ResultCollector.cpp
      pools/UnconfiguredPool/UnconfiguredPool.cpp
-        
 )
 
 if( Faodel_ENABLE_MPI_SUPPORT )
@@ -132,9 +145,9 @@ install( FILES common/Types.hh common/KelpieInternal.hh common/ObjectCapacities.
   DESTINATION ${INCLUDE_INSTALL_DIR}/faodel/kelpie/common )
 install( FILES ioms/IomBase.hh ioms/IomRegistry.hh
   DESTINATION ${INCLUDE_INSTALL_DIR}/faodel/kelpie/ioms )
-install( FILES localkv/LocalKV.hh localkv/LocalKVCell.hh localkv/LocalKVRow.hh
+install( FILES localkv/LocalKV.hh localkv/LocalKVCell.hh localkv/LocalKVRow.hh localkv/LocalKVTypes.hh
   DESTINATION ${INCLUDE_INSTALL_DIR}/faodel/kelpie/localkv )
-install( FILES pools/Pool.hh
+install( FILES pools/Pool.hh pools/ResultCollector.hh
   DESTINATION ${INCLUDE_INSTALL_DIR}/faodel/kelpie/pools )
 install( FILES services/PoolServerDriver.hh
   DESTINATION ${INCLUDE_INSTALL_DIR}/faodel/kelpie/services )

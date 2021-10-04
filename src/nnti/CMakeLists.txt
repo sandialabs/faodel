@@ -111,22 +111,32 @@ include(nntiProbeNetwork.cmake)
 include(nntiProbeThreads.cmake)
 include(nntiProbeTimers.cmake)
 include(nntiProbeXDR.cmake)
-include(nntiProbeCereal.cmake)
 
-if( Faodel_ENABLE_CEREAL )
-  set( NNTI_USE_XDR 0 CACHE INTERNAL "Use XDR for NNTI serialization" )
-  set( NNTI_USE_CEREAL ${NNTI_HAVE_CEREAL} CACHE INTERNAL "Use Cereal for NNTI serialization" )
+string( TOLOWER "${Faodel_NNTI_SERIALIZATION_METHOD}" lower_serializer )
+if( lower_serializer STREQUAL "xdr"  AND  NNTI_HAVE_XDR )
+  ## if a working XDR is found, use it
+  set( NNTI_USE_XDR    1 )
+  set( NNTI_USE_CEREAL 0 )
+elseif( lower_serializer STREQUAL "cereal"  AND  TARGET tpl-cereal )
+  ## if the user asked for Cereal and the builtin tpl-cereal is working, use it
+  set( NNTI_USE_XDR    0 )
+  set( NNTI_USE_CEREAL 1 )
+elseif( TARGET tpl-cereal )
+  ## if the above fails and the builtin tpl-cereal is working, use it
+  message( STATUS "NNTI Serializer: Falling back to builtin Cereal TPL" )
+  set( NNTI_USE_XDR    0 )
+  set( NNTI_USE_CEREAL 1 )
 else()
-  set( NNTI_USE_XDR ${NNTI_HAVE_XDR} CACHE INTERNAL "Use XDR for NNTI serialization" )
-  if( NOT NNTI_HAVE_XDR )
-    set( NNTI_USE_CEREAL ${NNTI_HAVE_CEREAL} CACHE INTERNAL "Use Cereal for NNTI serialization" )
+  ## if nothing works, throw an error
+  SET( HAVE_CEREAL_TARGET "False" )
+  if( TARGET tpl-cereal )
+    SET( HAVE_CEREAL_TARGET "True" )
   endif()
+  message( FATAL_ERROR "Couldn't figure out a serializer for NNTI: Faodel_NNTI_SERIALIZATION_METHOD=${Faodel_NNTI_SERIALIZATION_METHOD} ; NNTI_HAVE_XDR=${NNTI_HAVE_XDR} ; TARGET Faodel::tpl-cereal exists? ${HAVE_CEREAL_TARGET}" )
 endif()
 
-if( NOT NNTI_USE_XDR  AND  NOT NNTI_USE_CEREAL )
-  message( FATAL_ERROR "Couldn't find a serailization library for NNTI." )
-endif()
-
+set( NNTI_USE_XDR    ${NNTI_USE_XDR}    CACHE INTERNAL "Use XDR for NNTI serialization" )
+set( NNTI_USE_CEREAL ${NNTI_USE_CEREAL} CACHE INTERNAL "Use Cereal for NNTI serialization" )
 
 ## What to build ##############################################################
 
@@ -233,7 +243,9 @@ set(SOURCES
   nnti_serialize.cpp
   nnti_threads.cpp
   nnti_transport.cpp
+  nnti_types.c
   nnti_url.cpp
+  nnti_util.cpp
   nnti_wid.cpp
   nnti_wr.cpp
   transports/base/base_transport.cpp
@@ -291,7 +303,6 @@ if( Faodel_ENABLE_MPI_SUPPORT )
   LIST( APPEND NNTI_imports MPI::MPI_CXX )
 endif()
 LIST( APPEND NNTI_imports ${NNTI_TRANSPORT_TARGETS} )
-LIST( APPEND NNTI_imports cereal )
 
 set_source_files_properties(transport_factory.cpp PROPERTIES COMPILE_FLAGS "-O0 -g")
 

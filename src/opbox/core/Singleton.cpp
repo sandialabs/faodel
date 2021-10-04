@@ -1,13 +1,13 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #include "faodel-services/BackBurner.hh"
 
 #include "opbox/core/Singleton.hh"
 
 #include "opbox/core/OpBoxCoreUnconfigured.hh"
-#include "opbox/core/OpBoxCoreStandard.hh"
+#include "opbox/core/OpBoxCoreDeprecatedStandard.hh"
 #include "opbox/core/OpBoxCoreThreaded.hh"
 
 
@@ -81,7 +81,7 @@ void SingletonImpl::Init(const faodel::Configuration &config){
   if(opbox_type == "threaded"){
     core = new OpBoxCoreThreaded();
   } else if(opbox_type == "standard"){
-    core = new OpBoxCoreStandard();
+    core = new OpBoxCoreDeprecatedStandard();
   } else {
     error("Unknown opbox.type '"+opbox_type+"' in configuration. Choices: threaded, standard");
     exit(-1);

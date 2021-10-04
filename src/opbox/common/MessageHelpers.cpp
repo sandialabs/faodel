@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #include <iostream>
 #include <stdexcept>
@@ -51,8 +51,8 @@ bool AllocateStringMessage(lunasa::DataObject &new_ldo,
                                    const uint32_t op_id, const uint16_t user_flags,
                                    const string user_string){
 
-  if(user_string.size() >= 64*1024)
-    throw std::runtime_error("AllocteStringMessage failed because string >= 64KB");
+  //if(user_string.size() >= 64*1024)
+  //  throw std::runtime_error("AllocteStringMessage failed because string >= 64KB");
 
   new_ldo = opbox::net::NewMessage(sizeof(message_t) + user_string.size());
 
@@ -63,7 +63,7 @@ bool AllocateStringMessage(lunasa::DataObject &new_ldo,
   msg->dst_mailbox = dst_mailbox;
   msg->op_id = op_id;
   msg->user_flags = user_flags;
-  msg->body_len =  static_cast<uint16_t>(user_string.size());
+  msg->body_len =  static_cast<uint32_t>(user_string.size());
 
   //Append the packed data to the end of the message
   user_string.copy(msg->body, user_string.size());
@@ -89,8 +89,8 @@ bool AllocateStringRequestMessage(lunasa::DataObject &new_ldo,
                                    const uint16_t user_flags,
                                    const string user_string){
 
-  if(user_string.size() >= 64*1024)
-    throw std::runtime_error("AllocteStringRequestMessage failed because string >= 64KB");
+  //if(user_string.size() >= 64*1024)
+  //  throw std::runtime_error("AllocteStringRequestMessage failed because string >= 64KB");
 
 
   new_ldo = opbox::net::NewMessage(sizeof(message_t) + user_string.size());
@@ -117,14 +117,14 @@ bool AllocateStringReplyMessage(lunasa::DataObject &new_ldo,
                                    const uint16_t user_flags,
                                    const string user_string){
 
-  if(user_string.size() >= 64*1024)
-    throw std::runtime_error("AllocteStringReplyMessage failed because string >= 64KB");
+  //if(user_string.size() >= 64*1024)
+  //  throw std::runtime_error("AllocteStringReplyMessage failed because string >= 64KB");
 
   new_ldo = opbox::net::NewMessage(sizeof(message_t) + user_string.size());
 
   auto *msg = new_ldo.GetDataPtr<message_t *>();
 
-  msg->SetStandardReply(request_msg, user_flags, static_cast<uint16_t>(user_string.size()));
+  msg->SetStandardReply(request_msg, user_flags, static_cast<uint32_t>(user_string.size()));
   user_string.copy(msg->body, user_string.size());
 
   return (user_string.size() > MESSAGE_BODY_MTU);

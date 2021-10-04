@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 
 #ifndef TEST_UTILS_HPP
@@ -83,7 +83,7 @@ get_num_procs(int &num_procs);
 NNTI_result_t
 get_rank(int &my_rank);
 NNTI_result_t
-find_server_urls(int num_servers,
+find_server_urls(uint32_t num_servers,
                  uint32_t my_rank,
                  uint32_t num_procs,
                  char *my_url,

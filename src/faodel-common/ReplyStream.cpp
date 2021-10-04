@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #include <iostream>
 #include <algorithm>
@@ -97,6 +97,19 @@ void ReplyStream::mkText(string text) {
       break;
     case ReplyStreamType::HTML:
       *ss << "<p>" << text << "</p>\n";
+      break;
+    default:
+      cerr << "Unsupported format in ReplyStream\n";
+      exit(-1);
+  }
+}
+void ReplyStream::mkPlainText(string text) {
+  switch(format) {
+    case ReplyStreamType::TEXT:
+      *ss << text;
+      break;
+    case ReplyStreamType::HTML:
+      *ss << "<pre class=\"HEXE\">" << text << "</pre>\n";
       break;
     default:
       cerr << "Unsupported format in ReplyStream\n";

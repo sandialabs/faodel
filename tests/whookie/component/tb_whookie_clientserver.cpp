@@ -1,11 +1,13 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #include <iostream>
 #include <fstream>
 #include <thread>
 #include <mutex>
+
+#include <mpi.h>
 
 #include <gtest/gtest.h>
 
@@ -234,14 +236,22 @@ int main(int argc, char **argv){
 
   ::testing::InitGoogleTest(&argc, argv);
 
+  int mpi_rank, mpi_size;
+  MPI_Init(&argc, &argv);
+  MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank);
+  MPI_Comm_size(MPI_COMM_WORLD, &mpi_size);
+
   faodel::bootstrap::Start(faodel::Configuration(default_config), whookie::bootstrap );
   faodel::nodeid_t nid = whookie::Server::GetNodeID();
   cout <<"Whookie address: "<<nid.GetHttpLink()<<endl;
 
-  
+  if(mpi_rank==0) cout <<"Beginning tests.\n";
   int rc = RUN_ALL_TESTS();
- 
+
   faodel::bootstrap::Finish();
+
+  MPI_Finalize();
+  if(mpi_rank==0) cout <<"All complete. Exiting.\n";
   
   return rc;
 }

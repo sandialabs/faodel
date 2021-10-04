@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 /*
  *  There is some significant overlap between this file and the iom_all_basic module.
@@ -69,7 +69,7 @@ protected:
   LocalKV *lkv;
 };
 
-TYPED_TEST_CASE_P(IomSimple);
+TYPED_TEST_SUITE_P(IomSimple);
 
 
 struct test_data_t {
@@ -184,14 +184,14 @@ TYPED_TEST_P(IomSimple, UsingConfigurationByRole){
   faodel::Configuration config(default_config_string);
   std::string s;
 
-  s = "myrole.iom.myiom1.type ";  config.Append(s + TypeParam::type_str);
-  s = "myrole.iom.myiom2.type ";  config.Append(s + TypeParam::type_str);
+  s = "myrole.kelpie.iom.myiom1.type ";  config.Append(s + TypeParam::type_str);
+  s = "myrole.kelpie.iom.myiom2.type ";  config.Append(s + TypeParam::type_str);
 
-  config.Append("myrole.iom.myiom1.endpoint",endpoint);
-  config.Append("myrole.iom.myiom1.keyspace",ks1);
-  config.Append("myrole.iom.myiom2.endpoint",endpoint);
-  config.Append("myrole.iom.myiom2.keyspace",ks2);
-  config.Append("myrole.ioms", "myiom1;myiom2");
+  config.Append("myrole.kelpie.iom.myiom1.endpoint",endpoint);
+  config.Append("myrole.kelpie.iom.myiom1.keyspace",ks1);
+  config.Append("myrole.kelpie.iom.myiom2.endpoint",endpoint);
+  config.Append("myrole.kelpie.iom.myiom2.keyspace",ks2);
+  config.Append("myrole.kelpie.ioms", "myiom1;myiom2");
   config.Append("node_role", "myrole");
   config.AppendFromReferences(); //Normally done in bootstrap
 
@@ -289,7 +289,7 @@ TYPED_TEST_P(IomSimple, iom_registry) {
 }
 
 // Must enumerate all tests in the generic fixture class here
-REGISTER_TYPED_TEST_CASE_P(IomSimple,
+REGISTER_TYPED_TEST_SUITE_P(IomSimple,
 			   ldo_gentest,
 			   write_direct,
 			   UsingConfigurationByRole,
@@ -298,9 +298,23 @@ REGISTER_TYPED_TEST_CASE_P(IomSimple,
 
 // Must enumerate all desired IOM subclasses in this typedef
 typedef ::testing::Types<
-  #ifdef FAODEL_HAVE_CASSANDRA
+#ifdef FAODEL_HAVE_CASSANDRA
   kelpie::internal::IomCassandra
 #endif
   > IomTypes;
 
-INSTANTIATE_TYPED_TEST_CASE_P(IomTypesInstantiation, IomSimple, IomTypes);
+// Since we don't have an always-tested service IOM type (like the POSIX file 
+// IOM in the basic test suite), we need to make sure not to try to instantiate the
+// test suite unless at least one service IOM test is defined. So in addition to enumerating
+// the subclasses above, we have to check again here.
+
+// These two things are logically connected and separating their resolution as done here is
+// suboptimal. I was hoping there was a template metaprogramming/SFINAE solution here but
+// I couldn't figure out a way to not do the instantiation at all if there were no
+// subclass tests defined (without using the preprocessor). There's a way to figure out if 
+// IomTypes is valid using std::is_class, but no way that I could find to avoid doing
+// the instantiation at all in that case.
+
+#if defined(FAODEL_HAVE_CASSANDRA) // || defined(FAODEL_HAVE_ANOTHER_SERVICE_IOM) || ...
+INSTANTIATE_TYPED_TEST_SUITE_P(IomTypesInstantiation, IomSimple, IomTypes);
+#endif

@@ -1,26 +1,29 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #include <iostream>
 #include <sstream>
 #include <string.h>
-#include <boost/serialization/vector.hpp>
+
+#include <cereal/types/string.hpp>
+#include <cereal/types/vector.hpp>
+
 
 #include "opbox/OpBox.hh"
 #include "opbox/common/MessageHelpers.hh"
 
 using namespace std;
 
-// Boost's serialization library provides an easy way for us to ser/des a
+// Cereal's serialization library provides an easy way for us to ser/des a
 // complex class. In addition to being hierarchical, it also supports
 // STL containers (provided you include the corresponding header file.
-// eg. boost/serialization/vector.hpp). All you need to do to make a
-// class boost serializable is (1) make sure there's a default constructor
+// eg. cereal/serialization/vector.hpp). All you need to do to make a
+// class cereal serializable is (1) make sure there's a default constructor
 // and (2) provide a "serialize" template that specifies which variables
 // are archived.
 //
-// - Caveat 1: Boost serialization can be expensive. In addition to
+// - Caveat 1: Cereal serialization can be expensive. In addition to
 //             streaming its data as it moves along, the OpBox code
 //             has to copy the packed string of data into the outgoing
 //             message.
@@ -88,7 +91,7 @@ public:
 };
 
 
-void example4_boost_messages(){
+void example4_cereal_messages(){
 
   //Create some fancy pants for us to pack into a message
   FancyPants fancy_pants("britches", "red", 4);
@@ -96,7 +99,7 @@ void example4_boost_messages(){
   lunasa::DataObject ldo;
 
   //Use the templated allocator to create a message.
-  AllocateBoostMessage<FancyPants>( ldo,
+  AllocateCerealMessage<FancyPants>( ldo,
                                     opbox::GetMyID(),
                                     opbox::GetMyID(), //Usually dst node
                                     100,              //Usually supplied by op
@@ -108,10 +111,10 @@ void example4_boost_messages(){
   auto msg = ldo.GetDataPtr<message_t *>();
 
   cout <<"LDO Size is: "      << ldo.GetDataSize()<<endl
-       <<"Packed boost size: "<< msg->body_len<<endl;
+       <<"Packed cereal size: "<< msg->body_len<<endl;
 
   //Unpack the message into a new object
-  auto fp2 = UnpackBoostMessage<FancyPants>(msg);
+  auto fp2 = UnpackCerealMessage<FancyPants>(msg);
 
   //Dump out the original and unpacked classes
   cout <<"Original class:\n"<<fancy_pants.str() << endl

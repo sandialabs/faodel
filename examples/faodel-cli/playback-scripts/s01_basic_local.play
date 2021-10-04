@@ -1,0 +1,81 @@
+# Script 01: Basic Local ops
+#
+#   faodel -v play s01_basic_local.play
+#
+# This script just works on a standalone node and makes local queries. It
+# starts up dirman, registers a pool for itself, and then does the most
+# basic operations. This example provides more info about different
+# phases in the play script.
+#
+#
+
+# Part 1: Configuration Appends
+# ============================================================================
+# You can use the "config" directive in a play script to append some info
+# to the faodel Configuration that gets loaded by bootstrap. This is handy
+# for when you want to hardware some resources into the script or override
+# some settings (eg, kelpie.debug) so you can get more verbose messages
+# without having to touch your $FAODEL_CONFIG file. The faodel command loads
+# your $FAODEL_CONFIG and then appends it with anything following "config".
+#
+# For this example we're going to define two pools, each with their own
+# bucket namespace.
+
+config dirman.resources[]  local:/my/place
+config dirman.resources[]  local:[thing]/other/place
+#config bootstrap.debug true
+
+
+# Part 2: Setting some defaults
+# ============================================================================
+# It gets tedious having to specify some settings over and over. The "set"
+# command lets you define a default value for a particular setting. You
+# can redefine the variable later on in the play script, or specify a
+# different value on each command. The only defaults to set are for:
+#
+#  rank : indicate the following commands are for a specific rank
+#  pool : specify the default pool
+
+set pool /my/place
+
+
+# Part 3: Looking at resources
+# ============================================================================
+# You can use the dirman resource tools to get more info about what resources
+# are available in the system. In addition to seeing our two predefined
+# resources, we should also be able to see the directory structure that gets
+# setup when defining hierarchical names.
+
+print == Dump Some Dirman Path Info ==================================
+rlist /    # Should have 'my' as a member
+rlist /my  # Should have 'place' as a member
+rlist /my/place  # Should give local:/my/place
+rlist /other/place  # Should give local:/my/place
+
+
+# Part 4: Working with Kelpie objects
+# ============================================================================
+# For each pool, you can issue queries to list, put/get, load/store, or get
+# info for different keys. Briefly:
+#
+#  klist : Shows a list of keys/blobs matching simple search patterns
+#  kinfo : Get more detailed info about a key/blob
+#  kput  : Publish an object. May generate it, load from file, or use existing
+#  kget  : Retrieve a particular key. Will block of unavailable
+#  kload : Read from a saved ldo and push to pool
+#  ksave : Save an object to a ldo file
+
+print == Showing contents (expect empty) =============================
+klist *|*        # Nothing here yet
+
+print == Create foobar ===============================================
+kput -M 63k -D 2k  -k foobar  # generate a 63k+2k object and publish
+
+print == See if it's there ===========================================
+kinfo -k foobar               # get some info about the object
+
+print == Try saving the LDO ==========================================
+ksave -d ./tmp -k foobar      # Save object to a directory
+
+
+

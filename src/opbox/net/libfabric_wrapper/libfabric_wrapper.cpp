@@ -1,12 +1,11 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #include <iostream>
 #include <sstream>
 
 #include <sys/unistd.h> //gethostname
-#include <assert.h>
 
 #include "opbox/net/net.hh"
 #include "opbox/net/peer.hh"
@@ -256,7 +255,7 @@ Start()
         std::cerr << "NetLibfabric -> Provider name (verbs/sockets/gni) not specified.  Defaulting to 'sockets'." << std::endl;;
         trans_name = "sockets";
     }
-    assert(whookie::Server::IsRunning() && "Whookie not started before fabric started");
+    F_ASSERT(whookie::Server::IsRunning(), "Whookie not started before fabric started");
     fabtrns->mynodeid = whookie::Server::GetNodeID();
 //    cout << "mynodeid = " << fabtrns->mynodeid.GetHex() << endl;
     if((trans_name == "gni") || (trans_name == "ugni")) {
@@ -311,7 +310,7 @@ opbox::net::peer_ptr_t
 ConvertNodeIDToPeer(
     faodel::nodeid_t nodeid)
 {
-    KTODO("ConvertNodeIDToPeer");
+    F_TODO("ConvertNodeIDToPeer");
 }
 
 string
@@ -645,7 +644,7 @@ Atomic(
     int64_t              length,         // TODO: this param is ignored because we only do 64-bit atomics
     lambda_net_update_t  user_cb)
 {
-    KTODO("Libfabric wrapper atomic");
+    F_TODO("Libfabric wrapper atomic");
     return;
 }
 

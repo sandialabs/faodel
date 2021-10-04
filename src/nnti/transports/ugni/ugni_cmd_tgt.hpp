@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 
 #ifndef UGNI_CMD_TGT_HPP_
@@ -76,8 +76,8 @@ public:
         bool                              copy_buf)
     : transport_(transport),
       cmd_msg_(transport, buf, buf_size, copy_buf),
-      state_(msg_state::INIT),
       event_(nullptr),
+      state_(msg_state::INIT),
       active_entries_(0)
     {
         sm_lock_ = faodel::GenerateMutex("pthreads");
@@ -265,7 +265,7 @@ private:
     };
 
     msg_state              state_;
-    faodel::MutexWrapper *sm_lock_;
+    faodel::MutexWrapper  *sm_lock_;
     std::atomic<uint64_t>  active_entries_;
 
 
@@ -386,7 +386,7 @@ private:
     msg_state
     unexpected_long_get()
     {
-        NNTI_result_t rc = NNTI_OK;
+        const uint32_t MSG_ALIGNMENT = NNTI_UGNI_RDMA_ALIGNMENT;
         int gni_rc;
         gni_cq_entry_t ev_data;
 
@@ -398,29 +398,75 @@ private:
 
         gni_post_descriptor_t post_desc;
         NNTI_ugni_mem_hdl_p_t mem_hdl;
+        
+        uint32_t addr_alignment = (MSG_ALIGNMENT - (((uint64_t)init_buf->payload() + this->initiator_offset()) % MSG_ALIGNMENT)) % MSG_ALIGNMENT;
+        if (addr_alignment != 0) {
+            log_debug("ugni_cmd_tgt", 
+                      "long send address is not 4-byte aligned (%p %% %u = %u); copying first %u bytes from eager payload.",
+                      ((uint64_t)init_buf->payload() + this->initiator_offset()), 
+                      MSG_ALIGNMENT,
+                      ((uint64_t)init_buf->payload() + this->initiator_offset())%MSG_ALIGNMENT, 
+                      addr_alignment);
+
+            memcpy(dst_buf->payload() + unexpected_dst_offset_,
+                   this->eager_payload(),
+                   addr_alignment);
+        }
+
+        uint32_t extra = (this->payload_length()-addr_alignment) % MSG_ALIGNMENT;
+        if (extra > 0) {
+            // message length isn't 4-byte alignment, get trailing bytes from eager
+            log_debug("ugni_cmd_tgt", 
+                      "long send length is not 4-byte aligned (%lu %% %u = %u); copying last %u bytes from eager payload.",
+                      this->payload_length()-addr_alignment, 
+                      MSG_ALIGNMENT,
+                      (this->payload_length()-addr_alignment)%MSG_ALIGNMENT,
+                      extra);
+
+            memcpy(dst_buf->payload() + unexpected_dst_offset_ + this->payload_length() - extra,
+                   this->eager_payload() + addr_alignment,
+                   extra);
+        }
+        
+        uint64_t aligned_local_addr  = (uint64_t)dst_buf->payload() + unexpected_dst_offset_ + addr_alignment;
+        uint64_t aligned_remote_addr = (uint64_t)init_buf->payload() + this->initiator_offset() + addr_alignment;
+        uint64_t aligned_length      = this->payload_length() - addr_alignment - extra;
+        
+        log_debug("ugni_cmd_tgt", 
+                  "\nlong get RDMA summary:\n"
+                  "\taligned_local_addr  = %p (aligned? %c)\n"
+                  "\taligned_remote_addr = %p (aligned? %c)\n"
+                  "\taligned_length      = %lu (aligned? %c)\n",
+                  aligned_local_addr,  (!(aligned_local_addr%MSG_ALIGNMENT))?'Y':'N', 
+                  aligned_remote_addr, (!(aligned_remote_addr%MSG_ALIGNMENT))?'Y':'N',
+                  aligned_length,      (!(aligned_length%MSG_ALIGNMENT))?'Y':'N');
 
         memset(&post_desc, 0, sizeof(gni_post_descriptor_t));
 
 //        post_desc.src_cq_hndl = unexpected_cq_hdl_;
 
         mem_hdl = dst_buf->mem_hdl();
-        post_desc.local_addr            = (uint64_t)dst_buf->payload() + unexpected_dst_offset_;
+        post_desc.local_addr            = aligned_local_addr;
         post_desc.local_mem_hndl.qword1 = mem_hdl.qword1;
         post_desc.local_mem_hndl.qword2 = mem_hdl.qword2;
 
         mem_hdl = init_buf->mem_hdl();
-        post_desc.remote_addr            = (uint64_t)init_buf->payload() + this->initiator_offset();
+        post_desc.remote_addr            = aligned_remote_addr;
         post_desc.remote_mem_hndl.qword1 = mem_hdl.qword1;
         post_desc.remote_mem_hndl.qword2 = mem_hdl.qword2;
 
-        post_desc.length = this->payload_length();
+        post_desc.length = aligned_length;
         post_desc.type   = GNI_POST_RDMA_GET;
 
         post_desc.cq_mode   = GNI_CQMODE_GLOBAL_EVENT | GNI_CQMODE_REMOTE_EVENT;
         post_desc.dlvr_mode = GNI_DLVMODE_PERFORMANCE;
 
-        log_debug("ugni_cmd_tgt", "calling PostRdma(rdma get ; ep_hdl(%llu) transport_global_data.ep_cq_hdl(%llu) local_mem_hdl(%llu, %llu) remote_mem_hdl(%llu, %llu))",
-                conn->unexpected_ep_hdl(), conn->unexpected_cq_hdl(),
+        this->post_desc(&post_desc);
+
+        this->index = transport_->msg_vector_.add(this);
+
+        log_debug("ugni_cmd_tgt", "calling PostRdma(rdma get ; ep_hdl(%llu) transport_.unexpected_long_get_ep_cq_hdl_(%llu) local_mem_hdl(%llu, %llu) remote_mem_hdl(%llu, %llu))",
+                conn->unexpected_ep_hdl(), transport_->unexpected_long_get_ep_cq_hdl_,
                 post_desc.local_mem_hndl.qword1, post_desc.local_mem_hndl.qword2,
                 post_desc.remote_mem_hndl.qword1, post_desc.remote_mem_hndl.qword2);
 
@@ -436,18 +482,24 @@ private:
         nthread_unlock(&transport_->ugni_lock_);
         if (gni_rc != GNI_RC_SUCCESS) {
             log_error("ugni_cmd_tgt", "failed to post BTE (gni_rc=%d): %s", gni_rc, strerror(errno));
-            rc=NNTI_EIO;
         }
         log_debug("ugni_cmd_tgt", "called PostRdma(rdma get)");
 
         nthread_lock(&transport_->ugni_lock_);
         log_debug("ugni_cmd_tgt", "calling CqWaitEvent(unexpected_cq_hdl)");
-        gni_rc=GNI_CqWaitEvent(conn->unexpected_cq_hdl(), -1, &ev_data);
+        gni_rc=GNI_CqWaitEvent(transport_->unexpected_long_get_ep_cq_hdl_, -1, &ev_data);
         log_debug("ugni_cmd_tgt", "called CqWaitEvent(unexpected_cq_hdl)");
         nthread_unlock(&transport_->ugni_lock_);
+        if (gni_rc!=GNI_RC_SUCCESS) {
+            log_error("ugni_cmd_tgt", "CqWaitEvent(unexpected_cq_hdl) failed: %d", gni_rc);
+        } else {
+            log_debug("ugni_cmd_tgt", "CqWaitEvent(unexpected_cq_hdl) success");
+        }
+        
+        log_debug("ugni_cmd_tgt", "got event for cmd_tgt with index %d ; my index is %d", GNI_CQ_GET_INST_ID(ev_data), this->index);
 
         nthread_lock(&transport_->ugni_lock_);
-        gni_rc=GNI_GetCompleted(conn->unexpected_cq_hdl(), ev_data, &post_desc_ptr);
+        gni_rc=GNI_GetCompleted(transport_->unexpected_long_get_ep_cq_hdl_, ev_data, &post_desc_ptr);
         nthread_unlock(&transport_->ugni_lock_);
         if (gni_rc!=GNI_RC_SUCCESS) {
             log_error("ugni_cmd_tgt", "GetCompleted(next_unexpected(%p)) failed: %d", post_desc_ptr, gni_rc);
@@ -455,6 +507,8 @@ private:
             log_debug("ugni_cmd_tgt", "GetCompleted(next_unexpected(%p)) success", post_desc_ptr);
         }
 //        print_post_desc(post_desc_ptr);
+
+        transport_->msg_vector_.remove(this->index);
 
         NNTI_FAST_STAT(transport_->stats_->long_recvs++;);
 
@@ -623,7 +677,7 @@ private:
         event_ = nullptr;
     }
 
-    inline msg_state state_update(msg_state new_state) {
+    inline void state_update(msg_state new_state) {
         state_ = new_state;
     }
 public:

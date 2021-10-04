@@ -80,9 +80,32 @@ most users. Users may invoke the following operations on a pool:
     particular data object be available before execution can continue. A
     need returns the actual, local LDO to the user (while generally
     retaining the LDO in the LocalKV).
+- **Drop**: A drop operation signifies that an object is no longer
+    needed and should be removed from the pool.
 
-Future versions of this API will include updates in order to get more
-network information from the pool.
+Users can also obtain information about objects that are in a pool. These
+operations return with current information and do not wait for objects
+to be published.
+
+- **Info**: An info operation is a blocking request that retrieves
+    information about a single object in the pool. The info command
+    provides more detailed information about an object than a list
+    command.
+- **List**: Dispatch a query that retrieves all keys that exist in a
+    pool that match a specific value or wildcard pattern. Wildcards
+    can only be suffix based (eg `foo*` but not `foo*bar`). Results
+    are the list of keys and the current object sizes.
+  
+Finally, Kelpie now provides an experimental mechanism for executing
+compute operations on objects via user-defined functions (UDFs). UDFs
+must be registered at start time and given a string label for 
+referencing the function.
+
+- **Compute**: The compute function retrieves one or more objects from
+    a remote row, executes a UDF on the object(s), and then returns
+    a new object back to the user. See the examples/kelpie/compute
+    directory for more information on how to use Compute.
+  
 
 Connecting to a Pool
 --------------------
@@ -96,13 +119,45 @@ that the application can use. Pool handles are reference counted and
 reused in the implementation, given that user operations cannot change
 the pool's settings after creation.
 
+Issuing Multiple Requests
+-------------------------
+Often it is desirable for users to issue a batch of asynchronous requests
+and then at a later time block until all tasks are complete. While users
+car create their own system for managing notifications via the pool
+command's callback functions, Kelpie provides a `ResultCollector` class
+that gathers results and blocks until all operations complete.
+
+Pool Types
+----------
+
+Kelpie supports multiple types of pools and can be extended with new
+functionality as needed. The following are the built-in pool types:
+
+- **LocalPool**: Only reference the localkv store that is hosted in
+    this node. 
+- **DHTPool**: A distributed hash table (DHT) pool that spreads data
+    across a collection of (static) nodes. The owner of the an
+    object is determined by hashing the row portion of a key. This
+    approach ensures all objects for a row reside on the same node.
+- **RFTPool**: A rank-folding table (RFT) pool is similar to a 
+    DHT, except the modulo of the producer's rank is used to select
+    which node receives the data. Consumer nodes should provide
+    the rank they wish to access in the pool construction request.
+- **TracePool**: A trace pool records information about all the 
+    requests a client made to a particular pool. The TracePool can
+    be configured to relay requests to another pool.
+- **NullPool**: The null pool simply drops all requests made to it.
+
+Users may create their own pools by extending the PoolBase. We envision
+that users may wish to handle replication or perform more customized
+RDMA opertions in a pool.
 
 
 Build and Configuration Settings
 ================================
 
-Build Depndencies
------------------
+Build Dependencies
+------------------
 
 Kelpie has a few library dependencies:
 
@@ -127,10 +182,9 @@ Run-Time Options
 When started, Kelpie examines the Configuration passed to it for the
 following variables:
 
-| Property                | Type        | Default  | Description                                     |
-| ----------------------- | ----------- | -------- | ----------------------------------------------- |
-| kelpie.type             | string      | standard | Select between different Kelpie implementations |
-| kelpie.lkv.max_capacity | int         | 1G       | Limit amount of space the LocalKV can occupy    |
+| Property                | Type            | Default  | Description                                                                     |
+| ----------------------- | --------------- | -------- | ------------------------------------------------------------------------------- |
+| kelpie.type             | standard, nonet | standard | Select between the standard networked core, or a debug option without networkin |
 
 
 This release provides two kelpie implementation types:

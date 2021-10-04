@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #include "DataObject.hh"
 
@@ -16,7 +16,6 @@
 #include <fstream>
 #include <pthread.h>
 #include <string.h>
-#include <assert.h>
 #include <sys/stat.h>
 
 #include <atomic>
@@ -45,6 +44,8 @@ using AllocatorBase = internal::AllocatorBase;
 //Our core is hidden inside of a singleton. Use this macro to make the code easier to understand
 #define LCORE (internal::Singleton::impl.core)
 
+/* SET proper alignment (multiples of 4-bytes required for RDMA GETs on Aries IC) */
+#define LDO_ALIGNMENT 4
 
 /**
  * @brief Empty constructor. Expects user will copy another ldo handle to this one later
@@ -75,6 +76,11 @@ DataObject::DataObject(uint32_t total_user_capacity,
     throw invalidArgumentError;
   }
 
+  /* FORCE capacity to be properly aligned (multiples of 4-bytes required for RDMA GETs on Aries IC) */
+  int padding = LDO_ALIGNMENT - ((meta_capacity+data_capacity) & (LDO_ALIGNMENT-1));
+
+  total_user_capacity += padding;
+
   Allocation *allocation = nullptr;
   if( allocator ==  DataObject::AllocatorType::eager ) {
     allocation = LCORE->AllocateEager(total_user_capacity);
@@ -87,8 +93,10 @@ DataObject::DataObject(uint32_t total_user_capacity,
     throw invalidArgumentError;
   }
 
-  allocation->setHeader(1, meta_capacity, data_capacity, tag);
+  allocation->setHeader(1, meta_capacity, data_capacity, padding, tag);
   impl = allocation;
+
+  F_ASSERT((((uint64_t)&allocation->header) & (LDO_ALIGNMENT-1)) == 0, "");
 }
 
 /**
@@ -137,7 +145,7 @@ DataObject::DataObject(void *userMemory,
 
   //Only allocate memory for the headers.
   Allocation *allocation = LCORE->AllocateEager(0);
-  allocation->setHeader(1, 0, 0, 0);
+  allocation->setHeader(1, 0, 0, 0, 0);
   impl = allocation;
 
   // Add our user data segment
@@ -236,17 +244,20 @@ DataObject& DataObject::operator=(DataObject &&source) {
 DataObject& DataObject::deepcopy(const DataObject &source) {
 
   // !!!! TODO: not currently supported for user LDOs
-  assert(source.impl->local.user_data_segments == nullptr);
+  F_ASSERT(source.impl->local.user_data_segments == nullptr, "Deeo copy not supported on user LDOs");
 
   if( impl != nullptr ) {
     impl->DecrRef();
     impl = nullptr;
   }
   
+  /* FORCE capacity to be properly aligned (multiples of 4-bytes required for RDMA GETs on Aries IC) */
+  int padding = LDO_ALIGNMENT - ((source.impl->header.meta_bytes+source.impl->header.data_bytes) & (LDO_ALIGNMENT-1));
+
   //ALLOCATE a mirror of the source's allocation.
-  Allocation *allocation = source.impl->local.allocator->Allocate(source.impl->header.meta_bytes +
-                                                                  source.impl->header.data_bytes);
-  allocation->setHeader(1, source.impl->header.meta_bytes, source.impl->header.data_bytes, source.impl->header.type);
+  size_t alloc_size = source.impl->header.meta_bytes + source.impl->header.data_bytes + padding;
+  Allocation *allocation = source.impl->local.allocator->Allocate(alloc_size);
+  allocation->setHeader(1, source.impl->header.meta_bytes, source.impl->header.data_bytes, padding, source.impl->header.type);
   impl = allocation;
 
   //COPY the source to the mirror
@@ -284,8 +295,9 @@ uint32_t DataObject::readFromFile(const char *filename) {
   char *p = reinterpret_cast<char *>(internal_use_only.GetHeaderPtr());
   struct stat results;
 
-  assert(stat(filename, &results) == 0);
-  assert(results.st_size <= GetHeaderSize() + GetMetaSize() + GetDataSize());
+  int rc = stat(filename, &results);
+  F_ASSERT(rc == 0,"File stat failed in readFromFile");
+  F_ASSERT(results.st_size <= GetHeaderSize() + GetMetaSize() + GetDataSize(), "File size mismatch in readFromFile");
 
   f.read(p, results.st_size);
   f.close();
@@ -350,7 +362,7 @@ uint32_t DataObject::GetLocalHeaderSize()  const {
  * @brief Get the size of the header that travels with the LDO (meta_tag, meta_size, data_size)
  * @return Size of the header
  */
-uint32_t DataObject::GetHeaderSize() const {
+uint32_t DataObject::GetHeaderSize() {
   return offsetof(Allocation, user[0]) -
          offsetof(Allocation, header);
 }
@@ -371,6 +383,11 @@ uint32_t DataObject::GetMetaSize() const {
 uint32_t DataObject::GetDataSize() const {
   if( impl == nullptr ) return 0;
   return impl->header.data_bytes; 
+}
+
+uint32_t DataObject::GetPaddingSize() const {
+  if( impl == nullptr ) return 0;
+  return impl->local.padding; 
 }
 
 /**
@@ -423,14 +440,14 @@ void *DataObject::GetMetaPtr() const {
 
   } else if( impl->local.user_data_segments != nullptr ) {
     /* === Allocation only contains headers === */
-    assert(impl->local.user_data_segments->empty() == false); 
-    assert(impl->local.allocated_bytes == sizeof(Allocation));
+    F_ASSERT(impl->local.user_data_segments->empty() == false, "");
+    F_ASSERT(impl->local.allocated_bytes == sizeof(Allocation), "");
 
     /* First data segment must contain the User Metadata segment. */
     AllocationSegment &segment = impl->local.user_data_segments->front();
 
     /* Segment must be big enough to store the entire User Metadata segment. */
-    assert(segment.size > impl->header.meta_bytes); 
+    F_ASSERT(segment.size > impl->header.meta_bytes, "");
 
     return segment.buffer_ptr;
 
@@ -440,7 +457,8 @@ void *DataObject::GetMetaPtr() const {
     return (void *)&impl->user[0];
   } else {
     /* This can only mean that the allocation is smaller than the header.  Not good. */
-    assert(0);
+    std::cerr<<"Lunasa internal allocation: "<<impl->local.allocated_bytes<<" vs "<<sizeof(Allocation)<<endl;
+    F_ASSERT(0,"Lunasa Data Object internal allocation smaller than a valid header");
   }
 
   return nullptr; 
@@ -459,13 +477,13 @@ void *DataObject::GetDataPtr() const {
 
   } else if( impl->local.user_data_segments != nullptr ) {
     /* === Allocation only contains headers === */
-    assert(impl->local.user_data_segments->empty() == false); 
-    assert(impl->local.allocated_bytes == sizeof(Allocation));
+    F_ASSERT(impl->local.user_data_segments->empty() == false, "");
+    F_ASSERT(impl->local.allocated_bytes == sizeof(Allocation), "");
 
     /* First data segment must contain the User Metadata segment. */
     AllocationSegment &segment = impl->local.user_data_segments->front();
     /* Segment must be big enough to store the entire User Metadata and User Data segments. */
-    assert(segment.size > (impl->header.meta_bytes+impl->header.data_bytes));
+    F_ASSERT(segment.size > (impl->header.meta_bytes+impl->header.data_bytes), "");
 
     return (void *)((uint8_t *)segment.buffer_ptr + impl->header.meta_bytes);
   } else if( impl->local.allocated_bytes >= sizeof(Allocation) ) {
@@ -473,7 +491,7 @@ void *DataObject::GetDataPtr() const {
     return (void *)(impl->user + impl->header.meta_bytes);
   } else {
     /* This can only mean that the allocation is smaller than the header.  Not good. */
-    assert(0);
+    F_ASSERT(0, "Allocation smaller than header?");
   }
 
   return nullptr; 
@@ -487,7 +505,7 @@ int DataObject::GetBaseRdmaHandles(std::queue<rdma_segment_desc> &rdma_segments)
   /* If memory is EAGERLY registered, then this handle will never be NULL.  As a result,
      if this handle is NULL, we can assume that it's LAZILY registered. */
   if( impl->local.net_buffer_handle == nullptr ) {
-    assert(impl->local.allocator->UsingLazyRegistration() == true);
+    F_ASSERT(impl->local.allocator->UsingLazyRegistration() == true, "");
     impl->local.allocator->RegisterMemory(impl, impl->local.allocated_bytes, impl->local.net_buffer_handle);
   }
 
@@ -499,7 +517,7 @@ int DataObject::GetBaseRdmaHandles(std::queue<rdma_segment_desc> &rdma_segments)
   /* ADD user segments, if any, to the queue */
   if( impl->local.user_data_segments != nullptr && impl->local.user_data_segments->empty() == false ) {
     /* Current assumption is that there's just one user data segment. */
-    assert(impl->local.user_data_segments->size() == 1);
+    F_ASSERT(impl->local.user_data_segments->size() == 1, "");
 
     AllocationSegment &allocation_segment = impl->local.user_data_segments->front();
     rdma_segment_desc segment(allocation_segment.net_buffer_handle, 0, allocation_segment.size);
@@ -514,7 +532,7 @@ int DataObject::GetBaseRdmaHandle(void **rdma_handle, uint32_t &offset) const {
 
   std::queue<rdma_segment_desc> segments;
   GetBaseRdmaHandles(segments);
-  assert(segments.size() == 1);
+  F_ASSERT(segments.size() == 1, "");
   rdma_segment_desc &segment = segments.front();
   *rdma_handle = segment.net_buffer_handle;
   offset = segment.net_buffer_offset;
@@ -535,13 +553,13 @@ int DataObject::GetLocalHeaderRdmaHandle(void **rdma_handle, uint32_t &offset) c
 
 int DataObject::GetHeaderRdmaHandles(std::queue<rdma_segment_desc> &rdma_segments) const {
 
-  assert(rdma_segments.size() == 0);
+  F_ASSERT(rdma_segments.size() == 0, "");
   if( impl == nullptr ) return 0;
 
   /* If memory is EAGERLY registered, then this handle will never be NULL.  As a result,
      if this handle is NULL, we can assume that it's LAZILY registered. */
   if( impl->local.net_buffer_handle == nullptr ) {
-    assert(impl->local.allocator->UsingLazyRegistration() == true);
+    F_ASSERT(impl->local.allocator->UsingLazyRegistration() == true, "");
     impl->local.allocator->RegisterMemory(impl, impl->local.allocated_bytes, impl->local.net_buffer_handle);
   }
 
@@ -554,7 +572,7 @@ int DataObject::GetHeaderRdmaHandles(std::queue<rdma_segment_desc> &rdma_segment
   /* ADD user segments, if any, to the queue */
   if( impl->local.user_data_segments != nullptr && impl->local.user_data_segments->empty() == false ) {
     /* Current assumption is that there's just one user data segment. */
-    assert(impl->local.user_data_segments->size() == 1);
+    F_ASSERT(impl->local.user_data_segments->size() == 1, "");
 
     AllocationSegment &allocation_segment = impl->local.user_data_segments->front();
     rdma_segment_desc segment(allocation_segment.net_buffer_handle, 0, allocation_segment.size);
@@ -567,9 +585,9 @@ int DataObject::GetHeaderRdmaHandles(std::queue<rdma_segment_desc> &rdma_segment
 
 int DataObject::GetHeaderRdmaHandle(void **rdma_handle, uint32_t &offset) const {
   std::queue<rdma_segment_desc> segments;
-  assert(segments.size() == 0);
+  F_ASSERT(segments.size() == 0, "");
   GetHeaderRdmaHandles(segments);
-  assert(segments.size() == 1);
+  F_ASSERT(segments.size() == 1, "");
   rdma_segment_desc &segment = segments.front();
   *rdma_handle = segment.net_buffer_handle;
   offset = segment.net_buffer_offset;
@@ -584,7 +602,7 @@ int DataObject::GetMetaRdmaHandles(std::queue<rdma_segment_desc> &rdma_segments)
   /* If memory is EAGERLY registered, then this handle will never be NULL.  As a result,
      if this handle is NULL, we can assume that it's LAZILY registered. */
   if( impl->local.net_buffer_handle == nullptr ) {
-    assert(impl->local.allocator->UsingLazyRegistration() == true);
+    F_ASSERT(impl->local.allocator->UsingLazyRegistration() == true, "");
     impl->local.allocator->RegisterMemory(impl,
                                           impl->local.allocated_bytes,
                                           impl->local.net_buffer_handle);
@@ -598,7 +616,7 @@ int DataObject::GetMetaRdmaHandles(std::queue<rdma_segment_desc> &rdma_segments)
     rdma_segments.push(header_segment);
 
     /* First data segment must contain the User Metadata section. */
-    assert(impl->local.user_data_segments->size() == 1); 
+    F_ASSERT(impl->local.user_data_segments->size() == 1, "");
     AllocationSegment &allocation_segment = impl->local.user_data_segments->front();
 
     /* Segment must be big enough to store the entire User Metadata segment. */
@@ -613,7 +631,7 @@ int DataObject::GetMetaRdmaHandles(std::queue<rdma_segment_desc> &rdma_segments)
 
     /* Allocation must be big enough to store the entire User METADATA segment. */
     uint32_t meta_offset = offsetof(Allocation, user);
-    assert(impl->local.allocated_bytes >= meta_offset + impl->header.meta_bytes);
+    F_ASSERT(impl->local.allocated_bytes >= meta_offset + impl->header.meta_bytes, "");
 
     uint32_t total_offset = impl->local.net_buffer_offset + offsetof(Allocation, user);
     uint32_t size = impl->local.allocated_bytes - offsetof(Allocation, user);
@@ -621,7 +639,7 @@ int DataObject::GetMetaRdmaHandles(std::queue<rdma_segment_desc> &rdma_segments)
     rdma_segments.push(rdma_segment);
   } else {
     /* This can only mean that the allocation is smaller than the header.  Not good. */
-    assert(0);
+    F_ASSERT(0, "Allocation is smaller than header");
   }
   
   return 0;
@@ -631,7 +649,7 @@ int DataObject::GetMetaRdmaHandle(void **rdma_handle, uint32_t &offset) const {
 
   std::queue<rdma_segment_desc> segments;
   GetMetaRdmaHandles(segments);
-  assert(segments.size() == 1);
+  F_ASSERT(segments.size() == 1, "");
   rdma_segment_desc &segment = segments.front();
   *rdma_handle = segment.net_buffer_handle;
   offset = segment.net_buffer_offset;
@@ -645,19 +663,19 @@ int DataObject::GetDataRdmaHandles(std::queue<rdma_segment_desc> &rdma_segments)
   /* If memory is EAGERLY registered, then this handle will never be NULL.  As a result,
      if this handle is NULL, we can assume that it's LAZILY registered. */
   if( impl->local.net_buffer_handle == nullptr ) {
-    assert(impl->local.allocator->UsingLazyRegistration() == true);
+    F_ASSERT(impl->local.allocator->UsingLazyRegistration() == true, "");
     impl->local.allocator->RegisterMemory(impl, impl->local.allocated_bytes, impl->local.net_buffer_handle);
   }
 
   if( impl->local.allocated_bytes == sizeof(Allocation) ) {
     /* === Allocation only contains headers === */
-    assert(impl->local.user_data_segments->empty() == false); 
+    F_ASSERT(impl->local.user_data_segments->empty() == false, "");
 
     /* First data segment must contain the User Metadata segment. */
     AllocationSegment &allocation_segment = impl->local.user_data_segments->front();
 
     /* Segment must be equal to the combined size of the User METADATA and DATA sections. */
-    assert(allocation_segment.size == impl->header.meta_bytes + impl->header.data_bytes); 
+    F_ASSERT(allocation_segment.size == impl->header.meta_bytes + impl->header.data_bytes, "");
 
     uint32_t offset = impl->local.net_buffer_offset + 
                       offsetof(Allocation, user) +
@@ -671,9 +689,23 @@ int DataObject::GetDataRdmaHandles(std::queue<rdma_segment_desc> &rdma_segments)
     /* === Allocation contains User METADATA === */
 
     /* Segment must be equal to the combined size of the User METADATA and DATA sections. */
-    assert(impl->local.allocated_bytes == offsetof(Allocation, user) +
+    if(impl->local.allocated_bytes != offsetof(Allocation, user) +
                                           impl->header.meta_bytes + 
-                                          impl->header.data_bytes);
+                                          impl->header.data_bytes +
+                                          impl->local.padding)
+    {
+      fprintf(stderr, "impl->local.allocated_bytes (%d) != offsetof(Allocation, user) (%ld) +\n"
+                      "                              impl->header.meta_bytes (%d) + \n"
+                      "                              impl->header.data_bytes  (%d)+ \n"
+                      "                              impl->local.padding (%d)",
+             impl->local.allocated_bytes, offsetof(Allocation, user), impl->header.meta_bytes,
+             impl->header.data_bytes, impl->local.padding);
+      fflush(stderr);
+    }
+    F_ASSERT(impl->local.allocated_bytes == offsetof(Allocation, user) +
+                                            impl->header.meta_bytes +
+                                            impl->header.data_bytes +
+                                            impl->local.padding, "");
 
     uint32_t offset = impl->local.net_buffer_offset + 
                       offsetof(Allocation, user) +
@@ -685,7 +717,7 @@ int DataObject::GetDataRdmaHandles(std::queue<rdma_segment_desc> &rdma_segments)
     rdma_segments.push(rdma_segment);
   } else {
     /* This can only mean that the allocation is smaller than the header.  Not good. */
-    assert(0);
+    F_ASSERT(0, "");
   }
   
   return 0;
@@ -694,7 +726,7 @@ int DataObject::GetDataRdmaHandles(std::queue<rdma_segment_desc> &rdma_segments)
 int DataObject::GetDataRdmaHandle(void **rdma_handle, uint32_t &offset) const {
   std::queue<rdma_segment_desc> segments;
   GetDataRdmaHandles(segments);
-  assert(segments.size() == 1);
+  F_ASSERT(segments.size() == 1, "");
   rdma_segment_desc &segment = segments.front();
   *rdma_handle = segment.net_buffer_handle;
   offset = segment.net_buffer_offset;
@@ -761,7 +793,7 @@ void DataObject::AddUserDataSegment(
 }
 
 void DataObject::sstr(stringstream &ss, int depth, int indent) const {
-  assert(0 &&"TODO");
+  F_TODO("Data Object sstr missing");
 #if 0
   // !!!! TODO : needs to be updated to account for API changes
   if(depth<0) return;

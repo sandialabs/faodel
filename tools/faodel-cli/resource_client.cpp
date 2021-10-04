@@ -1,18 +1,23 @@
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
+
 #include <iomanip>
 #include "faodel-common/StringHelpers.hh"
 #include "dirman/DirMan.hh"
 #include "kelpie/Kelpie.hh"
 
 #include "faodel_cli.hh"
+#include "ResourceAction.hh"
 
 using namespace std;
 using namespace faodel;
 
-int resourceList(const vector<string> &args);
-int resourceListRecursive(const vector<string> &args);
-int resourceDefine(const vector<string> &args);
-int resourceDrop(const vector<string> &args);
-int resourceKill(const vector<string> &args);
+int resourceClient_List(const ResourceAction &action);
+int resourceClient_ListRecursive(const ResourceAction &action);
+int resourceClient_Define(const ResourceAction &action);
+int resourceClient_Drop(const ResourceAction &action);
+int resourceClient_Kill(const ResourceAction &action);
 
 
 bool dumpHelpResource(string subcommand) {
@@ -35,7 +40,7 @@ This command connects to dirman and instructs it to define the resources
 specified by urls. Defining a resource is the first step in creating a
 resource, and should be thought of as a way to specify parameters for a
 resource as opposed to the actual nodes that are part of the resource. A URL
-should include the type, path, name, and paramters for the resource (eg
+should include the type, path, name, and parameters for the resource (eg
 minimum number of nodes or iom names).
 
 Example:
@@ -104,53 +109,18 @@ Example:
   return found;
 }
 
-int checkResourceCommands(const std::string &cmd, const vector<string> &args) {
-
-  if(     (cmd == "resource-list")   || (cmd == "rlist"))  return resourceList(args);
-  else if((cmd == "resource-listr")  || (cmd == "rlistr")) return resourceListRecursive(args);
-  else if((cmd == "resource-define") || (cmd == "rdef"))   return resourceDefine(args);
-  else if((cmd == "resource-drop")   || (cmd == "rdrop"))  return resourceDrop(args);
-  //else if((cmd == "resource-kill")   || (cmd == "rkill"))  return resourceKill(args);
-
-  //No command
-  return ENOENT;
-}
 
 
-void resourceInit(faodel::Configuration *config) {
-
-  string dirman_type;
-  config->GetLowercaseString(&dirman_type, "dirman.type");
-  if(dirman_type == "") {
-    config->Append("dirman.type", "centralized");
-  }
-
-  modifyConfigLogging(config, {"dirman"}, {"dirman.cache.mine", "dirman.cache.others"});
-
-  faodel::bootstrap::Start(*config, dirman::bootstrap);
-
-}
-
-void resourceFinish() {
-  if(faodel::bootstrap::IsStarted()) {
-    faodel::bootstrap::Finish();
-  }
-}
 
 
-int resourceList(const vector <string> &args) {
 
-  auto paths = args;
-  if(paths.size()==0) paths.push_back("/");
 
-  faodel::Configuration config;
-  resourceInit(&config);
-
+int resourceClient_List(const ResourceAction &action) {
   int rc=0;
   bool ok;
   string dir_path;
 
-  for(auto p : paths) {
+  for(auto p : action.rargs) {
     DirectoryInfo dir;
     ResourceURL url;
     try {
@@ -180,30 +150,24 @@ int resourceList(const vector <string> &args) {
         cout<<"  Min Members: "<<dir.min_members<<endl
             <<"      Members: "<<dir.members.size()<<endl;
         for(size_t i=0; i<dir.members.size(); i++) {
-            cout<<"      "<<dir.members[i].name <<"  "<<dir.members[i].node.GetHex()<<" "<<dir.members[i].node.GetHttpLink()<<endl;
+          cout<<"      "<<dir.members[i].name <<"  "<<dir.members[i].node.GetHex()<<" "<<dir.members[i].node.GetHttpLink()<<endl;
         }
       } else {
         warn("Missing: '"+p+"'");
         //rc=-1; //Missing isn't necessarily a failure
       }
     } catch(const std::exception &e) {
-      //cout << "Caught std exception\n" << e.what() << endl;
       warn("Could not parse '"+p+"'");
       rc=-1;
     }
   }
-  resourceFinish();
   return rc;
-
 }
 
-int resourceListRecursive(const vector <string> &args) {
 
-  auto paths = args;
-  if(paths.size()==0) paths.push_back("/"); //Show default root
+int resourceClient_ListRecursive(const ResourceAction &action) {
 
-  faodel::Configuration config;
-  resourceInit(&config);
+  auto paths = action.rargs;
 
   int rc=0;
   bool ok;
@@ -257,24 +221,15 @@ int resourceListRecursive(const vector <string> &args) {
   for(auto &path : results)
     cout << setw(max_slen) << std::left << path.first<<" : " << path.second<<endl;
 
-
-  resourceFinish();
   return rc;
-
 }
 
-int resourceDefine(const vector <string> &args) {
+int resourceClient_Define(const ResourceAction &action) {
+
   int rc=0;
   bool ok;
-  if(args.empty()){
-    cout <<"No resources provided. Done.\n";
-    return 0;
-  }
 
-  faodel::Configuration config;
-  resourceInit(&config);
-
-  for(auto r : args) {
+  for(auto r : action.rargs) {
 
     ResourceURL url;
     try {
@@ -296,19 +251,13 @@ int resourceDefine(const vector <string> &args) {
       rc=-1;
     }
   }
-
-  resourceFinish();
   return rc;
 }
 
-int resourceDrop(const vector <string> &args) {
-
-  int rc=0;
+int resourceClient_Drop(const ResourceAction &action) {
   bool ok;
-  faodel::Configuration config;
-  resourceInit(&config);
-
-  for(auto r : args) {
+  int rc=0;
+  for(auto r : action.rargs) {
 
     ResourceURL url;
     try {
@@ -322,16 +271,64 @@ int resourceDrop(const vector <string> &args) {
       rc=-1;
     }
   }
-
-
-  resourceFinish();
   return rc;
 }
 
-//Note: Original plan was to do a drop and then send kills to pool members
-//      This is a combination of kstop and rdrop now.
-int resourceKill(const vector <string> &args) {
-  int rc=0;
-  KTODO("resourceKill");
+
+faodel::Configuration resourceClientStart() {
+
+  faodel::Configuration config;
+  config.AppendFromReferences();
+
+
+  //Make sure we're using dirman
+  string dirman_type;
+  config.GetLowercaseString(&dirman_type, "dirman.type");
+  if(dirman_type.empty()) config.Append("dirman.type", "centralized");
+
+  //Modify for debugging settings
+  modifyConfigLogging(&config,
+                      {"dirman"},
+                      {"dirman.cache.mine", "dirman.cache.others"});
+
+
+  faodel::bootstrap::Start(config, kelpie::bootstrap);
+
+  return config;
+
+}
+
+
+int resourceClient_Dispatch(const ResourceAction &action) {
+  string cmd2 = action.cmd;
+  int rc=EINVAL;
+  if(cmd2=="rlist") { rc = resourceClient_List(action);
+  } else if(cmd2=="rlistr") { rc = resourceClient_ListRecursive(action);
+  } else if(cmd2=="rdef") { rc = resourceClient_Define(action);
+  } else if(cmd2=="rdrop") { rc = resourceClient_Drop(action);
+  }
+  return rc;
+}
+
+int checkResourceCommands(const std::string &cmd, const vector<string> &args) {
+
+  //Figure out what command this is. Bail out if it's not a resource command
+  ResourceAction action(cmd);
+  if(action.HasError()) return ENOENT; //Didn't match
+
+  //Parse this command's arguments
+  action.ParseArgs(args);
+  action.exitOnError();
+  action.exitOnExtraArgs();
+
+  //Start up
+  resourceClientStart();
+
+  int rc = resourceClient_Dispatch(action);
+
+  //Shut down
+  if(faodel::bootstrap::IsStarted()) {
+    faodel::bootstrap::Finish();
+  }
   return rc;
 }

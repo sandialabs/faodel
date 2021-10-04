@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #include <assert.h>
 #include <string.h>
@@ -16,7 +16,7 @@ const string OpBenchmarkGet::op_name = "OpBenchmarkGet";
 
 
 OpBenchmarkGet::OpBenchmarkGet(opbox::net::peer_ptr_t dst, uint32_t size, uint32_t count, uint32_t max_inflight)
-        : faodel::LoggingInterface("Opbox", "OpBenchmarkGet"),
+        : faodel::LoggingInterface("opbox", "OpBenchmarkGet"),
           state(State::start),
           warmup_count(10),
           size(size), count(count), max_inflight(max_inflight),
@@ -29,9 +29,9 @@ OpBenchmarkGet::OpBenchmarkGet(opbox::net::peer_ptr_t dst, uint32_t size, uint32
 }
 
 OpBenchmarkGet::OpBenchmarkGet(op_create_as_target_t t)
-        : faodel::LoggingInterface("Opbox", "OpBenchmarkGet"),
+        : faodel::LoggingInterface("opbox", "OpBenchmarkGet"),
           state(State::start),
-          warmup_count(0),
+          warmup_count(10),
           size(0), count(0), max_inflight(0),
           started(0), inflight(0), completed(0),
           first_burst_sent(false),
@@ -124,7 +124,7 @@ WaitingType OpBenchmarkGet::UpdateOrigin(OpArgs *args) {
       return WaitingType::done_and_destroy;
   }
   //Shouldn't be here
-  KFAIL();
+  F_FAIL();
   return WaitingType::error;
 }
 
@@ -156,45 +156,70 @@ WaitingType OpBenchmarkGet::UpdateTarget(OpArgs *args) {
                        0, //Not expecting a reply
                        incoming_msg->src_mailbox);
 
+      state = State::warm_up;
+      
+      // Opbox doesn't have a "Don't Wait" WaitingType that just calls
+      // the state machine again, so we fall through.
+    }
+    case State::warm_up: {
+      state = State::warm_up_wait;
+
       for (int i=0;i<warmup_count;i++) {
           opbox::net::Get(peer, &nbr, rdma_ldo, AllEventsCallback(this));
       }
 
-      state = State::tgt_created;
+      return WaitingType::waiting_on_cq;
+    }
+    case State::warm_up_wait: {
+      completed++;
+      
+      if (completed < warmup_count) {
+        return WaitingType::waiting_on_cq;
+      }
+      if (completed == warmup_count) {
+        completed = 0;
+        state = State::start_benchmark;
+      }
 
+      // Opbox doesn't have a "Don't Wait" WaitingType that just calls
+      // the state machine again, so we fall through.
+    }
+    case State::start_benchmark: {
       while((inflight<max_inflight) && ((inflight + completed)<count)) {
         timers->at(started).start = std::chrono::high_resolution_clock::now();
         opbox::net::Get(peer, &nbr, rdma_ldo, AllEventsCallback(this));
         started++;
         inflight++;
-        ss.str(std::string());
-        ss << "inflight=" << inflight << "  started=" << started << "  completed=" << completed << std::endl;
-        dbg(ss.str());
+//        ss.str(std::string());
+//        ss << "inflight=" << inflight << "  started=" << started << "  completed=" << completed << std::endl;
+//        dbg(ss.str());
       }
       first_burst_sent = true;
 
-      ss.str(std::string());
-      ss << "count=" << count << std::endl;
-      dbg(ss.str());
+//      ss.str(std::string());
+//      ss << "count=" << count << std::endl;
+//      dbg(ss.str());
+
+      state = State::execute_benchmark;
 
       return WaitingType::waiting_on_cq;
     }
-    case State::tgt_created:
+    case State::execute_benchmark: {
       timers->at(completed).end = std::chrono::high_resolution_clock::now();
       completed++;
       inflight--;
-      ss.str(std::string());
-      ss << "inflight=" << inflight << "  max_inflight=" << max_inflight << "  completed=" << completed << std::endl;
-      dbg(ss.str());
+//      ss.str(std::string());
+//      ss << "inflight=" << inflight << "  max_inflight=" << max_inflight << "  completed=" << completed << std::endl;
+//      dbg(ss.str());
 
       while((inflight<max_inflight) && ((inflight + completed)<count) && first_burst_sent) {
         timers->at(started).start = std::chrono::high_resolution_clock::now();
         opbox::net::Get(peer, &nbr, rdma_ldo, AllEventsCallback(this));
         started++;
         inflight++;
-        ss.str(std::string());
-        ss << "inflight=" << inflight << "  started=" << started << "  completed=" << completed << std::endl;
-        dbg(ss.str());
+//        ss.str(std::string());
+//        ss << "inflight=" << inflight << "  started=" << started << "  completed=" << completed << std::endl;
+//        dbg(ss.str());
       }
 
       if(completed == count) {
@@ -223,12 +248,13 @@ WaitingType OpBenchmarkGet::UpdateTarget(OpArgs *args) {
       }
 
       return WaitingType::waiting_on_cq;
-
-    case State::done:
+    }
+    case State::done: {
       return WaitingType::done_and_destroy;
+    }
   }
 
-  KHALT("Missing state");
+  F_HALT("Missing state");
   return WaitingType::done_and_destroy;
 }
 
@@ -238,6 +264,6 @@ string OpBenchmarkGet::GetStateName() const {
       case State::snd_wait_for_ack: return "Sender-WaitForAck";
       case State::done:             return "Done";
   }
-  KFAIL();
+  F_FAIL();
   return "Unknown";
 }

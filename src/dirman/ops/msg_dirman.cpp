@@ -1,17 +1,14 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #include <stdexcept>
 
-#include "faodel-common/SerializationHelpers.hh"
+#include <cereal/types/string.hpp>
+#include <cereal/types/vector.hpp>
 
 #include "opbox/common/MessageHelpers.hh"
-
-
 #include "dirman/ops/msg_dirman.hh"
-
-#include <boost/serialization/vector.hpp>
 
 using namespace std;
 using namespace faodel;
@@ -81,7 +78,7 @@ DirectoryInfo msg_dirman::ExtractDirInfo(message_t *hdr) {
   if (!(reinterpret_cast<msg_dirman_t *>(hdr))->hasDirInfo()) {
     throw std::runtime_error("ExtractURL called on a message that didn't contain a URL");
   }
-  return UnpackBoostMessage<DirectoryInfo>(hdr);
+  return UnpackCerealMessage<DirectoryInfo>(hdr);
 }
 
 /**
@@ -101,7 +98,7 @@ bool msg_dirman::AllocateRequest(lunasa::DataObject &new_ldo,
                                  const DirectoryInfo &dir_info) {
 
 
-  return AllocateBoostRequestMessage<DirectoryInfo>(
+  return AllocateCerealRequestMessage<DirectoryInfo>(
           new_ldo,
           dst_node, src_mailbox,
           OpDirManCentralized::op_id,
@@ -123,7 +120,7 @@ bool msg_dirman::AllocateReply(lunasa::DataObject &new_ldo,
                                const message_t *request_msg,
                                const DirectoryInfo &dir_info) {
 
-  return AllocateBoostReplyMessage<DirectoryInfo>(
+  return AllocateCerealReplyMessage<DirectoryInfo>(
           new_ldo,
           request_msg,
           static_cast<uint16_t>(req_type),

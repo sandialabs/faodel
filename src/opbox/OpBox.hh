@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #ifndef OPBOX_OPBOX_HH
 #define OPBOX_OPBOX_HH
@@ -20,9 +20,11 @@ faodel::nodeid_t GetMyID(); //Get our ID
 
 void RegisterOp(int op_id, std::string op_name, fn_OpCreate_t func);
 void DeregisterOp(int op_id, bool ignore_lock_warning);
+std::string GetOpName(int op_id);
+
 int LaunchOp(opbox::Op *op, mailbox_t *mailbox_id=nullptr); //Launch a new operation
 int TriggerOp(mailbox_t mailbox, std::shared_ptr<OpArgs> args);
-
+int GetNumberOfActiveOps(unsigned int op_id=0);
 
 /**
  * @brief Template for registering an Op with Opbox. Automatically extracts info from Op.

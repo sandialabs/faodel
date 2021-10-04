@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #include <sstream>
 #include <stdexcept>
@@ -9,6 +9,8 @@
 #include "faodel-common/MutexWrapper.hh"
 #include "faodel-common/StringHelpers.hh"
 #include "faodel-common/LoggingInterface.hh"
+#include "faodel-common/ResourceURL.hh"
+#include "faodel-common/StringHelpers.hh"
 #include "whookie/Server.hh"
 
 #include "kelpie/ioms/IomRegistry.hh"
@@ -90,11 +92,62 @@ void IomRegistry::RegisterIom(string type, string name, const map<string,string>
 }
 
 /**
- * @brief Register a new iom driver with kelpie
- * @param type The name of this driver
- * @param constructor_function A constructor for building an instance of the driver
+ * @brief Register an IOM based on settings encoded in a resource url
+ * @param url The resource url that contains iom info in its options
+ * @retval 0 IOM was successfully registered
+ * @retval -1 IOM could not be registered
+ *
+ * This is intended to be used by tools like the cli that allow users to
+ * define resources that are later instantiated. When the cli tool launches a
+ * kelpie server, the server retrieves a dirman entry that contains a resource
+ * url for the server. That url may include all of the info the server needs
+ * to setup the iom. A valid iom inside a url will have the following optins:
+ *
+ * iom_name : The name of the iom
+ * iom_type : What kind of iom driver to use. eg PosixIndividualObjects
+ *
+ * Additional driver-specific options may include:
+ * path : The path PIO should use to write objects
  */
-void IomRegistry::RegisterIomConstructor(string type, fn_IomConstructor_t constructor_function) {
+int IomRegistry::RegisterIomFromURL(const faodel::ResourceURL &url) {
+
+  //Convert all options
+  auto options_vector = url.GetOptions();
+  map<string,string> options_map;
+  string iom_name;
+  string iom_type;
+  for(auto &k_v : options_vector) {
+    string k = k_v.first;
+    faodel::ToLowercaseInPlace(k);
+    if(k=="iom") {               iom_name = k_v.second;
+    } else if (k=="iom_type") {  iom_type = k_v.second;
+    } else if (faodel::StringBeginsWith(k, "iom_")) {
+      k.erase(0,4); //Remove prefix to be compatible with default iom syntax
+      if(!k.empty())             options_map[k] = k_v.second;
+    }
+  }
+  if(iom_name.empty() || iom_type.empty()){
+    dbg("Error: attempted register iom from url, but didn't have iom_name/iom_type defined");
+    return -1;
+  }
+  try {
+    RegisterIom(iom_type, iom_name, options_map);
+  } catch(exception &e) {
+    dbg("Error: could not register iom due to '"+string(e.what())+"' Note: all settings must have 'iom_' prefix, which is stripped off during registration");
+    return -1;
+  }
+
+  return 0;
+}
+
+
+/**
+ * @brief Register a new iom driver with kelpie
+ * @param[in] type The name of this driver
+ * @param[in] constructor_function A constructor for building an instance of the driver
+ * @param[in] valid_settings_function A function for validating params
+ */
+void IomRegistry::RegisterIomConstructor(string type, fn_IomConstructor_t constructor_function, fn_IomGetValidSetting_t valid_settings_function) {
 
   dbg("Registering iom driver for type "+type);
 
@@ -105,9 +158,10 @@ void IomRegistry::RegisterIomConstructor(string type, fn_IomConstructor_t constr
   
   auto name_fn = iom_ctors.find(type);
   if(name_fn != iom_ctors.end()){
-    KWARN("Overwriting iom constroctor "+type);
+    F_WARN("Overwriting iom constructor "+type);
   }
   iom_ctors[type] = constructor_function;
+  iom_valid_setting_fns[type] = valid_settings_function;
 }
 
 
@@ -127,7 +181,7 @@ void IomRegistry::init(const faodel::Configuration &config) {
   fn_IomConstructor_t fn_pio = [] (string name, const map<string,string> &settings) -> IomBase * {
       return new IomPosixIndividualObjects(name, settings);
   };
-  RegisterIomConstructor("posixindividualobjects", fn_pio);
+  RegisterIomConstructor("posixindividualobjects", fn_pio, IomPosixIndividualObjects::ValidSettingNamesAndDescriptions);
 
 
   //
@@ -137,39 +191,40 @@ void IomRegistry::init(const faodel::Configuration &config) {
   fn_IomConstructor_t fn_ldb = [] (string name, const map< string, string > &settings) -> IomBase * {
 				 return new IomLevelDB( name, settings );
 			       };
-  RegisterIomConstructor( "leveldb", fn_ldb );
+  RegisterIomConstructor( "leveldb", fn_ldb, IomLevelDB::ValidSettingNamesAndDescriptions );
 #endif
 
 #ifdef FAODEL_HAVE_HDF5
   fn_IomConstructor_t fn_hdf5 = [] (string name, const map< string, string > &settings) -> IomBase * {
 				  return new IomHDF5( name, settings );
 			       };
-  RegisterIomConstructor( "hdf5", fn_hdf5 );
+  RegisterIomConstructor( "hdf5", fn_hdf5, IomHDF5::ValidSettingNamesAndDescriptions );
 #endif
 
 #ifdef FAODEL_HAVE_CASSANDRA
   fn_IomConstructor_t fn_cassandra = [] (string name, const map< string, string > &settings) -> IomBase * {
 				       return new IomCassandra( name, settings );
 			       };
-  RegisterIomConstructor( "cassandra", fn_cassandra );
+  RegisterIomConstructor( "cassandra", fn_cassandra, IomCassandra::ValidSettingNamesAndDescriptions );
 #endif
 
   
   //Get the list of Ioms this Configuration wants to use
   string s,role;
-  config.GetString(&s, "ioms");
+  config.GetString(&s, "kelpie.ioms");
   role = config.GetRole();
 
   
-  if(s!=""){
+  if(!s.empty()) {
+    dbg("Registering "+s);
     vector<string> names = faodel::Split(s,';',true);
     for(auto &name : names) {
 
-      //Get all settings for this iom. Do hierarchy of default, iom.name, then role.iom.name
+      //Get all settings for this iom. Do hierarchy of default, kelpie.iom.name, then role.kelpie.iom.name
       map<string, string> settings;
-      config.GetComponentSettings(&settings, "default.iom");
-      config.GetComponentSettings(&settings, "iom."+name);
-      config.GetComponentSettings(&settings, role+".iom."+name);
+      config.GetComponentSettings(&settings, "default.kelpie.iom");
+      config.GetComponentSettings(&settings, "kelpie.iom."+name);
+      config.GetComponentSettings(&settings, role+".kelpie.iom."+name);
 
       string emsg = "";
       string type = faodel::ToLowercase(settings["type"]);
@@ -184,8 +239,10 @@ void IomRegistry::init(const faodel::Configuration &config) {
         emsg="Iom type '"+type+"' is unknown. Deferred iom types not currently supported";
         //TODO add ability to defer unknown types until start
       }      
-      if(emsg!="")
+      if(!emsg.empty()) {
+        dbg("IOM Configuration error: "+emsg);
         throw std::runtime_error("IOM Configuration error. "+emsg);
+      }
 
       //Do the actual creation
       RegisterIom(type, name, settings);
@@ -323,6 +380,47 @@ void IomRegistry::HandleWhookieStatus(const std::map<std::string,std::string> &a
     mutex->Unlock();
     rs.Finish();
   }
+}
+
+/**
+ * @brief Get a list of all the ioms that are available
+ * @return Vector of names
+ */
+vector<string> IomRegistry::GetIomNames() const {
+  vector<string> names;
+  mutex->ReaderLock();
+  for(auto &hash_iom : ioms_by_hash_pre) {
+    names.push_back( hash_iom.second->Name() );
+  }
+  for(auto &hash_iom : ioms_by_hash_post) {
+    names.push_back( hash_iom.second->Name() );
+  }
+  mutex->Unlock();
+  return names;
+}
+
+/**
+ * @brief Get a list of all the registered iom types
+ * @return List of type names
+ */
+vector<string> IomRegistry::RegisteredTypes() const {
+  vector<string> names;
+  for(auto &name_fn : iom_ctors)
+    names.push_back(name_fn.first);
+  return names;
+}
+
+/**
+ * @brief Get a list of parameters this IOM accepts when it is constructed
+ * @param type The IOM type to lookup
+ * @return Vector with the name and description of each parameter
+ */
+vector<pair<string,string>> IomRegistry::RegisteredTypeParameters(const string &type) const {
+  auto name_fn = iom_valid_setting_fns.find(type);
+  if( (name_fn== iom_valid_setting_fns.end()) || (name_fn->second == nullptr)) {
+    return {}; //No entry
+  }
+  return name_fn->second();
 }
 
 void IomRegistry::sstr(stringstream &ss, int depth, int indent) const {

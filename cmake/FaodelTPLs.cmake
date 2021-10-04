@@ -1,3 +1,4 @@
+include( CheckCXXSymbolExists )
   
 ##########################
 ## Get the Boost targets
@@ -60,21 +61,40 @@ if(BUILD_TESTS)  # We only care about GTEST_ROOT if tests are being built
   endif()
   
   find_package(GTest REQUIRED)
+  if ( GTest_FOUND )
+    set( save_CMAKE_REQUIRED_INCLUDES "${CMAKE_REQUIRED_INCLUDES}" )
+    set( CMAKE_REQUIRED_INCLUDES "${GTEST_INCLUDE_DIRS}" )
+
+    check_cxx_symbol_exists(TYPED_TEST_SUITE_P "gtest/gtest.h" HAVE_TYPED_TEST_SUITE_P)
+    check_cxx_symbol_exists(REGISTER_TYPED_TEST_SUITE_P "gtest/gtest.h" HAVE_REGISTER_TYPED_TEST_SUITE_P)
+    check_cxx_symbol_exists(INSTANTIATE_TYPED_TEST_SUITE_P "gtest/gtest.h" HAVE_INSTANTIATE_TYPED_TEST_SUITE_P)
+
+    set( CMAKE_REQUIRED_INCLUDES "${save_CMAKE_REQUIRED_INCLUDES}" )
+    
+    if( HAVE_TYPED_TEST_SUITE_P AND HAVE_REGISTER_TYPED_TEST_SUITE_P AND HAVE_INSTANTIATE_TYPED_TEST_SUITE_P )
+        set( Faodel_HAVE_GTEST_TYPED_TEST_SUITE_API 1 )
+    endif()
+  endif( GTest_FOUND )
   
 endif() 
 
 ########################
 ## HDF5 IOM
 ########################
+set( Faodel_REQUIRED_HDF5_VERSION "1.8" )
 if( Faodel_ENABLE_IOM_HDF5 )
   find_package( HDF5 COMPONENTS C MODULE )
   if( HDF5_FOUND AND NOT TARGET Faodel::HDF5 )
-    add_library( Faodel::HDF5 INTERFACE IMPORTED )
-    target_compile_definitions( Faodel::HDF5 INTERFACE ${HDF5_DEFINITIONS} )
-    target_link_libraries( Faodel::HDF5 INTERFACE ${HDF5_LIBRARIES} )
-    target_include_directories( Faodel::HDF5 INTERFACE ${HDF5_INCLUDE_DIRS} )
-    set( FAODEL_HAVE_HDF5 TRUE )
-    message( STATUS "Will build HDF5 IOM, Faodel_ENABLE_IOM_HDF5 set and HDF5 found" )
+    if( HDF5_VERSION VERSION_GREATER_EQUAL ${Faodel_REQUIRED_HDF5_VERSION} )
+      add_library( Faodel::HDF5 INTERFACE IMPORTED )
+      target_compile_definitions( Faodel::HDF5 INTERFACE ${HDF5_DEFINITIONS} )
+      target_link_libraries( Faodel::HDF5 INTERFACE ${HDF5_LIBRARIES} )
+      target_include_directories( Faodel::HDF5 INTERFACE ${HDF5_INCLUDE_DIRS} )
+      set( FAODEL_HAVE_HDF5 TRUE )
+      message( STATUS "Will build HDF5 IOM, Faodel_ENABLE_IOM_HDF5 set and HDF5 found" )
+    else()
+      message( STATUS "Cannot build HDF5 IOM as requested. Faodel requires ${Faodel_REQUIRED_HDF5_VERSION}, but found ${HDF5_VERSION}." )
+    endif()
   else()
     message( STATUS "Cannot build HDF5 IOM as requested, HDF5 not found. Set HDF5_ROOT" )
   endif()
@@ -171,6 +191,46 @@ endif()
 # Stanza 3 : Determine Faodel's network library 
 #
 ##############################
+
+function( create_pc_imported_target _prefix _target_name )
+
+    # This pretty closely mimics what happens in FindPkgConfig.cmake from the CMake distro.
+    # The only significant difference (should be) is that we get the STATIC versions of
+    # information from the .pc file, since we always want to link network libs statically.
+    # pkg_search_module( ... IMPORTED_TARGET ) sets up a target that only works with shared libraries.
+    # It's possible on some platforms that the STATIC variables won't be created
+    # (because pkg-config --static returns nothing, which might happen on platforms where no dynamic
+    # linking is ever done), so check for empty vars and fall back to the non-static variables if necessary.
+
+    add_library( ${_target_name} INTERFACE IMPORTED )
+    if( NOT BUILD_SHARED_LIBS AND ${_prefix}_STATIC_LDFLAGS )
+      # pkg-config found a STATIC configuration
+      set_property( TARGET ${_target_name}
+        PROPERTY INTERFACE_INCLUDE_DIRECTORIES ${${_prefix}_STATIC_INCLUDE_DIRS}
+        )
+      set_property( TARGET ${_target_name}
+        PROPERTY INTERFACE_LINK_LIBRARIES ${${_prefix}_STATIC_LDFLAGS}
+        )
+      set_property( TARGET ${_target_name}
+        PROPERTY INTERFACE_COMPILE_OPTIONS ${${_prefix}_STATIC_CFLAGS_OTHER}
+        )
+    else()
+      if ( ${_prefix}_LDFLAGS )
+        # Unlikely that we have any STATIC info, use the regular variabes
+        set_property( TARGET ${_target_name}
+          PROPERTY INTERFACE_INCLUDE_DIRECTORIES ${${_prefix}_INCLUDE_DIRS}
+          )
+        set_property( TARGET ${_target_name}
+          PROPERTY INTERFACE_LINK_LIBRARIES ${${_prefix}_LDFLAGS}
+          )
+        set_property( TARGET ${_target_name}
+          PROPERTY INTERFACE_COMPILE_OPTIONS ${${_prefix}_CFLAGS_OTHER}
+          )
+      endif()
+    endif()
+
+endfunction()
+
 # When we're outside of the Faodel project (ie, this file has been installed and
 # the user is importing Faodel to use in their project), we can pull in some of
 # our settings from the installed lib when the user hasn't defined them.
@@ -190,40 +250,9 @@ if (Faodel_NETWORK_LIBRARY STREQUAL "libfabric")
   
   if( Libfabric_pc_FOUND )
     set( LIBFABRIC_FOUND TRUE )
-    
-    # This pretty closely mimics what happens in FindPkgConfig.cmake from the CMake distro.
-    # The only significant difference (should be) is that we get the STATIC versions of
-    # information from the .pc file, since we always want to link network libs statically.
-    # pkg_search_module( ... IMPORTED_TARGET ) sets up a target that only works with shared libraries.
-    # It's possible on some platforms that the STATIC variables won't be created
-    # (because pkg-config --static returns nothing, which might happen on platforms where no dynamic
-    # linking is ever done), so check for empty vars and fall back to the non-static variables if necessary.
 
-    add_library( Libfabric INTERFACE IMPORTED )
-    if( Libfabric_pc_STATIC_LDFLAGS )
-      # Assume we have STATIC information 
-      set_property( TARGET Libfabric
-        PROPERTY INTERFACE_INCLUDE_DIRECTORIES ${Libfabric_pc_STATIC_INCLUDE_DIRS}
-        )
-      set_property( TARGET Libfabric
-        PROPERTY INTERFACE_LINK_LIBRARIES ${Libfabric_pc_STATIC_LDFLAGS}
-        )
-      set_property( TARGET Libfabric
-        PROPERTY INTERFACE_COMPILE_OPTIONS ${Libfabric_pc_STATIC_CFLAGS_OTHER}
-        )
-    else()	
-      # Unlikely that we have any STATIC info, use the regular variabes
-      set_property( TARGET Libfabric
-        PROPERTY INTERFACE_INCLUDE_DIRECTORIES ${Libfabric_pc_INCLUDE_DIRS}
-        )
-      set_property( TARGET Libfabric
-        PROPERTY INTERFACE_LINK_LIBRARIES ${Libfabric_pc_LDFLAGS}
-        )
-      set_property( TARGET Libfabric
-        PROPERTY INTERFACE_COMPILE_OPTIONS ${Libfabric_pc_CFLAGS_OTHER}
-        )
-    endif()
-    
+    create_pc_imported_target( Libfabric_pc Libfabric )    
+
     LIST( APPEND FaodelNetlib_TARGETS Libfabric )
     set( PKGCONFIG_REQUIRES "${PKGCONFIG_REQUIRES} libfabric" )
     message( STATUS "Found Libfabric, target appended to FaodelNetlib_TARGETS" )
@@ -238,27 +267,35 @@ elseif( Faodel_NETWORK_LIBRARY STREQUAL "nnti" )
 
   # For NNTI we need to locate UGNI, IBVerbs, and CrayDRC
 
+  #
+  # Cray UGNI
+  #
   pkg_check_modules(UGNI_PC cray-ugni)
-
   SET(UGNI_FOUND ${UGNI_PC_FOUND})
-  
   if(UGNI_PC_FOUND)
-    foreach(ugnilib ${UGNI_PC_LIBRARIES})
-      find_library(${ugnilib}_LIBRARY NAMES ${ugnilib} HINTS ${UGNI_PC_LIBRARY_DIRS})
-      if (${ugnilib}_LIBRARY)
-	LIST(APPEND UGNI_LIBRARIES ${${ugnilib}_LIBRARY})
-	add_library( ${ugnilib} IMPORTED UNKNOWN )
-	set_property( TARGET ${ugnilib} PROPERTY IMPORTED_LOCATION ${${ugnilib}_LIBRARY} )
-	set_property( TARGET ${ugnilib} PROPERTY INTERFACE_INCLUDE_DIRECTORIES ${UGNI_PC_INCLUDE_DIRS} )
-	LIST( APPEND UGNI_TARGETS ${ugnilib} )
-      endif (${ugnilib}_LIBRARY)
-    endforeach(ugnilib)
-    SET(UGNI_INCLUDE_DIRS ${UGNI_PC_INCLUDE_DIRS})
-    LIST( APPEND FaodelNetlib_TARGETS ${UGNI_TARGETS} )
+
+    create_pc_imported_target( UGNI_PC UGNI )
+
+    LIST( APPEND UGNI_TARGETS UGNI )
+    LIST( APPEND FaodelNetlib_TARGETS UGNI )
     SET( NNTI_HAVE_UGNI 1 )
     SET( FAODEL_HAVE_UGNI 1 )
     set( PKGCONFIG_REQUIRES "${PKGCONFIG_REQUIRES} cray-ugni" )
   endif(UGNI_PC_FOUND)
+
+  #
+  # Cray DRC
+  #
+  pkg_check_modules(DRC_PC cray-drc)
+  SET(DRC_FOUND ${DRC_PC_FOUND})
+  if(DRC_PC_FOUND)
+
+    create_pc_imported_target( DRC_PC DRC )
+
+    LIST( APPEND DRC_TARGETS DRC )
+    LIST( APPEND FaodelNetlib_TARGETS DRC )
+    set( PKGCONFIG_REQUIRES "${PKGCONFIG_REQUIRES} cray-drc" )
+  endif(DRC_PC_FOUND)
 
   # IBVERBS
 
@@ -295,30 +332,6 @@ elseif( Faodel_NETWORK_LIBRARY STREQUAL "nnti" )
   endif()
   
   mark_as_advanced(IBVerbs_INCLUDE_DIR IBVerbs_LIBRARY )
-
-  #
-  # CrayDRC
-  #
-
-  pkg_check_modules(DRC_PC cray-drc)
-  SET(DRC_FOUND ${DRC_PC_FOUND})
-  if(DRC_PC_FOUND)
-    foreach(drclib ${DRC_PC_LIBRARIES})
-      find_library(${drclib}_LIBRARY NAMES ${drclib} HINTS ${DRC_PC_LIBRARY_DIRS})
-      if (${drclib}_LIBRARY)
-        if( NOT TARGET ${drclib} )
-          add_library( ${drclib} IMPORTED UNKNOWN )
-          set_property( TARGET ${drclib} PROPERTY IMPORTED_LOCATION ${${drclib}_LIBRARY} )
-          set_property( TARGET ${drclib} PROPERTY INTERFACE_INCLUDE_DIRECTORIES "${DRC_PC_INCLUDE_DIRS}" )
-          LIST( APPEND DRC_TARGETS ${drclib} )
-          LIST( APPEND DRC_LIBRARIES ${${drclib}_LIBRARY})
-        endif ( NOT TARGET ${drclib} )
-      endif (${drclib}_LIBRARY)
-    endforeach(drclib)
-    LIST(APPEND DRC_INCLUDE_DIRS ${DRC_PC_INCLUDE_DIRS})
-    LIST( APPEND FaodelNetlib_TARGETS ${DRC_TARGETS} )
-    set( PKGCONFIG_REQUIRES "${PKGCONFIG_REQUIRES} cray-drc" )
-  endif(DRC_PC_FOUND)
 
 else()
    message(FATAL_ERROR "Faodel_NETWORK_LIBRARY must be defined as one of (nnti | libfabric).  The build cannot continue." )

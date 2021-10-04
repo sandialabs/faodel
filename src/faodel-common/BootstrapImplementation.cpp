@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 #include <iostream>
 #include <algorithm>
@@ -12,9 +12,11 @@
 #include <thread>
 #include <stdexcept>
 
-
 #include <whookie/Server.hh>
 
+#ifdef Faodel_ENABLE_MPI_SUPPORT
+#include <mpi.h>
+#endif
 
 #include "faodel-common/BootstrapImplementation.hh"
 
@@ -29,14 +31,21 @@ Bootstrap::Bootstrap()
         : LoggingInterface("bootstrap"),
           halt_on_shutdown(false),
           status_on_shutdown(false),
+          mpisyncstop_enabled(false),
           sleep_seconds_before_shutdown(0),
           my_node_id(NODE_UNSPECIFIED),
+          num_init_callers(0),
           state(State::UNINITIALIZED) {
+  state_mutex = GenerateMutexByTypeID(MutexWrapperTypeID::PTHREADS_LOCK);
 }
 
 Bootstrap::~Bootstrap() {
+
+  state_mutex->Lock();
+  num_init_callers=1; //ensure we actually shutdown
   if(state == State::INITIALIZED) { warn("Bootstrap was initialized but never started"); }
-  if(state == State::STARTED) Finish(true);
+  if(state == State::STARTED) finish_(true);
+  delete state_mutex;
 }
 
 /**
@@ -58,8 +67,21 @@ void Bootstrap::RegisterComponent(string name,
                                   fn_fini fini_function,
                                   bool allow_overwrites) {
 
-  if(state != State::UNINITIALIZED)
-    throw std::runtime_error("Bootstrap RegsiterComponent: Register of " + name + " called after init");
+  state_mutex->Lock();
+
+  //dbg("RegisteringComponent "+name);
+
+  //See if someone is trying to register a component after bootstrap has already started. This is ok
+  //if the component was registered the first time around (eg, when users hide a bootstrap init of
+  //kelpie in their ctors). We have to fail though if they didn't register this component.
+  if(state != State::UNINITIALIZED) {
+    bool already_exists = HasComponent(name);
+    state_mutex->Unlock();
+    if(!already_exists) {
+      throw std::runtime_error("Bootstrap RegisterComponent: Register of " + name + " called after init");
+    }
+    return;
+  }
 
   bstrap_t bs;
   bs.name = name;
@@ -72,14 +94,17 @@ void Bootstrap::RegisterComponent(string name,
 
   for(auto &tmp_bs : bstraps) {
     if(tmp_bs.name == name) {
-      if(!allow_overwrites)
-        throw std::runtime_error("Bootstrap RegsiterComponent Attempted to register " + name + " multiple times");
+      if(!allow_overwrites) {
+        state_mutex->Unlock();
+        throw std::runtime_error("Bootstrap RegisterComponent Attempted to register " + name + " multiple times");
+      }
       tmp_bs = bs;
       return;
     }
   }
 
   bstraps.push_back(bs);
+  state_mutex->Unlock();
 }
 
 /**
@@ -94,6 +119,23 @@ void Bootstrap::RegisterComponent(BootstrapInterface *component, bool allow_over
   vector <string> optional;
   component->GetBootstrapDependencies(name, requires, optional);
 
+  state_mutex->Lock();
+
+  //dbg("RegisteringComponent "+name);
+
+  //See if someone is trying to register a component after bootstrap has already started. This is ok
+  //if the component was registered the first time around (eg, when users hide a bootstrap init of
+  //kelpie in their ctors). We have to fail though if they didn't register this component.
+  if(state != State::UNINITIALIZED) {
+    bool already_exists = HasComponent(name);
+    state_mutex->Unlock();
+    if(!already_exists) {
+      throw std::runtime_error("Bootstrap RegisterComponent: Register of " + name + " called after init");
+    }
+    return;
+  }
+
+  //Normal registration
   bstrap_t bs;
   bs.name = name;
   bs.requires = requires;
@@ -105,21 +147,42 @@ void Bootstrap::RegisterComponent(BootstrapInterface *component, bool allow_over
 
   for(auto &tmp_bs : bstraps) {
     if(tmp_bs.name == name) {
-      if(!allow_overwrites)
+      if(!allow_overwrites) {
+        state_mutex->Unlock();
         throw std::runtime_error("Bootstrap RegisterComponent: Attempted to register " + name + " multiple times");
+      }
       tmp_bs = bs;
+      state_mutex->Unlock();
       return;
     }
   }
   bstraps.push_back(bs);
+
+  state_mutex->Unlock();
+
 }
 
 /**
  * @brief Initialize all the pre-registered bootstrap components with a given config
  * @param config The configuration to pass each component
+ * @retval TRUE We initialized using this call (nobody else initialized before us)
+ * @retval FALSE Someone else had already initialized, so we used those settings
  * @note The Configuration may be modified in Init to fill in runtime values
  */
-void Bootstrap::Init(const Configuration &config) {
+bool Bootstrap::Init(const Configuration &config) {
+
+  bool exit_on_errors; //When true, we catch exceptions and then call exit
+
+  state_mutex->Lock();
+
+  //Only proceed if this is the first initialization. Otherwise use previous initialization
+  int current_count = num_init_callers++;
+  if(current_count != 0) {
+    warn("Multiple bootstrap Init's called. Using existing initialization.");
+    state_mutex->Unlock();
+    return false;
+  }
+
 
   //We need to load any updates from references
   configuration = config;
@@ -128,32 +191,66 @@ void Bootstrap::Init(const Configuration &config) {
   //Now we can update bootstrap's logging
   ConfigureLogging(configuration);
 
-  configuration.GetBool(&halt_on_shutdown, "bootstrap.halt_on_shutdown", "false");
-  configuration.GetBool(&status_on_shutdown, "bootstrap.status_on_shutdown", "false");
+  bool mpisyncstart_enabled=false;
+  configuration.GetBool(&show_config_at_init,           "bootstrap.show_config",         "false");
+  configuration.GetBool(&exit_on_errors,                "bootstrap.exit_on_errors",      "true");
+  configuration.GetBool(&halt_on_shutdown,              "bootstrap.halt_on_shutdown",    "false");
+  configuration.GetBool(&status_on_shutdown,            "bootstrap.status_on_shutdown",  "false");
   configuration.GetUInt(&sleep_seconds_before_shutdown, "bootstrap.sleep_seconds_before_shutdown", "0");
-
+  configuration.GetBool(&mpisyncstart_enabled,          "mpisyncstart.enable",           "false");
+  configuration.GetBool(&mpisyncstop_enabled,           "mpisyncstop.enable",            "false");
 
   dbg("Init (" + std::to_string(bstraps.size()) + " bootstraps known)");
 
-  if(state != State::UNINITIALIZED)
-    throw std::runtime_error("Bootstrap Init: Init called multiple times (it can only be called once)");
+  #ifndef Faodel_ENABLE_MPI_SUPPORT
+    if(mpisyncstart_enabled) {
+      warn("The mpisyncstart option was enabled, but FAODEL was not built with MPI support. Ignoring.");
+    }
+    if(mpisyncstop_enabled) {
+      warn("The mpisyncstop option was enabled, but FAODEL was not built with MPI support. Ignoring.");
+    }
+  #else
+    //cout<<"MPISYNCSTART enabled: "<<mpisyncstart_enabled<<endl;
+    if((mpisyncstart_enabled) && (!HasComponent("mpisyncstart"))) {
+      error("Configuration has mpisyncstart.enable, but mpisyncstart bootstrap not registered. Ignoring.");
+    }
+  #endif
+
 
   string info_message;
-  bool ok = CheckDependencies(&info_message); //Sorts them
-  if(!ok) throw std::runtime_error("Bootstrap Init: Dependency error " + info_message);
+  bool ok = CheckDependencies(&info_message); //Sorts bootstraps
+  if(!ok) {
+    state_mutex->Unlock();
+    throw std::runtime_error("Bootstrap Init: Dependency error " + info_message);
+  }
 
-  //Execute each one
-  dbg("Init'ing all services");
+  //Execute each bootstrap
+  try {
+    for(auto &bs : bstraps) {
+      dbg("Initializing service " + bs.name);
+      bs.init_function(&configuration);
+    }
+  } catch(const runtime_error &e) {
+    state_mutex->Unlock();
+    if(exit_on_errors) {
+      cerr <<"Bootstrap Init Error: "<<string(e.what())<<endl;
+      exit(-1);
+    } else {
+      throw(e);
+    }
+    throw;
+  }
 
-  for(auto &bs : bstraps) {
-    dbg("Initing service " + bs.name);
-    bs.init_function(&configuration);
+  if(show_config_at_init) {
+    cout <<"FAODEL Configuration after Bootstrap::Init is:\n" << configuration.str();
   }
 
   //Note: we can't install bootstrap whookie here because of build order issues. Do it in whookie
 
-  dbg("Completed Init'ing services. Moved to 'initialized' state.");
+  dbg("Completed Initializing services. Moved to 'initialized' state.");
   state = State::INITIALIZED;
+  state_mutex->Unlock();
+  return true;
 }
 
 /**
@@ -162,10 +259,19 @@ void Bootstrap::Init(const Configuration &config) {
  */
 void Bootstrap::Start() {
 
-  if(state != State::INITIALIZED)
+  state_mutex->Lock();
+  if(state == State::STARTED) {
+    dbg("Already in started state. Continuing.");
+    state_mutex->Unlock();
+    return;
+  }
+
+  if(state != State::INITIALIZED) {
+    state_mutex->Unlock();
     throw std::runtime_error(
             "Bootstrap Start: Attempted to Start() when not in the Initialized state. Call Init, Start, Finish\n"
             "(Current State is " + GetState() + ")");
+  }
 
   dbg("Starting all services");
   for(auto &bs : bstraps) {
@@ -174,20 +280,43 @@ void Bootstrap::Start() {
   }
   dbg("Completed Starting services. Moved to 'started' state.");
   state = State::STARTED;
+  state_mutex->Unlock();
 }
 
 /**
  * @brief Perform Init on all components, then perform Start on all components
  * @param[in] config The configuration to pass all components
- * @throw runtime_error When bootstrap state is not Uninitialized
+ * @note If bootstrap is already started, it will reuse it. This may cause the config passed in to be ignored
  */
 void Bootstrap::Start(const Configuration &config) {
+  bool we_initialized = Init(config);
+  if(we_initialized) Start();
+}
 
-  if(state != State::UNINITIALIZED)
-    throw std::runtime_error("Bootstrap Start: Attempted to Start(config) when already initialized and/or started. Call Init, Start, Finish\n"
-                             "(Current State is " + GetState() + ")");
-  Init(config);
-  Start();
+/**
+ * @brief Get the number of times bootstrap Init was called
+ * @return Current count
+ * Sometimes different applications embed bootstrap start in their code to enable servces
+ * to start automatically. This function tells you how many times Init was called.
+ */
+int Bootstrap::GetNumberOfUsers() const {
+  state_mutex->Lock();
+  int count = num_init_callers;
+  state_mutex->Unlock();
+  return count;
+}
+
+/**
+ * @brief Determine if a bootstrap component (eg kelpie) has been registered yet
+ * @param component_name Name of the component to locate
+ * @retval TRUE This component is known
+ * @retval FALSE This component has not been registered yet
+ */
+bool Bootstrap::HasComponent(const string &component_name) const {
+  for(auto bs : bstraps) {
+    if(bs.name == component_name) return true;
+  }
+  return false;
 }
 
 /**
@@ -214,6 +343,7 @@ void Bootstrap::dumpInfo(ReplyStream &rs) const {
   rs.tableBegin("Bootstrap Settings");
   rs.tableTop({"Parameter", "Value"});
   rs.tableRow({"Current State", GetState() });
+  rs.tableRow({"MPISyncStop Enabled on Shutdown", std::to_string(mpisyncstop_enabled)});
   rs.tableRow({"Status on Shutdown", std::to_string(status_on_shutdown)});
   rs.tableRow({"Halt on Shutdown", std::to_string(halt_on_shutdown) });
   rs.tableRow({"Sleep Seconds Before Shutdown", std::to_string(sleep_seconds_before_shutdown)});
@@ -231,13 +361,41 @@ void Bootstrap::dumpInfo(ReplyStream &rs) const {
  */
 void Bootstrap::Finish(bool clear_list_of_bootstrap_users) {
 
-  if(state == State::UNINITIALIZED)
+  state_mutex->Lock();
+  finish_(clear_list_of_bootstrap_users);
+  state_mutex->Unlock();
+
+}
+
+void Bootstrap::finish_(bool clear_list_of_bootstrap_users) {
+
+  if(state == State::UNINITIALIZED) {
+    state_mutex->Unlock();
     throw std::runtime_error("Bootstrap Finish: Attempted to Finish when not Init state. Currently: " + GetState());
+  }
+
+  //dbg("Num init callers is "+std::to_string(num_init_callers)+" state is "+GetState());
+  //Check number of initializers
+  num_init_callers--;
+
+  if(num_init_callers>0) {
+    dbg("Received finish, but other entities started bootstrap. Waiting for their finish.");
+    return;
+  }
+
+  #ifdef Faodel_ENABLE_MPI_SUPPORT
+    //Halt until everyone has had a chance to shutdown. This should catch any late senders
+    if(mpisyncstop_enabled) {
+      dbg("Performing mpisyncstop");
+      MPI_Barrier(MPI_COMM_WORLD);
+    }
+  #endif
+
 
   dbg("Finish (" + std::to_string(bstraps.size()) + " bootstraps known)");
   if(halt_on_shutdown) {
     if(status_on_shutdown) dumpStatus();
-    KHALT("Bootstrap finish called with Halt on Shutdown activated");
+    F_HALT("Bootstrap finish called with Halt on Shutdown activated");
   }
 
   //Some apps need a few seconds before they shutdown. Here's a nice place to do it

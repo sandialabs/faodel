@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 // Test:    mpi_opbox_message_helpers.cpp
 // Purpose: Test helper functions that convert incoming messages to outgoing
@@ -16,7 +16,7 @@
 #include "gtest/gtest.h"
 
 #include "faodel-common/Common.hh"
-#include "faodel-common/SerializationHelpers.hh"
+#include "faodel-common/SerializationHelpersBoost.hh"
 
 #include "whookie/Server.hh"
 #include "lunasa/Lunasa.hh"
@@ -130,14 +130,6 @@ TEST_F(OpBoxMessageHelpersTest, BigStringMessage) {
   auto s = UnpackStringMessage(msg);
   EXPECT_EQ(s1, s);
   EXPECT_EQ(65535, s.size());
-}
-
-TEST_F(OpBoxMessageHelpersTest, BadStringMessage) {
-
-  lunasa::DataObject ldo;
-  string s1 = string((64*1024), 'x');
-
-  EXPECT_ANY_THROW(AllocateStringMessage(ldo, src_node, dst_node, 100, 101, 2112, 0x1234, s1));
 }
 
 

@@ -1,6 +1,6 @@
-// Copyright 2018 National Technology & Engineering Solutions of Sandia, 
-// LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS,  
-// the U.S. Government retains certain rights in this software. 
+// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
 
 
 #include <iostream>
@@ -20,19 +20,19 @@ void IomBase::finish() {
 
 /**
  * @brief Get info about a collection of keys on this iom (simply iterates over all)
- * @param bucket The bucket to search in
- * @param keys Vector of keys to find
- * @param col_infos Resulting info about the columns (in key order)
+ * @param[in] bucket The bucket to search in
+ * @param[in] keys Vector of keys to find
+ * @param[out] infos The return list of object info (in key order)
  * @retval KELPIE_OK All requests were successful
  * @retval error One or more requests were not successful. Last unsuccessful error is returned
  */
-rc_t IomBase::GetInfo(faodel::bucket_t bucket, const std::vector<kelpie::Key> &keys, vector<kv_col_info_t> *col_infos) {
+rc_t IomBase::GetInfo(faodel::bucket_t bucket, const std::vector<kelpie::Key> &keys, vector<object_info_t> *infos) {
   rc_t rc = KELPIE_OK;
   for(auto &k : keys) {
-    kv_col_info_t col_info;
-    rc_t rc2 = GetInfo(bucket, k, &col_info);
+    object_info_t info;
+    rc_t rc2 = GetInfo(bucket, k, &info);
     if(rc2!=KELPIE_OK) rc=rc2;
-    if(col_infos) col_infos->push_back(col_info);
+    if(infos) infos->emplace_back(info);
   }
   return rc;
 }
@@ -78,8 +78,14 @@ rc_t IomBase::ReadObjects(faodel::bucket_t bucket, const vector<Key> &keys,
   return return_rc;
 }
 
+rc_t IomBase::ListObjects(faodel::bucket_t bucket, Key key, ObjectCapacities *oc) {
+  // !!!! DEBUG !!!!
+  printf("WARNING: Current IOM (%s) does NOT support ListObjects() method\n", Name().c_str()); 
+  return KELPIE_ENOENT;
+}
+
 /**
- * @brief Get a particular seting that was passed in during creation
+ * @brief Get a particular setting that was passed in during creation
  * @param setting_name The name of the iom setting to search for
  * @return The value, or empty string
  */

@@ -1,0 +1,50 @@
+# Script 04: Bucket renaming
+#
+#   faodel -v plat s04_bucket_renaming.play
+#
+#
+#  This example shows how you can append "bucket=" to the end of the url
+#  to change what bucket gets used for a pool. There are two places where
+#  this is useful:
+#
+#  1. Shorthand: If you add the bucket= tag to a url when you define it,
+#     it will use that bucket when you reference it. If you don't do this
+#     you need to include the bucket in the ref (ie [bob]/a/b/c/second)
+#
+#  2. Using the same pool configuration for different datasets: By appending
+#     a new bucket to the end of the reference you use in Connect, you get
+#     an existing pool configuration, but with a different bucket to give
+#     you some k/v isolation.
+
+
+config bootstrap.debug true
+
+config mpisyncstart.debug true
+config dirman.debug true
+config dirman.root_node_mpi END
+
+config kelpie.ioms myiom
+config kelpie.iom.myiom.type posixindividualobjects
+config kelpie.iom.myiom.path ./faodel-dump
+
+config dirman.resources[] local:/a/b/c/first&iom=myiom
+config dirman.resources[] local:[bob]/a/b/c/second&iom=myiom
+config dirman.resources[] local:/a/b/c/third&bucket=frank&iom=myiom
+
+config dirman.resources_mpi[] dht:/a/b/c/dht&min_members=1&bucket=bongo&iom=myiom ALL
+
+
+barrier
+
+kput -p /a/b/c/first -M 1k -D 1k -k wrote-to-first
+kput -p [bob]/a/b/c/second -D 1k -k wrote-to-second
+kput -p /a/b/c/third       -D 1k -k wrote-to-third
+
+kput -r 0 -p /a/b/c/dht         -D 1k -k wrote-to-dht0
+kput -r 1 -p /a/b/c/dht         -D 1k -k wrote-to-dht1
+kput -r 0 -p /a/b/c/dht&bucket=newbucket -D 1k -k alternate-bucket
+
+barrier
+
+# Look in your faodel-dump directory. There should be multiple hash directories,
+# each with different data files

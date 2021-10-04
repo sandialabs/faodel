@@ -61,7 +61,7 @@ Step 1: Launch a dirman server
  DirMan is a service for tracking different resources in the cluster and
  will help us control what resources we have. We can launch a plain dirman
  server with the faodel tool. By default it creates a file named
- '.faodel-dirm in your current directory to tell nodes where to look. Other
+ '.faodel-dirman in your current directory to tell nodes where to look. Other
  operations in the faodel tool will use this to locate the server. This
  example uses the .faodel-dirman file to reference dirman to simplify
  command line options. 

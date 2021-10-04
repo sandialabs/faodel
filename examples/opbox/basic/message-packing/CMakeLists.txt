@@ -1,4 +1,4 @@
-set(PROJECT_NAME message_packing)
+set(PROJECT_NAME ex_opbox_message-packing)
 
 set(HEADERS
 )
@@ -52,22 +52,30 @@ if( CAPNPROTO_ROOT )
   endif()
 endif()
 
-set( CEREAL_ROOT $ENV{CEREAL_ROOT} )
-if( CEREAL_ROOT )
-  # try to include the Cereal example
-  find_path( CEREAL binary.hpp HINTS $ENV{CEREAL_ROOT}/include/cereal/archives )
-  if( CEREAL )
-    message( STATUS "Will build Cereal message-packing example using Cereal from $ENV{CEREAL_ROOT}" )
-    include_directories( $ENV{CEREAL_ROOT}/include )
-    set( SOURCES ${SOURCES} example7.cpp )
-    add_definitions( -DUSE_CEREAL )
-  endif()
+#set( CEREAL_ROOT $ENV{CEREAL_ROOT} )
+#if( CEREAL_ROOT )
+#  # try to include the Cereal example
+#  find_path( CEREAL binary.hpp HINTS $ENV{CEREAL_ROOT}/include/cereal/archives )
+#  if( CEREAL )
+#    message( STATUS "Will build Cereal message-packing example using Cereal from $ENV{CEREAL_ROOT}" )
+#    include_directories( $ENV{CEREAL_ROOT}/include )
+#    set( SOURCES ${SOURCES} example7.cpp )
+#    add_definitions( -DUSE_CEREAL )
+#  endif()
+#endif()
+
+if( TARGET Faodel::tpl-cereal )
+  message( STATUS "Will build Cereal message-packing example using the Cereal TPL installed with Faodel" )
+  set( EXTRA_EXAMPLE_LIBS ${EXTRA_EXAMPLE_LIBS} Faodel::tpl-cereal )
+  set( SOURCES ${SOURCES} example7.cpp )
+  add_definitions( -DUSE_CEREAL )
 endif()
+
 
 add_executable(${PROJECT_NAME} ${HEADERS} ${SOURCES})
 set_target_properties(${PROJECT_NAME} PROPERTIES LINKER_LANGUAGE CXX )
 
-target_link_libraries(${PROJECT_NAME} ${EXAMPLES_LIBS} ${EXTRA_EXAMPLE_LIBS})
+target_link_libraries(${PROJECT_NAME} ${EXAMPLE_LIBS} ${EXTRA_EXAMPLE_LIBS} )
 
 install(TARGETS ${PROJECT_NAME}
         EXPORT faodelExampleTargets
