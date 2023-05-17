@@ -19,7 +19,7 @@ National Laboratories.
   nodes. Faodel requires an HPC network fabric such as InfiniBand, RoCE,
   OmniPath, or Gemini.
 
-- **Pronounciation**: We say *"Fay-oh-Dell"*.
+- **Pronunciation**: We say *"Fay-oh-Dell"*.
  
 **Note**: Faodel development takes place in a private repository due to Sandia's
       software release process. The Github repository is only updated when
