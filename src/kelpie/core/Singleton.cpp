@@ -1,4 +1,4 @@
-// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// Copyright 2023 National Technology & Engineering Solutions of Sandia, LLC
 // (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
 // Government retains certain rights in this software.
 
@@ -84,7 +84,7 @@ void SingletonImpl::Init(const faodel::Configuration &config){
   config.GetLowercaseString(&kelpie_type, "kelpie.type",  "standard");
 
 
-  dbg("About to create type "+kelpie_type);
+  dbg("About to create kelpie singleton of type "+kelpie_type);
   if(kelpie_type == "standard"){
     core = new KelpieCoreStandard();
 

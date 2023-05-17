@@ -40,6 +40,7 @@ set( HEADERS
      pools/LocalPool/LocalPool.hh
      pools/DHTPool/DHTPool.hh
      pools/NullPool/NullPool.hh
+     pools/TFTPool/TFTPool.hh
      pools/TracePool/TracePool.hh
      pools/PoolRegistry.hh
      pools/ResultCollector.cpp
@@ -77,6 +78,7 @@ set( SOURCES
      pools/DHTPool/DHTPool.cpp
      pools/LocalPool/LocalPool.cpp
      pools/NullPool/NullPool.cpp
+     pools/TFTPool/TFTPool.cpp
      pools/TracePool/TracePool.cpp
      pools/Pool.cpp
      pools/PoolBase.cpp

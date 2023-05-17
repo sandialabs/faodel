@@ -5,6 +5,24 @@ This file provides information about different releases of the faodel tools.
 Releases are named alphabetically and have a 4-digit ID associated with them
 that designates the year and month of the release.
 
+Goodwitch (1.2306.1)
+--------------------
+- Summary: Apache Arrow support, Glinda tested for NVIDIA BlueField-2 SmartNICs
+- Release Improvements
+  - Fado: New ArrowDataObject for storing Apache Arrow tables in Faodel objects
+    - Store tabular data in an object, process using Arrow's rich functions
+    - Handles In-memory to IPC conversions, zero-copy unpacks
+    - Multiple serialized Arrow tables can be stored in a FADO 
+  - TFTPool: New Tag Folding Table pool for steering objects to nodes
+    - Use a key's SetK1Tag to append an integer to the row part of a key
+    - TFTPool looks at a modulo of the tag to pick the server in the pool
+    - Allows user to be specific about which node to use
+  - Confirmed Faodel can run on the NVIDIA BlueField and BlueField-2 SmartNICs
+  - Fixed some minor CMake warnings
+  - Changed FAODEL to Faodel for better consistency and less shouting
+- Significant User-Visible Changes:
+  - Arrow API support
+
 Fluid (1.2108.1)
 ----------------
 - Summary: Trace record/playback, Stress tools, UDFs, and testing
@@ -29,8 +47,6 @@ Fluid (1.2108.1)
   - OpBoxStandard is now OpBoxDeprecatedStandard
 - Experimental Features
   - kelpie 'Compute' allows server to perform computations on objects via UDFs
-- Known Issues: todo
-
 
 Excelsior! (1.1906.1)
 ---------------------
@@ -48,24 +64,24 @@ Excelsior! (1.1906.1)
   - NNTI has better detection and selection of IB devices
   - Fixes
     - SBL could segfault due to Boost if exit without calling finish
-    - FAODEL couldn't be included in a larger project's cmake
+    - Faodel couldn't be included in a larger project's cmake
     - LDO had a race condition in destructor
 - Significant User-Visible Changes:
   - faodel-info and whookie tools replaced by faodel cli tool
   - Dirman's DirInfo "children" renamed to "members"
   - Faodel now has a package in the Spack develop branch
 - Known Issues
-  - FAODEL's libfabric transport is still experimental. It does not fully
+  - Faodel's libfabric transport is still experimental. It does not fully
     implement Atomics or Long Sends. While Kelpie does not require
     these operations, other OpBox-based applications may break
     without this support.
-  - On Cray machines with the Aries interconnect, FAODEL can be overwhelmed
+  - On Cray machines with the Aries interconnect, Faodel can be overwhelmed
     by a sustained stream of sends larger than the MTU. To avoid this problem,
     the sender should limit itself to bursts of 32 long sends at a time.
 
 DIO (1.1811.1)
 --------------
-- Summary: Build improvements to make FAODEL compatible with EMPIRE
+- Summary: Build improvements to make Faodel compatible with EMPIRE
 - Release Improvements:
   - Kelpie has rank-folding table (RFT) pool
   - Kelpie has new experimental IOMs (IomHDF5, IomLevelDB)
@@ -85,13 +101,13 @@ DIO (1.1811.1)
   - Kelpie behavior setting may not be fully implemented on remote operations
   - Some tests hang when using OpenMPI with the openib BTL. Given that
     this BTL is deprecated, we recommend using OpenMPI with a different
-    network component.  FAODEL has been tested with the TCP BTL and the
+    network component.  Faodel has been tested with the TCP BTL and the
     psm, psm2, and libfabric MTLs.
-  - FAODEL's libfabric transport is still experimental. It does not fully
+  - Faodel's libfabric transport is still experimental. It does not fully
     implement Atomics or Long Sends. While Kelpie does not require
     these operations, other OpBox-based applications may break
     without this support.
-  - On Cray machines with the Aries interconnect, FAODEL can be overwhelmed
+  - On Cray machines with the Aries interconnect, Faodel can be overwhelmed
     by a sustained stream of sends larger than the MTU. To avoid this problem,
     the sender should limit itself to bursts of 32 long sends at a time.
   - This version does not have support for ARM8 or POWER cpus.
@@ -112,19 +128,19 @@ Cachet (1.1803.1)
 
 Belfry (0.1801.1)
 -----------------
-- Summary: Rename to FAODEL, expanded Opbox and Kelpie features
+- Summary: Rename to Faodel, expanded OpBox and Kelpie features
 - Release Improvements:
-  - Renamed repo and internals from data-warehouse to FAODEL
+  - Renamed repo and internals from data-warehouse to Faodel
   - Simplified release process
   - Updated LDO API
-  - Added Opbox threaded core
-  - Unified network config tags at the Opbox level
+  - Added OpBox threaded core
+  - Unified network config tags at the OpBox level
   - New Kelpie core ("standard") has networking capabilities
   - Kelpie has a preliminary IOM interface for posix io
 - Significant User Visible Changes:
   - The name external config file environment variable changed from 
     CONFIG to FAODEL_CONFIG
-  - The Opbox network configurations tags are now the same for either 
+  - The OpBox network configurations tags are now the same for either 
     NNTI or libfabric
 - Known Issues
   - Mutrino builds are still challenging
@@ -148,7 +164,7 @@ Amigo (0.1707.1)
 ----------------
 - Summary: First packaged release, for friendly users
 - Release Improvements:
-  - Stable versions of SBL, Gutties, Whookie, NNTI, Lunasa, and Opbox
+  - Stable versions of SBL, Gutties, Whookie, NNTI, Lunasa, and OpBox
   - Experimental version of Kelpie (nonet)
   - Switched to Graith CMake modules
   - Initial doxygen and readme documentation

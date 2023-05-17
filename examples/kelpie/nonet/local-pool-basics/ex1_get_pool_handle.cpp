@@ -1,4 +1,4 @@
-// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// Copyright 2023 National Technology & Engineering Solutions of Sandia, LLC
 // (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
 // Government retains certain rights in this software.
 
@@ -37,7 +37,7 @@ void ex1_get_pool_handle(){
   //grouping related k/v pairs together. A bucket is just an extra tag that
   //gets hashed and prepended to the key during kv ops. The above lkv's all
   //used the same default bucket, which is often specified in a
-  //FAODEL Configuration.
+  //Faodel Configuration.
 
   //We can create a custom pool for dealing with a specific bucket. These
   //should resolve to a different lkv pool handle than the above.

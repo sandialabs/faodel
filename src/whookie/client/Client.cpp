@@ -1,4 +1,4 @@
-// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// Copyright 2023 National Technology & Engineering Solutions of Sandia, LLC
 // (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
 // Government retains certain rights in this software.
 
@@ -18,8 +18,8 @@ namespace whookie {
 
 /**
  * @brief Connect to a destination and request data
- * @param[in] nid The FAODEL node id to connect to
- * @param[in] path The parth in the url
+ * @param[in] nid The Faodel node id to connect to
+ * @param[in] path The path in the url
  * @param[out] data The returned data string
  * @retval 0 Success
  * @retval -1 Server did not speak http protocol

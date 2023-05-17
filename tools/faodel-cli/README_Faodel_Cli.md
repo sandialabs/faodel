@@ -1,8 +1,8 @@
-FAODEL-CLI: A Multipurpose Tool for Interacting with FAODEL Services
+Faodel-CLI: A Multipurpose Tool for Interacting with Faodel Services
 =====================================================================
 
-The FAODEL cli tool is an all-in-one tool for doing a wide variety of 
-FAODEL tasks. You can:
+The Faodel cli tool is an all-in-one tool for doing a wide variety of 
+Faodel tasks. You can:
 
 - Get build and configuration info for the current installation
 - Launch DirMan and Kelpie servers
@@ -26,9 +26,9 @@ faodel <options> COMMAND <args>
   --dirman-node id                  : Override config and use id for dirman
 
  commands:
-  build-info       | binfo          : Display FAODEL build information
+  build-info       | binfo          : Display Faodel build information
   config-info      | cinfo          : Display the Configuration tools will use
-  config-options   | copt           : List configuration options FAODEL inspects
+  config-options   | copt           : List configuration options Faodel inspects
   whookie-get      | wget    <url>  : Retrieve a faodel service webpage
   dirman-start     | dstart         : Start a dirman server
   dirman-stop      | dstop          : Stop a dirman server
@@ -323,7 +323,7 @@ faodel <options> COMMAND <args>
   play-script      | play    script : Execute commands specified by a script
 
 
-Play a series of commands that setup the FAODEL environment. A script may
+Play a series of commands that setup the Faodel environment. A script may
 contain both configuration info and (most) actions that are part of the
 faodel tool. The following is a brief example that shows the basic format.
 More examples can be found in faodel/examples/faodel-cli/playback-scripts.

@@ -1,16 +1,16 @@
-FAODEL-Common: Support Code for FAODEL
+Faodel-Common: Support Code for Faodel
 ======================================
 
-The common directory in FAODEL contains componentst that are used in
-different libraries in the FAODEL stack. The main components of
+The common directory in Faodel contains componentst that are used in
+different libraries in the Faodel stack. The main components of
 interest are:
 
 - **Data Types**: Common provides a few common data types that are
-    used throughout FAODEL, including:
+    used throughout Faodel, including:
     - nodeid_t: Concise id for connecting to any node in the system
     - bucket_t: Hashed value of a string, used for data namespaces
     - ResourceURL: String for referencing different system resources
-    - DirectoryInfo: Provides a way to describe info about a FAODEL
+    - DirectoryInfo: Provides a way to describe info about a Faodel
       resource (eg, url and info, plus any members of this resource).
 
 - **Configuration**: Configuration is a class for defining how to
@@ -19,12 +19,12 @@ interest are:
     help assign values to components.
 
 - **Bootstrap**: Bootstrap is a tool starting/stopping different
-    services that are part of the FAODEL. Bootstrap lets users
+    services that are part of the Faodel. Bootstrap lets users
     define dependencies between components in order to ensure that they
     are started/stopped in the correct order.
 
 - **Debug**: Debug contains asserts and debugging function to help
-    internal FAODEL developers track down problems.
+    internal Faodel developers track down problems.
 
 - **InfoInterface**: An interface for presenting text information about a
     specific component (and it's children) back to the user.

@@ -1,6 +1,6 @@
 Services Examples
 =================
-FAODEL provides a few built-in services to make it easier to write jobs. 
+Faodel provides a few built-in services to make it easier to write jobs. 
 Backburner is a thread that allows users to queue up work that should
 be run at a later point in time (eg to avoid deadlock). Mpi_sync_start
 is a service that uses mpi to pass configuration info between the nodes

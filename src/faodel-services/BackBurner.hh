@@ -1,4 +1,4 @@
-// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// Copyright 2023 National Technology & Engineering Solutions of Sandia, LLC
 // (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
 // Government retains certain rights in this software.
 
@@ -47,7 +47,7 @@ namespace internal {
 /**
  * @brief A queue for managing work that takes place in the background
  *
- * Several components in FAODEL need a way to queue up tasks that are
+ * Several components in Faodel need a way to queue up tasks that are
  * performed in the background (eg, for deadlock avoidance or performance
  * reasons). Backburner dedicates one thread (or more) to running tasks.
  * While the queue is protected by mutexes, the worked thread will pull

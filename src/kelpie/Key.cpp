@@ -1,4 +1,4 @@
-// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// Copyright 2023 National Technology & Engineering Solutions of Sandia, LLC
 // (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
 // Government retains certain rights in this software.
 
@@ -99,6 +99,49 @@ bool Key::Matches(const std::string &row_wildcard, const std::string &col_wildca
   return matchesPrefixString(is_row_wildcard, row_prefix, is_col_wildcard, col_prefix);
 }
 
+/**
+ * @brief Append (or replace) a numerical tag at the end of the key
+ * @param new_tag An integer used by the tag folding table pool
+ * @note This appends '{0x1234}' to the end of the row key. This is only used by the tag-folding-table pool for controlling where cpmtemy ;amds
+ */
+void Key::SetK1Tag(uint32_t new_tag) {
+
+   //Remove the previous tag
+   auto f = k1.find_last_of('{');
+   if((f!=string::npos) && (!k1.empty()) && (k1.back()=='}')) {
+      k1 = k1.substr(0, f);
+   }
+
+   stringstream ss;
+   ss << k1 <<"{0x"<<std::hex<<new_tag<<"}";
+
+   k1 = ss.str();
+}
+
+/**
+ * @brief Extract an integer tag that has been placed at the end of the row part of the key
+ * @param tag The integer value found in the tag, or zero if it doesn't exist
+ * @retval KELPIE_OK found a tag
+ * @retval KELPIE_ENOENT no tag was found (tag set to zero)
+ * @note This extracts the int found at and end of a string, in the '{0x1234}' format
+ * @note Tag MUST be hex string for a 32b number.
+ */
+faodel::rc_t Key::GetK1Tag(uint32_t *tag) const {
+
+   auto f = k1.find_last_of('{');
+   if( k1.empty() || (f==string::npos) || (k1.back() != '}') ) {
+      if(tag) *tag=0;
+      return KELPIE_ENOENT;
+   }
+
+   uint32_t val;
+   auto s_num = k1.substr(f+1, k1.size()-f-2);
+   stringstream ss(s_num);
+   ss >>std::hex>>val;
+
+   if(tag) *tag=val;
+   return KELPIE_OK;
+}
 
 /**
  * @brief A Packing function for converting a key into a binary string
@@ -203,7 +246,6 @@ Key Key::Random(size_t k1_length, const string &k2_name) {
   string s1 = faodel::RandomString(k1_length);
   return Key(s1, k2_name);
 }
-
 
 
 

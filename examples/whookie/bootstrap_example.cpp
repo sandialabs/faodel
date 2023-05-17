@@ -1,4 +1,4 @@
-// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// Copyright 2023 National Technology & Engineering Solutions of Sandia, LLC
 // (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
 // Government retains certain rights in this software.
 
@@ -38,7 +38,7 @@ whookie.debug true
 int main(int argc, char* argv[]) {
 
 
-  //In this example, whookie is all we need from the FAODEL
+  //In this example, whookie is all we need from the Faodel
   //stack. We need to tell bootstrap that it should launch whookie
   //and all of its dependencies
   faodel::bootstrap::Init(faodel::Configuration(default_config),

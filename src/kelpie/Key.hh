@@ -1,4 +1,4 @@
-// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// Copyright 2023 National Technology & Engineering Solutions of Sandia, LLC
 // (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
 // Government retains certain rights in this software.
 
@@ -7,6 +7,8 @@
 
 #include <string>
 #include <sstream>
+
+#include "kelpie/common/Types.hh"
 
 
 namespace kelpie {
@@ -36,7 +38,7 @@ namespace kelpie {
  */
 class Key {
 public:
-  Key() {}
+  Key() = default;
 
   Key(const std::string &k1_) : k1(k1_) {}
   Key(const std::string &k1_, const std::string &k2_) : k1(k1_), k2(k2_) {}
@@ -75,6 +77,11 @@ public:
   //Wildcard check
   bool Matches(const std::string &row_wildcard, const std::string &col_wildcard) const;
   bool Matches(const Key &pattern_key) const { return Matches(pattern_key.K1(), pattern_key.K2()); }
+
+
+  //K1Tag manipulation - these change or read a special integer id tage that's at the end of the K1 string
+  void SetK1Tag(uint32_t new_tag);
+  faodel::rc_t GetK1Tag(uint32_t *tag) const;
 
   //Simple pack/unpack to binary string
   std::string pup() const;

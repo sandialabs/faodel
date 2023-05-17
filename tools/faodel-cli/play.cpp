@@ -1,4 +1,4 @@
-// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// Copyright 2023 National Technology & Engineering Solutions of Sandia, LLC
 // (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
 // Government retains certain rights in this software.
 
@@ -38,7 +38,7 @@ bool dumpHelpPlay(std::string subcommand) {
   string help_play[5] = {
           "play-script", "play", "script", "Execute commands specified by a script",
           R"(
-Play a series of commands that setup the FAODEL environment. A script may
+Play a series of commands that setup the Faodel environment. A script may
 contain both configuration info and (most) actions that are part of the
 faodel tool. The following is a brief example that shows the basic format.
 More examples can be found in faodel/examples/faodel-cli/playback-scripts.

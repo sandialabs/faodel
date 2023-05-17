@@ -1,4 +1,4 @@
-// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// Copyright 2023 National Technology & Engineering Solutions of Sandia, LLC
 // (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
 // Government retains certain rights in this software.
 
@@ -81,7 +81,7 @@ public:
 
   void Unlock() override { pthread_mutex_unlock(&lock_mutex); }
 #ifndef __APPLE__
-  void yield() override { pthread_yield(); }
+  void yield() override { /*pthread_yield();*/ sched_yield(); }
 #else
   void yield()  { sched_yield(); }
 #endif
@@ -108,7 +108,7 @@ public:
 
   void Unlock() override { pthread_rwlock_unlock(&rwlock); }
 #ifndef __APPLE__
-  void yield() override { pthread_yield(); }
+  void yield() override { /*pthread_yield();*/ sched_yield(); }
 #else
   void yield()  { sched_yield(); }
 #endif

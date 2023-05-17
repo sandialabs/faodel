@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.8.0)
 project( Faodel
   LANGUAGES CXX C
-  VERSION 1.2108.1
+  VERSION 1.2306.1
   )
 
 
@@ -35,6 +35,11 @@ endif()
 if( POLICY CMP0075 )
     cmake_policy( SET CMP0075 OLD ) # check_include_file() uses CMAKE_REQUIRED_LIBRARIES var
 endif()
+if( POLICY CMP0115 )
+    cmake_policy( SET CMP0115 NEW ) # require all executables to have extension.
+endif()
+
+
 
 # CMake built-ins that we'll use
 include( FindPkgConfig )
@@ -52,7 +57,10 @@ include( CheckFunctionExists )
 #
 # The other arg specifies whether it should add it to the project's test list.
 #
-function( add_serial_test testname testpath autorun_test )
+# Note: this is the internal version. Users should call a wrapper (below) that
+#       specifies whether this is a "c" or "cpp" extension
+#
+function( add_serial_test_internal testname extension testpath autorun_test )
   
     if( NOT SERIAL_TEST_LIBS )
       message( WARNING "add_serial_test: adding a test with SERIAL_TEST_LIBS not set" )
@@ -60,13 +68,13 @@ function( add_serial_test testname testpath autorun_test )
     
     if( Faodel_ENABLE_MPI_SUPPORT )
         set( MPI_TEST_LIBS ${SERIAL_TEST_LIBS} )
-        add_mpi_test( ${testname} ${testpath} 1 ${autorun_test} )
+        add_mpi_test_internal( ${testname} ${extension} ${testpath} 1 ${autorun_test} )
         return()
     endif( Faodel_ENABLE_MPI_SUPPORT )
     
     # Use testname to build the target and source names      
     set(target ${testname} )
-    set(source ${testpath}/${testname})
+    set(source ${testpath}/${testname}.${extension})
 
     add_executable( ${target} ${source} )
     target_link_libraries( ${target} ${SERIAL_TEST_LIBS} )
@@ -82,6 +90,20 @@ function( add_serial_test testname testpath autorun_test )
     
 endfunction()
 
+# Wrapper: default is to call cpp code
+function( add_serial_test testname testpath autorun_test )
+    add_serial_test_internal( ${testname} "cpp" ${testpath} ${autorun_test} )
+endfunction()
+
+# Wrapper: c tests need to call this version
+function( add_serial_c_test testname testpath autorun_test )
+    add_serial_test_internal( ${testname} "c" ${testpath} ${autorun_test} )
+endfunction()
+
+
+
+
+
 # This function helps us do all the build/install options for the tests. Rather
 # than have the user pipe in the source and target names, it asks for
 # a modified version of the path/name of the test. eg
@@ -90,11 +112,14 @@ endfunction()
 #
 # The other arg specifies whether it should add it to the project's test list.
 #
-function( add_mpi_test testname testpath mpi_num_procs autorun_test )
+# Note: this is the internal version. Users should call a wrapper that
+#       specifies whether this is a "c" or "cpp" extension
+#
+function( add_mpi_test_internal testname extension testpath mpi_num_procs autorun_test )
 
     # Use testname to build the target and source names      
     set(target ${testname} )
-    set(source ${testpath}/${testname})
+    set(source ${testpath}/${testname}.${extension})
 
     add_executable( ${target} ${source} )
     target_link_libraries( ${target} ${MPI_TEST_LIBS} )
@@ -111,6 +136,19 @@ function( add_mpi_test testname testpath mpi_num_procs autorun_test )
     
 endfunction()
 
+#
+# Wrapper: default is to call cpp code
+#
+function( add_mpi_test testname testpath mpi_num_procs autorun_test )
+    add_mpi_test_internal( ${testname} "cpp" ${testpath} ${mpi_num_procs} ${autorun_test} )
+endfunction()
+
+# Wrapper: c tests need to call this version
+function( add_mpi_c_test testname testpath mpi_num_procs autorun_test )
+    add_mpi_test_internal( ${testname} "c" ${testpath} ${mpi_num_procs} ${autorun_test} )
+endfunction()
+
+
 
 # Options
 option( BUILD_SHARED_LIBS           "Build Faodel as shared libs"  OFF )
@@ -118,6 +156,7 @@ option( BUILD_TESTS                 "Faodel testing gtest and ctest" OFF )
 option( BUILD_EXAMPLES              "Build examples" OFF)
 option( BUILD_DOCS                  "Generate documentation using Doxygen" ON )
 
+option( Faodel_ENABLE_ARROW         "Enable support for Apache Arrow" OFF )
 option( Faodel_ENABLE_MPI_SUPPORT   "Enable use of MPI communication" ON )
 option( Faodel_ENABLE_TCMALLOC      "Use tcmalloc from gperftools in Lunasa, potentially other places" ON )
 option( Faodel_ENABLE_IOM_HDF5      "Build the HDF5-based IOM in Kelpie" OFF )
@@ -394,10 +433,10 @@ if( Faodel_ENABLE_TCMALLOC )
 
   # Bail out if we're on an architecture that doesn't support tcmalloc
   if( CMAKE_SYSTEM_PROCESSOR STREQUAL "ppc64le" ) 
-     message( FATAL_ERROR "The TCMALLOC library included with FAODEL does not currently have "
+     message( FATAL_ERROR "The TCMALLOC library included with Faodel does not currently have "
                           "  support for the ${CMAKE_SYSTEM_PROCESSOR} CPU (it has optimizations"
                           "  for x86_64). You must set Faodel_ENABLE_TCMALLOC to OFF in order to"
-                          "  build FAODEL on this platform.")
+                          "  build Faodel on this platform.")
   endif()
 
   add_subdirectory( tpl/gperftools )
@@ -418,6 +457,10 @@ add_subdirectory( src/lunasa )
 add_subdirectory( src/opbox )
 add_subdirectory( src/dirman )
 add_subdirectory( src/kelpie )
+if( Faodel_ENABLE_ARROW)
+    add_subdirectory(src/faodel-arrow)
+endif()
+
 
 # Set some useful properties on our targets, now that they're defined
 foreach( COMP sbl common whookie services lunasa opbox kelpie )
@@ -451,6 +494,19 @@ if (Faodel_NETWORK_LIBRARY STREQUAL "libfabric")
   set( USE_LIBFABRIC TRUE )
 endif()
 
+if( Faodel_ENABLE_ARROW )
+    target_include_directories( arrow
+            INTERFACE
+            $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
+            $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/src>
+            $<INSTALL_INTERFACE:include/faodel>
+            PRIVATE
+            $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
+            $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/src>
+            )
+    set_target_properties( arrow PROPERTIES LINKER_LANGUAGE CXX )
+endif()
+
 # Build tools
 add_subdirectory( tools/faodel-cli )
 add_subdirectory( tools/faodel-stress )
@@ -470,6 +526,9 @@ if( BUILD_TESTS )
     add_subdirectory( tests/nnti )
   endif()
   add_subdirectory( tests/lunasa )
+  if(Faodel_ENABLE_ARROW)
+      add_subdirectory(tests/faodel-arrow )
+  endif()
   add_subdirectory( tests/opbox )
   add_subdirectory( tests/dirman )
   add_subdirectory( tests/kelpie )

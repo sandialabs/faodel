@@ -7,7 +7,7 @@ with Whookie that respond to web requests. Whenever the application
 receives an http request for a particular hook, it passes the hook a
 list of URL arguments that were supplied in the request and expects
 the hook to generate an html response that is shipped back to the
-requester. Whookie is used in FAODEL for debugging purposes
+requester. Whookie is used in Faodel for debugging purposes
 (eg getting status information about the rank) as well as simple
 communication (eg, passing RDMA keys between a pair of nodes during
 connect in OpBox).
@@ -45,7 +45,7 @@ unused value. As such, it should be expected that a service will not
 always have the port number that was originally supplied in the
 Configuration.
 
-The FAODEL nodeid_t is a simple data type that contains both the IP
+The Faodel nodeid_t is a simple data type that contains both the IP
 address and port value for the Whookie server. Once Whookie is
 initialized, a user may query it to determine what the nodeid_t is for
 this instance. Often, nodes need to exchange nodeid_t values through

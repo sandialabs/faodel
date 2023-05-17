@@ -1,4 +1,4 @@
-// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// Copyright 2023 National Technology & Engineering Solutions of Sandia, LLC
 // (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
 // Government retains certain rights in this software.
 
@@ -34,15 +34,15 @@ bool dumpHelpConfig(string subcommand) {
   string help_cinfo[5] = {
           "config-info", "cinfo", "", "Display the Configuration tools will use",
           R"(
-When FAODEL tools start, they will load configuration data from a file
+When Faodel tools start, they will load configuration data from a file
 specified by the FAODEL_CONFIG environment variable. You can set a number of
 runtime parameters with this configuration (eg, debug levels, pre-defined
 resources, and services that should run on specific nodes). This tool will
-dump out the configuration that FAODEL will start with.
+dump out the configuration that Faodel will start with.
 )"
   };
   string help_copt[5] = {
-          "config-options", "copt", "", "List configuration options FAODEL inspects",
+          "config-options", "copt", "", "List configuration options Faodel inspects",
           R"(
 This option dumps out all the configuration settings that were checked when
 Kelpie is started. If this command fails, check to make sure your $FAODEL_CONFIG
@@ -81,7 +81,7 @@ void show_Configuration() {
   ss << endl;
 
   if(!config_file)
-    warn("Environment variable "+ename+" is not set. FAODEL\n"
+    warn("Environment variable "+ename+" is not set. Faodel\n"
                                        "          will not load any additional settings when it runs.");
 
   //Sometimes
@@ -116,7 +116,7 @@ void show_Whookie() {
     cout << " Whookie is running on " << myid.GetHttpLink() << endl;
     if(!myid.ValidIP()){
       warn("Whookie is not running with a valid IP. You may need to\n"
-           "    edit your FAODEL configuration and set 'whookie.interfaces'\n"
+           "    edit your Faodel configuration and set 'whookie.interfaces'\n"
            "    to a valid NIC for this platform. Use ifconfig or ip to\n"
            "    see a list of available NICs (eg eth0 or ib0)\n");
     }
@@ -171,7 +171,7 @@ void show_Kelpie() {
 
 void show_ConfigOptions() {
   cout << StringCenterTitle("Configuration Options") << endl <<
-R"(FAODEL services inspected Configuration for the following values when starting
+R"(Faodel services inspected Configuration for the following values when starting
 their services. Not all of these may be actively used. Some configuration
 settings may trigger additional options not listed here.)" <<endl <<endl;
 

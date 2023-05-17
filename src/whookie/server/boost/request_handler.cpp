@@ -195,7 +195,7 @@ void request_handler::dumpAbout(const map<string,string> &args, stringstream &re
   rs.mkText(R"(
 Whookie is a simple service that allows multiple software components in an
 application to share a network interface for debugging and basic RESTful
-API kinds of operations. It is included in the FAODEL collection of
+API kinds of operations. It is included in the Faodel collection of
 libraries.)");
   rs.Finish();
 

@@ -1,4 +1,4 @@
-// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// Copyright 2023 National Technology & Engineering Solutions of Sandia, LLC
 // (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
 // Government retains certain rights in this software.
 
@@ -86,7 +86,7 @@ KelpieBlastParams::KelpieBlastParams(const std::vector<std::string> &args)
     faodel::mpisyncstart::bootstrap();
   #endif
 
-  //Launch FAODEL
+  //Launch Faodel
   faodel::bootstrap::Start(config, kelpie::bootstrap);
 
 }

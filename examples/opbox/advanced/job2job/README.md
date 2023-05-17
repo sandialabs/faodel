@@ -20,12 +20,12 @@ At the very least NNTI and Opbox should be built with:
 `-DCMAKE_BUILD_TYPE=DEBUG`
 `-DNNTI_BUILD_TYPE=DEBUG`
 
-Building the entire FAODEL stack with these options can't hurt.
+Building the entire Faodel stack with these options can't hurt.
 
 
 ## Prerequisites
 
-This test requires the entire FAODEL stack: sbl, common, whookie, nnti,
+This test requires the entire Faodel stack: sbl, common, whookie, nnti,
 lunasa, and opbox.
 
 

@@ -1,4 +1,4 @@
-// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// Copyright 2023 National Technology & Engineering Solutions of Sandia, LLC
 // (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
 // Government retains certain rights in this software.
 
@@ -99,9 +99,10 @@ void KillDirmanHook() {
 
 int startDirman(const vector<string> &args) {
 
-  string root_write_file; //todo: parse args and stick in
+
 
   faodel::Configuration config;
+  config.AppendFromReferences(); //Load user's default settings since we might overwrite them
 
   config.Append("whookie.app_name",          "DirMan Centralized Server");
   config.Append("dirman.host_root",          "true");
@@ -110,11 +111,24 @@ int startDirman(const vector<string> &args) {
   //Set logging
   modifyConfigLogging(&config, {"dirman","whookie"}, {"dirman.cache.mine", "dirman.cache.others"});
 
-  //Dump our id to a file
-  if((!config.Contains("dirman.write_root.file")) || (!root_write_file.empty())) {
-    if(root_write_file.empty()){
-      root_write_file = "./.faodel-dirman";
+  //Dump our id to a file 
+  // option 1: user specified dirman.write_root.file in config
+  // option 2: user set FAODEL_DIRMAN_ROOT_NODE_FILE
+  // option 3: user set dirman.root_node.file in config
+  // option 4: use .faodel-dirman
+  string root_write_file; 
+  if(!config.Contains("dirman.write_root.file")) {
+    config.GetFilename(&root_write_file, "", "FAODEL_DIRMAN_ROOT_NODE_FILE", ""); //Check environment
+    if(root_write_file.empty()) {
+      string s_previous_dirman_root_file;
+      config.GetString(&s_previous_dirman_root_file, "dirman.root_node.file");
+      if(!s_previous_dirman_root_file.empty()) {
+        root_write_file = s_previous_dirman_root_file;
+      } else {
+        root_write_file = "./.faodel-dirman";
+      }
     }
+
     config.Append("dirman.write_root.file",  root_write_file);
   }
 

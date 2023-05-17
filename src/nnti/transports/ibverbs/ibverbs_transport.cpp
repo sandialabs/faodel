@@ -1,4 +1,4 @@
-// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// Copyright 2023 National Technology & Engineering Solutions of Sandia, LLC
 // (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
 // Government retains certain rights in this software.
 
@@ -166,7 +166,7 @@ ibverbs_transport::start(void)
     if (dev_port_attr.state != IBV_PORT_ACTIVE) {
         log_error("ibverbs_transport",
                   "Could not find an active port. "
-                  "FAODEL's net.transport.interfaces was set to %s. Cannot continue.",
+                  "Faodel's net.transport.interfaces was set to %s. Cannot continue.",
                   interface_dev_list_.c_str());
         return NNTI_EIO;
     }
@@ -1879,7 +1879,7 @@ ibverbs_transport::select_ib_device(struct ibv_device **dev_list, int dev_count,
         if (dev == nullptr) {
             log_error("ibverbs_transport",
                       "The IB transport couldn't find an active ibverbs device on this machine.  "
-                      "FAODEL's net.transport.interfaces is not set.  "
+                      "Faodel's net.transport.interfaces is not set.  "
                       "Trying setting it to the interface (eg. ib0) of an active device.");
         }
     } else {
@@ -1949,7 +1949,7 @@ ibverbs_transport::select_ib_device(struct ibv_device **dev_list, int dev_count,
         if (dev == nullptr) {
             log_error("ibverbs_transport",
                       "The IB transport couldn't find an active ibverbs device on this machine.  "
-                      "FAODEL's net.transport.interfaces was set to %s.  "
+                      "Faodel's net.transport.interfaces was set to %s.  "
                       "Please confirm that one of these devices is active and try again.",
                       interface_dev_list_.c_str());
         }

@@ -1,4 +1,4 @@
-// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// Copyright 2023 National Technology & Engineering Solutions of Sandia, LLC
 // (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
 // Government retains certain rights in this software.
 
@@ -131,7 +131,7 @@ void Init(const Configuration &config, fn_register last_component) {
 
   string last_component_name = last_component(); //Calls registration
   if(!BSCORE.HasComponent(last_component_name)) {
-    throw std::runtime_error("Bootstrap did not know about "+last_component_name+". This may happen when multiple entities use FAODEL\n"
+    throw std::runtime_error("Bootstrap did not know about "+last_component_name+". This may happen when multiple entities use Faodel\n"
                              "  and one starts without knowing that other services are needed. Make sure the entity that calls\n"
                              "  bootstrap::init has all components in it.\n");
   }
@@ -160,7 +160,7 @@ void Start(const Configuration &config, fn_register last_component) {
 
   string last_component_name = last_component(); //Calls registration
   if(!BSCORE.HasComponent(last_component_name)) {
-    throw std::runtime_error("Bootstrap did not know about "+last_component_name+". This may happen when multiple entities use FAODEL\n"
+    throw std::runtime_error("Bootstrap did not know about "+last_component_name+". This may happen when multiple entities use Faodel\n"
                              "  and one starts without knowing that other services are needed. Make sure the entity that calls\n"
                              "  bootstrap::start has all components in it.\n");
   }
