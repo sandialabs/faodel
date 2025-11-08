@@ -1,4 +1,4 @@
-// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// Copyright 2023 National Technology & Engineering Solutions of Sandia, LLC
 // (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
 // Government retains certain rights in this software.
 
@@ -16,9 +16,9 @@ namespace faodel {
 namespace bootstrap {
 
 /**
- * @brief Interface for auto starting/stopping FAODEL components with dependencies
+ * @brief Interface for auto starting/stopping Faodel components with dependencies
  *
- * Bootstrap is used to control the order in which different FAODEL components
+ * Bootstrap is used to control the order in which different Faodel components
  * are started/stopped. Add this interface to a component that you want to
  * include in the boot process.
  */

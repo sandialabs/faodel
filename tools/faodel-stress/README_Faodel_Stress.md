@@ -1,7 +1,7 @@
 Faodel-Stress: A Tool for Examining the Performance of Host Systems
 =====================================================================
 
-When porting FAODEL to a new platform, it can be useful to run some basic 
+When porting Faodel to a new platform, it can be useful to run some basic 
 benchmarks to understand the strengths and weaknesses of the new platform.
 The [stress-ng][https://wiki.ubuntu.com/Kernel/Reference/stress-ng] tool
 is an excellent collection of microbenchmarks that can help you compare

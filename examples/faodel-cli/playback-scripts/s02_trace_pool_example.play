@@ -2,7 +2,7 @@
 #
 #   faodel -v play s02_trace_pool_example.txt
 #
-# FAODEL's trace pool provides a way to record the activities that happen
+# Faodel's trace pool provides a way to record the activities that happen
 # during the lifetime of a pool. The trace for each rank's pool gets
 # written out to a separate file so you can then combine results and
 # replay them.

@@ -1,4 +1,4 @@
-// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// Copyright 2023 National Technology & Engineering Solutions of Sandia, LLC
 // (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
 // Government retains certain rights in this software.
 
@@ -19,10 +19,10 @@ namespace faodel { class Configuration; }
 namespace faodel {
 
 /**
- * @brief A standard logging interface for FAODEL components
+ * @brief A standard logging interface for Faodel components
  *
  * This interface provides us with a way to simplify how logging is performed
- * by different FAODEL components. Inherit this from your class and specify
+ * by different Faodel components. Inherit this from your class and specify
  * the name of this component. The owner of this class must then pass in
  * the runtime Configuration when bootstrap inits components.
  */

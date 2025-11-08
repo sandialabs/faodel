@@ -1,9 +1,11 @@
-// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// Copyright 2023 National Technology & Engineering Solutions of Sandia, LLC
 // (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
 // Government retains certain rights in this software.
 
 #include <string>
 #include <vector>
+
+#include "opbox/OpBox.hh"
 
 #include "kelpie/Kelpie.hh"
 #include "kelpie/core/KelpieCoreBase.hh"
@@ -115,5 +117,14 @@ std::vector<std::string> GetIomNames() {
   }
   return kelpie::internal::Singleton::impl.core->iom_registry.GetIomNames();
 }
+
+faodel::nodeid_t GetMyID() {
+  return opbox::GetMyID();
+}
+
+std::string GetMyURL(const std::string &extra_path) {
+  return GetMyID().GetHttpLink(extra_path);
+}
+
 
 }  // namespace kelpie

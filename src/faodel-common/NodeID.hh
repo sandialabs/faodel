@@ -1,4 +1,4 @@
-// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// Copyright 2023 National Technology & Engineering Solutions of Sandia, LLC
 // (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
 // Government retains certain rights in this software.
 
@@ -19,7 +19,7 @@ namespace faodel {
 /**
  * @brief POD struct for holding a unique identifier for a particular faodel node (ie, a rank)
  *
- * FAODEL components often need a simple way to reference different
+ * Faodel components often need a simple way to reference different
  * ranks that are running in the system. The nodeid_t provides a simple and
  * concise (64b) value for referencing other ranks. Internally, it is just
  * the IP address and port number a particular rank uses for its Whookie

@@ -1,9 +1,9 @@
-// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// Copyright 2023 National Technology & Engineering Solutions of Sandia, LLC
 // (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
 // Government retains certain rights in this software.
 
-#ifndef FAODEL_COMMON_BOOTSTRAPINTERNAL_HH
-#define FAODEL_COMMON_BOOTSTRAPINTERNAL_HH
+#ifndef Faodel_COMMON_BOOTSTRAPINTERNAL_HH
+#define Faodel_COMMON_BOOTSTRAPINTERNAL_HH
 
 #include <string>
 #include <map>
@@ -32,7 +32,7 @@ typedef struct {
 
 
 /**
- * @brief A class for registering how FAODEL components are started/stopped
+ * @brief A class for registering how Faodel components are started/stopped
  */
 class Bootstrap
   : public LoggingInterface {

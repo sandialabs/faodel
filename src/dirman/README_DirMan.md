@@ -1,14 +1,14 @@
 DirMan: A Service for Storing Runtime Information
 =================================================
 
-FAODEL applications often need a simple way to manage runtime
+Faodel applications often need a simple way to manage runtime
 information about resources that are available in the system. For
 example, a Kelpie job may use a collection of nodes to implement a
 distributed pool for storing large data objects. Client applications
 must obtain information about how the pool is configured as well as
 the addresses of all the nodes in the pool in order to interact with
 it. While users can manually manage this data themselves (e.g.,
-through file I/O or collectives), FAODEL provides a built-in service
+through file I/O or collectives), Faodel provides a built-in service
 called DirMan that can be used to handle a number of runtime
 configuration tasks.
 
@@ -71,7 +71,7 @@ There are currently three types of dirman cores that can be used:
 
 - **Centralized** (default): The centralized dirman core assigns one node
   in the platform to store all dirman information. While this node may perform
-  other FAODEL functions, it must be started before the other nodes. The central
+  other Faodel functions, it must be started before the other nodes. The central
   dirman node has `dirman.host_root true` specified in its configuration file.
   All other nodes must have a pointer to this node specified in either
   their config (eg `dirman.root_node 0x1234`), a dirman root node file, or
@@ -86,7 +86,7 @@ There are currently three types of dirman cores that can be used:
 Root Node Resolution
 --------------------
 When operating in the `centralized` mode, users must provide information to
-their services about how to find the root dirman node. FAODEL checks for
+their services about how to find the root dirman node. Faodel checks for
 this information using the following process:
 
 1. `dirman.root_node` in Configuration: The easiest way to pass the root

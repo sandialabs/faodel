@@ -1,11 +1,11 @@
-// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// Copyright 2023 National Technology & Engineering Solutions of Sandia, LLC
 // (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
 // Government retains certain rights in this software.
 
 // Boostrap Example
 //
 // Bootstrap is a way to establish the order in which different services
-// are initialized, started up, and shutdown in FAODEL. The most direct way to
+// are initialized, started up, and shutdown in Faodel. The most direct way to
 // create a bootstrap service is to create a singleton class with a
 // BootstrapInterface. This interface has 5 functions:
 //

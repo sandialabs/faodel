@@ -1,4 +1,4 @@
-// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// Copyright 2023 National Technology & Engineering Solutions of Sandia, LLC
 // (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
 // Government retains certain rights in this software.
 
@@ -16,7 +16,7 @@ using namespace std;
 int main(){
   cout <<"Starting Bootstrap example's main()\n";
 
-  //FAODEL's Configuration allows us to describe configuration info for
+  //Faodel's Configuration allows us to describe configuration info for
   //different components in plain text. A Configuration object holds
   //values in a simple key/value notation that the components can
   //pull out.

@@ -1,6 +1,6 @@
-FAODEL Overview
+Faodel Overview
 ===============
-FAODEL (Flexible, Asynchronous, Object Data-Exchange Libraries) is a 
+Faodel (Flexible, Asynchronous, Object Data-Exchange Libraries) is a 
 collection of software libraries that are used to implement 
 different data management services on high-performance computing (HPC)
 platforms. This project was funded through NNSA's ASC program at Sandia 
@@ -8,7 +8,7 @@ National Laboratories.
 
 - **What Problem Does This Solve?** HPC workflows often need a way to
   move large datasets between two or more MPI applications. Rather than route
-  intermediate data through the filesystem, FAODEL lets you pass the data
+  intermediate data through the filesystem, Faodel lets you pass the data
   *directly* between the two MPI applications or *indirectly* through a 
   separate distributed memory application. The filesystem can also be used
   if applications in the workflow do not run concurrently.
@@ -16,19 +16,17 @@ National Laboratories.
 - **Who Is the Intended Audience?** This software is intended for HPC 
   developers that write parallel MPI applications in C++ and run 
   workflows on cluster computers with hundreds to thousands of compute
-  nodes. FAODEL requires an HPC network fabric such as InfiniBand, RoCE,
+  nodes. Faodel requires an HPC network fabric such as InfiniBand, RoCE,
   OmniPath, or Gemini.
 
-- **Pronounciation**: We say *"Fay-oh-Dell"*.
+- **Pronunciation**: We say *"Fay-oh-Dell"*.
  
-**Note**: FAODEL development takes place in a private repository due to Sandia's
-      software release process. The Github repository is only updated when
-      there are minor bug fixes or new release snapshots. This message will
-      be updated if/when FAODEL is no longer being developed.
-
+**Note**: Faodel development ended in 2023 after the goodwitch 1.2306.1
+      release. This repository is no longer being updated.
+      
 Components
 ----------
-FAODEL is composed of multiple libraries:
+Faodel is composed of multiple libraries:
 
 - [Kelpie](src/kelpie/README_Kelpie.md): Kelpie is a distributed memory
   service that enables applications to migrate different data objects
@@ -56,14 +54,14 @@ FAODEL is composed of multiple libraries:
   the ability to send messages and coordinate RDMA transfers via
   registered memory.
 - [Whookie](src/whookie/README_Whookie.md): Whookie is a network service for
-  FAODEL nodes that enables users and applications to query
+  Faodel nodes that enables users and applications to query
   and change the state of a node via an HTTP connection.
 - [Services](src/faodel-services/README_Services.md): Basic services that make it
   easier to write communication applications.  
 - [Common](src/faodel-common/README_Common.md): Common is a collection of data types
-  and software functions that are used throughout FAODEL.
+  and software functions that are used throughout Faodel.
 - [SBL](src/sbl/README_SBL.md): The Simplified Boost Logging (SBL) library
-  provides a way to map log information in FAODEL components to
+  provides a way to map log information in Faodel components to
   Boost's logging library.
   
 There are two main command-line tools users may find useful:
@@ -85,7 +83,7 @@ This release includes files to help guide users. The files are:
   install and run the software provided in this release. This document
   is a good starting point, as the build process can be challenging on
   different platforms.
-- [LICENSE](LICENSE.md): The FAODEL code uses the MIT license.
+- [LICENSE](LICENSE.md): The Faodel code uses the MIT license.
 - [NEWS](NEWS.md): The news file provides a history of major changes provided
   with each release of this software. Developers should review this document
   when switching to a new release.
@@ -96,11 +94,12 @@ This release includes files to help guide users. The files are:
 
 Contributors
 ============
-The following developers contributed code to the FAODEL:
+The following developers contributed code to Faodel:
 
 - Nathan Fabian
 - Todd Kordenbrock
 - Scott Levy
+- Jianshen Liu
 - Shyamali Mukherjee
 - Gary Templet
 - Craig Ulmer
@@ -110,6 +109,7 @@ The following helped contribute ideas and provided feedback for the project:
 
 - Margaret Lawson
 - Jay Lofstead
+- Carlos Maltzahn
 - Ron Oldfield
 - Jeremy Wilke
 
@@ -123,6 +123,6 @@ and copyright info:
 
 Copyright
 =========
-Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+Copyright 2023 National Technology & Engineering Solutions of Sandia, LLC
 (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S. 
 Government retains certain rights in this software. 

@@ -1,4 +1,4 @@
-// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// Copyright 2023 National Technology & Engineering Solutions of Sandia, LLC
 // (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
 // Government retains certain rights in this software.
 
@@ -42,6 +42,9 @@ std::vector<std::string> GetIomNames();
 
 Pool Connect(const faodel::ResourceURL &resource_url); // ..connecting to a pool
 Pool Connect(const std::string url_string); // ..connecting to a pool
+
+faodel::nodeid_t GetMyID(); //Get nodeid from opbox
+std::string GetMyURL(const std::string &extra_path=""); //Get url from opbox
 
 }  // namespace kelpie
 

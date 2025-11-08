@@ -1,5 +1,19 @@
 include( CheckCXXSymbolExists )
-  
+
+
+##########################
+## Apache Arrow Support
+##########################
+
+if( Faodel_ENABLE_ARROW )
+
+  find_package(Arrow REQUIRED)
+  find_package(ArrowDataset REQUIRED)
+  find_package(Parquet REQUIRED)
+
+endif()
+
+
 ##########################
 ## Get the Boost targets
 ##########################
@@ -35,7 +49,7 @@ if( NOT TARGET Boost::system )
   # However, since we can't continue until the user either uses a "new enough" CMake or "old enough"
   # Boost, we will just pull the plug here.
   message( FATAL_ERROR
-    "Imported targets for Boost were not created and FAODEL subprojects cannot be built. This can happen when the located Boost installation is newer than your version of CMake, and your CMake's FindBoost.cmake doesn't have dependency information for that Boost version. If this is the case, you should either switch to a newer CMake or an older Boost."
+    "Imported targets for Boost were not created and Faodel subprojects cannot be built. This can happen when the located Boost installation is newer than your version of CMake, and your CMake's FindBoost.cmake doesn't have dependency information for that Boost version. If this is the case, you should either switch to a newer CMake or an older Boost."
     )
 endif()
 

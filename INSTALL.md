@@ -1,11 +1,11 @@
-FAODEL Installation
+Faodel Installation
 ===================
-The FAODEL software is written in C++11 and uses CMake for building. Users must
-install a small number of third-party libraries (TPLs) to build FAODEL.
+The Faodel software is written in C++11 and uses CMake for building. Users must
+install a small number of third-party libraries (TPLs) to build Faodel.
 
 Quickstart
 ----------
-FAODEL can now be built with the [Spack package manager](https://spack.io). The easiest way to build FAODEL and all its dependencies is through:
+Faodel can now be built with the [Spack package manager](https://spack.io). The easiest way to build Faodel and all its dependencies is through:
 ```
 spack install faodel
 ```
@@ -34,13 +34,13 @@ faodel kput -p /my/dht -k bob -f myfile.txt
 faodel kget -p /my/dht -k bob
 faodel klist -p /my/dht -k "b*"
 ```
-When you're ready to connect to FAODEL from your own code, look 
+When you're ready to connect to Faodel from your own code, look 
 in `faodel/examples/kelpie`.
 
 
 Prerequisites
 -------------
-FAODEL has a small number of prerequisites for building. A target platform
+Faodel has a small number of prerequisites for building. A target platform
 should have:
 
 - C++11 Compiler: The current implementation is typically built with GCC and
@@ -59,10 +59,10 @@ Several TPLs are required in this project:
 Notes for building TPLs are included int the "Building Third-Party Libraries"
 section later in this document.
 
-Configuring and Building FAODEL
+Configuring and Building Faodel
 -------------------------------
-FAODEL uses a standard CMake workflow for configuring, building, and installing
-the FAODEL software. On a system where all compilers and TPLs have already been
+Faodel uses a standard CMake workflow for configuring, building, and installing
+the Faodel software. On a system where all compilers and TPLs have already been
 setup (i.e., CC, BOOST_ROOT, and GTEST_ROOT environment variables are correct),
 you can simply change into a build directory, run cmake to configure the build,
 and then run make install to build/install the software. For example:
@@ -77,7 +77,7 @@ and then run make install to build/install the software. For example:
 
 Often TPLs are not installed where they should be and it is necessary to specify
 where things are located during configuration. You can also specify a number of
-FAODEL-specific options to CMake during configuration. A complete list of CMake
+Faodel-specific options to CMake during configuration. A complete list of CMake
 options is provided in **Appendix A** of this Install guide. The following
 provides a more thorough configure/build/install example:
 
@@ -130,7 +130,7 @@ There are many ways builds go wrong. Here are a few problems and their fixes:
 
 Running Tests
 -------------
-Each subcomponent of FAODEL comes with its own set of tests. Some of the simpler
+Each subcomponent of Faodel comes with its own set of tests. Some of the simpler
 tests (eg usually unit tests) are designed to run in a standalone mode and do
 not need MPI to run. These tests begin with the prefix "tb_", where tb stands
 for testbench. Other tests that need to be launched with mpi use a prefix of "
@@ -145,7 +145,7 @@ environment variable that points to a configuration file. See 'Passing in
 Configuration Information' below for more info.
 
 Several of the tests use mpi to launch multiple programs that then communicate
-with each other via FAODEL's primitives. On platforms that use Slurm, the build
+with each other via Faodel's primitives. On platforms that use Slurm, the build
 system will launch tests in a parallel form if you allocated nodes properly and
 use an mpiexec that inherits Slurm job settings correctly:
 
@@ -178,11 +178,11 @@ test. Common problems include:
   likely that something has gone wrong (look in the logs for info).
 
 - **Atomics:** Mellanox installations sometimes have issues that cause them to
-  implement atomics properly. FAODEL often detects problems at build time, but
+  implement atomics properly. Faodel often detects problems at build time, but
   the atomics tests are the true test of whether things work properly. If they
   fail, its likely your Mellanox/OFED install is broken. Given that Atomics are
-  not currently used in FAODEL's current libs, it may not be essential for these
-  tests to work in order to use FAODEL.
+  not currently used in Faodel's current libs, it may not be essential for these
+  tests to work in order to use Faodel.
 
 - **InfiniBand "Cannot Create CQ":** If you're seeing InfiniBand errors about
   not being able to create a CQ due to memory issues, you may need to talk to
@@ -197,7 +197,7 @@ test. Common problems include:
      @ib_users        soft    memlock        1074741824
      @ib_users        hard    memlock        1610612736
 
-FAODEL provides the faodel tool as a sanity check for your build. This tools
+Faodel provides the faodel tool as a sanity check for your build. This tools
 prints out build information and performs basic checks to determine if the
 libraries will work. You should run this test on your platform's login node, as
 well as a compute node (some platforms have different hardware).
@@ -207,9 +207,9 @@ well as a compute node (some platforms have different hardware).
      srun build/tools/faodel-cli/faodel build-info
      exit 
 
-Optimizing FAODEL Builds
+Optimizing Faodel Builds
 ------------------------
-FAODEL has a significant amount of debugging infrastructure built into it to 
+Faodel has a significant amount of debugging infrastructure built into it to 
 help users troubleshoot services. These debug options can cause significant 
 slow downs. When building for performance, we recommend setting the following
 cmake options:
@@ -221,10 +221,10 @@ cmake options:
 
 Building the Examples
 =====================
-Most of the subprojects in FAODEL have their own set of examples that users can
+Most of the subprojects in Faodel have their own set of examples that users can
 build on their own. While you can enable the building of these examples by
-turning on the BUILD_EXAMPLES option when building FAODEL, the expectation is
-that users will build/install FAODEL, and then build the examples directory as
+turning on the BUILD_EXAMPLES option when building Faodel, the expectation is
+that users will build/install Faodel, and then build the examples directory as
 its own project. The motivation here is to provide an example CMake project
 users can use as a skeleton for their own work.
 
@@ -233,7 +233,7 @@ in the example source code explain what is happening.
 
 Building All the Subcomponent Examples
 --------------------------------------
-Once FAODEL is built and installed, a user can set the `Faodel_DIR`
+Once Faodel is built and installed, a user can set the `Faodel_DIR`
 environment variable to the installation and then build the examples. For
 example:
 
@@ -251,9 +251,9 @@ The examples can be run directly out of the build directory.
 
 Passing in Configuration Information
 ====================================
-FAODEL uses a Configuration class to control how various aspects of the system
-are configured at runtime. The FAODEL examples and tests have all been
-configured to examine the "FAODEL_CONFIG" environment variable to locate the
+Faodel uses a Configuration class to control how various aspects of the system
+are configured at runtime. The Faodel examples and tests have all been
+configured to examine the "Faodel_CONFIG" environment variable to locate the
 name of a configuration file that should be loaded during initialization.
 
 A complete list of configuration parameters can be found by using the
@@ -306,11 +306,11 @@ opbox.core.threads 4          # select the size of the threadpool
 
 Network Transports
 ==================
-FAODEL uses RDMA communication to perform all of its network interactions.
-FAODEL includes the NNTI library, which is a low-level communication library
+Faodel uses RDMA communication to perform all of its network interactions.
+Faodel includes the NNTI library, which is a low-level communication library
 that Sandia has developed and used in different applications. NNTI provides
 transports for InfiniBand, Cray, and MPI and has been updated to support
-different FAODEL needs. Recent versions of FAODEL also include experimental
+different Faodel needs. Recent versions of Faodel also include experimental
 support for the Open Fabrics library (libfabric). Libfabric provides additional
 network transports (eg sockets) that may be useful to developers.
 
@@ -332,13 +332,13 @@ There are two common network drivers/devices for Mellanox NICs -- mlx4 and mlx5.
 There is an atomics bug in the Mellanox verbs library that breaks atomics on
 mlx5 when using the standard verbs API. In order for RDMA library developers to
 do atomics on mlx5, they must use the expanded verbs API and then byte-swap the
-result to little endian (if needed). The NNTI library in FAODEL performs this
+result to little endian (if needed). The NNTI library in Faodel performs this
 operation for users automatically. However, it is imporant that users understand
 what is happening in case their build environment is not correct and problems
 arise.
 
-FAODEL uses a combination of configuration and runtime detection to determine if
-the expanded verbs API must be used. At configuration, FAODEL looks for the
+Faodel uses a combination of configuration and runtime detection to determine if
+the expanded verbs API must be used. At configuration, Faodel looks for the
 expanded verbs API. If found, a "universal"
 library is built that can run on either mlx4 or mlx5. If the expanded verbs API
 is not found, an mlx4-only library is built. At startup, the NIC is queried to
@@ -346,7 +346,7 @@ determine its atomics capabilities and requirements. The
 "universal" library can then decided between standard and expanded verbs API at
 runtime.
 
-Caveat: In order for this to work, FAODEL must be configured and built with a
+Caveat: In order for this to work, Faodel must be configured and built with a
 libverbs that has the expanded API. Otherwise, you get only the standard API.
 It does not matter which NIC is in the machine where you configure and build.
 It only matters which library is installed. To determine if a libverbs 
@@ -360,26 +360,26 @@ configure and build on any node and run on any node.
 
 Selecting An Infiniband Network Device
 --------------------------------------
-When FAODEL bootstraps the network, it searches for an Infiniband device with an
-active port. By default, FAODEL queries the verbs library for a list of devices
+When Faodel bootstraps the network, it searches for an Infiniband device with an
+active port. By default, Faodel queries the verbs library for a list of devices
 and chooses the first one with an active port. If there are multiple devices or
-multiple active ports, FAODEL may not choose the correct device.
+multiple active ports, Faodel may not choose the correct device.
 
 In this case, add the following to the configuration file:
 
     net.transport.interfaces ib1,ib0  # Prefer ib1 over ib0
 
-When `net.transport.interfaces` is defined, FAODEL will search for these
+When `net.transport.interfaces` is defined, Faodel will search for these
 devices (and only these devices) in the order given.
 
 
 Building Third-Party Libraries (TPLs)
 =====================================
-This section provides information about building TPLs needed by FAODEL.
+This section provides information about building TPLs needed by Faodel.
 
 Installing Boost
 ----------------
-FAODEL requires Boost version 1.60 or higher due to bugs in previous versions.
+Faodel requires Boost version 1.60 or higher due to bugs in previous versions.
 There is a version dependency between Boost and CMake in that newer versions of
 Boost require newer versions of CMake. Begin by downloading and extracting a
 supported version of Boost from http://www.boost.org/users/download/
@@ -400,7 +400,7 @@ end of this document for more information.
 
 Installing GoogleTest
 ---------------------
-FAODEL uses GoogleTest for tests. Begin by downloading and extracting the
+Faodel uses GoogleTest for tests. Begin by downloading and extracting the
 GoogleTest source from https://github.com/google/googletest/releases/
 
 Googletest is a straightforward build.
@@ -422,8 +422,8 @@ the tests.
 
 Installing libfabric (optional)
 -------------------------------
-FAODEL has **experimental** support for using libfabric as it's communication
-library. While some FAODEL functions work correctly with the 1.4.2 release of
+Faodel has **experimental** support for using libfabric as it's communication
+library. While some Faodel functions work correctly with the 1.4.2 release of
 libfabric, there are known problems with atomics and long sends. To build
 libfabric from source:
 
@@ -437,8 +437,8 @@ libfabric from source:
 You may need to pass in extra options (eg --disable-verbs --disable-psm) to
 control which network transports get built.
 
-In order to build FAODEL with libfabric, you need to (1) set the
-`Faodel_NETWORK_LIBRARY` to `libfabric` when configuring FAODEL and (2) add
+In order to build Faodel with libfabric, you need to (1) set the
+`Faodel_NETWORK_LIBRARY` to `libfabric` when configuring Faodel and (2) add
 libfabric's package configuration info to `PKG_CONFIG_PATH`. eg,
 
     export PKG_CONFIG_PATH=${LIBFABRIC_ROOT}/lib/pkgconfig:${PKG_CONFIG_PATH}"
@@ -484,14 +484,14 @@ Platform-Specific Notes: Installing on Mutrino (Cray XC40)
 
 Installing Faodel on a Cray XC40 is more complicated than other platforms due to
 the fact that there are two processor architectures (HSW and KNL) and Cray has
-its own set of modules for tools. Before building FAODEL, you'll need to setup
+its own set of modules for tools. Before building Faodel, you'll need to setup
 the build environment for the CPU architecture you're targeting and build any
 missing TPLs for that architecture.
 
 
 Loading Modules for GNU/Intel Compilers on HSW/KNL
 --------------------------------------------------
-Mutrino loads a default set of modules that may not be compatible with FAODEL
+Mutrino loads a default set of modules that may not be compatible with Faodel
 when building with the GNU compilers. To reset your environment to a known-good
 state, unload the PrgEnv modules and then load in the ones you need.
 
@@ -543,7 +543,7 @@ export CRAYPE_LINK_TYPE=dynamic
 Building Boost
 --------------
 Some installations provide pre-built versions of CMake, Boost, and GTest. We
-recommend using these installations if they meet FAODEL's requirements. On
+recommend using these installations if they meet Faodel's requirements. On
 Mutrino, currently use:
 
 ```
@@ -561,7 +561,7 @@ echo 'using gcc : 2.5.6craycompute : /opt/cray/pe/craype/2.5.6/bin/CC : ;' > use
 ./b2 -a toolset=gcc-2.5.6craycompute install
 ```
 
-Building FAODEL
+Building Faodel
 ---------------
 
 After setting up the environment, the rest of the configure and build is the
@@ -573,7 +573,7 @@ same as any other platform with two exceptions:
    will cause NNTI to mistakenly think IB nics are available on the system. You
    need to set the `NNTI_DISABLE_IBVERBS_TRANSPORT` variable option.
 
-A generic FAODEL build on Mutrino starts with the following:
+A generic Faodel build on Mutrino starts with the following:
 
 ```
 cd faodel
@@ -594,7 +594,7 @@ cmake \
 make -j 20 install
 ```
 
-FAODEL Configuration Settings for Mutrino
+Faodel Configuration Settings for Mutrino
 -----------------------------------------
 There are three Cray-specific system settings that you'll want to add to
 your `FAODEL_CONFIG` file when running on mutrino: (1) the name of the
@@ -641,7 +641,7 @@ find . -name CTestTestfile.cmake | xargs sed -i 's@/opt/cray/elogin/eproxy/2.0.2
 
 2. Missed CC's: CMake sometimes has trouble figuring out the MPI configuration
    with the Intel compiler targeting KNL. You may need to add the following to
-   your cmake configure of FAODEL:
+   your cmake configure of Faodel:
 
 ``` 
 -DCMAKE_CXX_COMPILER=CC \
@@ -650,7 +650,7 @@ find . -name CTestTestfile.cmake | xargs sed -i 's@/opt/cray/elogin/eproxy/2.0.2
 
 3. Gethost Warnings: The build will give many warning messages about
    gethostbyname in a statically linked application requiring a runtime with the
-   shared libraries from glibc. This is normal and does not affect FAODEL.
+   shared libraries from glibc. This is normal and does not affect Faodel.
 
 Installing on Astra (ARM-based Mellanox InfiniBand Cluster)
 ===========================================================
@@ -697,9 +697,9 @@ module load openmpi/3.1.3
 export GTEST_ROOT=${GOOGLETEST_ROOT}
 ```
 
-FAODEL Configuration Settings for Kahuna
+Faodel Configuration Settings for Kahuna
 ----------------------------------------
-When FAODEL starts, its default behavior is to read a configuration file
+When Faodel starts, its default behavior is to read a configuration file
 specified by the environment variable `FAODEL_CONFIG`. Kahuna is a generic
 InfiniBand Cluster with both 10GigE (on eth0) and IPoIB (on ib0) network ports
 for sockets. Thus, you should add the following info to the configuration file
@@ -710,19 +710,19 @@ whookie.interfaces  eth0,ib0
 net.transport.name  ibverbs
 ```
 
-Appendix A: FAODEL CMake Options
+Appendix A: Faodel CMake Options
 ================================
-The following CMake options can be toggled when building FAODEL:
+The following CMake options can be toggled when building Faodel:
 
 Basic Options
 -------------
 
 | CMake Variable                   | Type                  | Purpose                                                                                           |
 | -------------------------------- | --------------------- | ------------------------------------------------------------------------------------------------- |
-| BUILD_DOCS                       | Boolean               | Use Doxygen to build and install docs in FAODEL/docs                                              |
-| BUILD_SHARED_LIBS                | Boolean               | Build FAODEL as shared libraries (instead of static)                                              |
-| BUILD_TESTS                      | Boolean               | Build FAODEL unit and component tests                                                             |
-| CMAKE_INSTALL_PREFIX             | Path                  | Standard CMake variable for where to install FAODEL. Will create include,lib,bin subdirectories   |
+| BUILD_DOCS                       | Boolean               | Use Doxygen to build and install docs in Faodel/docs                                              |
+| BUILD_SHARED_LIBS                | Boolean               | Build Faodel as shared libraries (instead of static)                                              |
+| BUILD_TESTS                      | Boolean               | Build Faodel unit and component tests                                                             |
+| CMAKE_INSTALL_PREFIX             | Path                  | Standard CMake variable for where to install Faodel. Will create include,lib,bin subdirectories   |
 | Faodel_ENABLE_IOM_HDF5           | Boolean               | Build a Kelpie IO module for writing objects to an HDF5 file. Requires HDF5_DIR                   |
 | Faodel_ENABLE_IOM_LEVELDB        | Boolean               | Build a Kelpie IO module for writing objects to a LevelDB store. Required leveldb_DIR             |
 | Faodel_ENABLE_MPI_SUPPORT        | Boolean               | Include MPI capabilities (MPISyncStart service, mpi-based testing, and NNTI MPI Transport)        |
@@ -736,8 +736,8 @@ Advanced Options
 
 | CMake Variable             | Type                | Purpose                                                                                                                   |
 | -------------------------- | ------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| HDF5_DIR                   | Path                | Location of HDF5 libs. Only used when FAODEL_ENABLE_IOM_HDF5 used                                                         |
-| leveldb_DIR                | Path                | Location of leveldb libs. Only used when FAODEL_ENABLE_IOM_LEVELDB used                                                   |
+| HDF5_DIR                   | Path                | Location of HDF5 libs. Only used when Faodel_ENABLE_IOM_HDF5 used                                                         |
+| leveldb_DIR                | Path                | Location of leveldb libs. Only used when Faodel_ENABLE_IOM_LEVELDB used                                                   |
 | Faodel_ASSERT_METHOD       | cassert,debug*,none | Select assert behavior. Cassert is std c. debug(Exit/Halt/Warn) prints more info. none does no assertion checks           |
 | Faodel_ENABLE_DEBUG_TIMERS | Boolean             | When enabled, some components such as opbox can capture timing traces that are dumped on exit. use opbox.enable_timers    |
 | Faodel_NO_ISYSTEM_FLAG     | Boolean             | Some compilers use "-isystem" to identify system libs instead of "-I". CMake should autodetect, but this can override     |

@@ -68,13 +68,13 @@ include( ${CMAKE_CURRENT_LIST_DIR}/FaodelTPLs.cmake )
 
 if( NOT Faodel_ENABLE_MPI_SUPPORT AND Faodel_BUILT_WITH_MPI )
   # The user has indicated that they don't want an MPI_BUILD (Faodel_ENABLE_MPI_SUPPORT not set) but they've
-  # found a FAODEL install that was built with MPI. This will almost certainly result in
+  # found a Faodel install that was built with MPI. This will almost certainly result in
   # missing symbols at link time (if not a compile failure because mpi.h can't be found).
   # So let's warn about this.
   message( WARNING
     "[Faodel] Mismatch of MPI expectations."
     "  The user has specified that they do NOT want Faodel to have MPI support, but the "
-    "  FAODEL installation that this project is importing WAS built with MPI support "
+    "  Faodel installation that this project is importing WAS built with MPI support "
     "  (ie, Faodel_ENABLE_MPI_SUPPORT is FALSE in the user's project while the Faodel"
     "  installation had the value set to TRUE). This setting is almost certainly not "
     "  what you want. Please make sure Faodel_ENABLE_MPI_SUPPORT is the same for both.")

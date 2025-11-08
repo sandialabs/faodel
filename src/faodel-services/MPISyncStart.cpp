@@ -1,4 +1,4 @@
-// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// Copyright 2023 National Technology & Engineering Solutions of Sandia, LLC
 // (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
 // Government retains certain rights in this software.
 
@@ -54,7 +54,7 @@ void MPISyncStart::InitAndModifyConfiguration(Configuration *config) {
   if (!needs_patch) return;
 
   #ifndef Faodel_ENABLE_MPI_SUPPORT
-    throw std::invalid_argument("Configuration contained an mpi update, but FAODEL not configured with MPI.");
+    throw std::invalid_argument("Configuration contained an mpi update, but Faodel not configured with MPI.");
   #else
 
     int mpi_rank, mpi_size, initialized=-1;

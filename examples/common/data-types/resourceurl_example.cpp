@@ -1,4 +1,4 @@
-// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// Copyright 2023 National Technology & Engineering Solutions of Sandia, LLC
 // (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
 // Government retains certain rights in this software.
 
@@ -13,7 +13,7 @@ void example_resourceurl() {
 
   cout <<"ResourceURL Examples\n";
 
-  //A ResourceURL in FAODEL provides a way for us to reference
+  //A ResourceURL in Faodel provides a way for us to reference
   //different resources in the system. A ResourceURL string uses
   //the following format
   //
@@ -31,7 +31,7 @@ void example_resourceurl() {
   //
   // Bucket: A hash of a string to provide some namespace isolation
   //        in a shared environment. The default bucket (specified in
-  //        the Configuration used to start FAODEL) will be used if this
+  //        the Configuration used to start Faodel) will be used if this
   //        field is not in the string.
   //
   // Path:  A '/' separated path for naming this resource in the global
@@ -74,7 +74,7 @@ void example_resourceurl() {
 
 
   //Often we need to translate a resource name (eg, /my/pool) into something that
-  //defines all its characteristics. If you don't supply a resource type, FAODEL
+  //defines all its characteristics. If you don't supply a resource type, Faodel
   //assumes you're making a reference to something that will need to be looked up.
   ResourceURL u2("/my/pool");
   cout<<"I asked for '/my/pool'. Type is '"<<u2.Type()<<"'. Full Url: "<<u2.GetFullURL()<<endl;

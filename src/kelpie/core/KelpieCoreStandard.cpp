@@ -1,4 +1,4 @@
-// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// Copyright 2023 National Technology & Engineering Solutions of Sandia, LLC
 // (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
 // Government retains certain rights in this software.
 
@@ -7,6 +7,7 @@
 #include "kelpie/core/KelpieCoreStandard.hh"
 #include "kelpie/pools/LocalPool/LocalPool.hh"
 #include "kelpie/pools/NullPool/NullPool.hh"
+#include "kelpie/pools/TFTPool/TFTPool.hh"
 #include "kelpie/pools/TracePool/TracePool.hh"
 #include "kelpie/pools/DHTPool/DHTPool.hh"
 
@@ -50,6 +51,7 @@ void KelpieCoreStandard::init(const faodel::Configuration &config) {
   pool_registry.RegisterPoolConstructor("lkv",   &LocalPoolCreate);
   pool_registry.RegisterPoolConstructor("null",  &NullPoolCreate);
   pool_registry.RegisterPoolConstructor("dht",   &DHTPoolCreate);
+  pool_registry.RegisterPoolConstructor("tft",   &TFTPoolCreate);
   pool_registry.RegisterPoolConstructor("trace", &TracePoolCreate);
 
   #ifdef Faodel_ENABLE_MPI_SUPPORT

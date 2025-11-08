@@ -1,9 +1,9 @@
-// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// Copyright 2023 National Technology & Engineering Solutions of Sandia, LLC
 // (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
 // Government retains certain rights in this software.
 
-#ifndef FAODEL_COMMON_RESOURCEURL_HH
-#define FAODEL_COMMON_RESOURCEURL_HH
+#ifndef Faodel_COMMON_RESOURCEURL_HH
+#define Faodel_COMMON_RESOURCEURL_HH
 
 #include <string>
 #include <vector>
@@ -20,7 +20,7 @@ namespace faodel {
  * @brief A general class for holding information (eg type, bucket, node, path, options) for a resource
  *
  * The ResourceURL class provides a way to describe different resources used
- * in the FAODEL. It contains multiple components:
+ * in the Faodel. It contains multiple components:
  *
  * Format: "resource_type:<node>[bucket]/my/path/name&myop1=foo&myop2=bar"
  *

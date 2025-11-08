@@ -1,4 +1,4 @@
-// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// Copyright 2023 National Technology & Engineering Solutions of Sandia, LLC
 // (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
 // Government retains certain rights in this software.
 
@@ -204,10 +204,10 @@ bool Bootstrap::Init(const Configuration &config) {
 
   #ifndef Faodel_ENABLE_MPI_SUPPORT
     if(mpisyncstart_enabled) {
-      warn("The mpisyncstart option was enabled, but FAODEL was not built with MPI support. Ignoring.");
+      warn("The mpisyncstart option was enabled, but Faodel was not built with MPI support. Ignoring.");
     }
     if(mpisyncstop_enabled) {
-      warn("The mpisyncstop option was enabled, but FAODEL was not built with MPI support. Ignoring.");
+      warn("The mpisyncstop option was enabled, but Faodel was not built with MPI support. Ignoring.");
     }
   #else
     //cout<<"MPISYNCSTART enabled: "<<mpisyncstart_enabled<<endl;
@@ -242,7 +242,7 @@ bool Bootstrap::Init(const Configuration &config) {
   }
 
   if(show_config_at_init) {
-    cout <<"FAODEL Configuration after Bootstrap::Init is:\n" << configuration.str();
+    cout <<"Faodel Configuration after Bootstrap::Init is:\n" << configuration.str();
   }
 
   //Note: we can't install bootstrap whookie here because of build order issues. Do it in whookie

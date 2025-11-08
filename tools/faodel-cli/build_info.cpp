@@ -1,4 +1,4 @@
-// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// Copyright 2023 National Technology & Engineering Solutions of Sandia, LLC
 // (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
 // Government retains certain rights in this software.
 
@@ -32,7 +32,7 @@ int buildInfo(const vector<string> &args);
 
 bool dumpHelpBuild(string subcommand) {
   string help_binfo[5] = {
-          "build-info", "binfo", "", "Display FAODEL build information",
+          "build-info", "binfo", "", "Display Faodel build information",
           R"(
 This command provides a way for you to get information about how the faodel
 libraries were built (eg, was MPI used, what version of BOOST was used, which

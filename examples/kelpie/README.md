@@ -1,7 +1,7 @@
 Kelpie Examples
 ===============
 
-Kelpie provides a flexible Key/Blob store using FAODEL components. Users 
+Kelpie provides a flexible Key/Blob store using Faodel components. Users 
 create a resource **pool** out of one or more ranks in the system and 
 then exchange Lunasa **Data Objects** with the store. Objects are labeled
 with a simple Key, which is composed of either one or two strings.

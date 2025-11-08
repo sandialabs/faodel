@@ -3,11 +3,11 @@ exec_prefix=${prefix}
 libdir=${exec_prefix}/lib
 includedir=${prefix}/include
 
-# Warning: FAODEL does not support pkg-config correctly. For Reference Only.
+# Warning: Faodel does not support pkg-config correctly. For Reference Only.
 #
-#  FAODEL uses cmake for all lib dependencies, not pkg-config. However, one
-#  can use the below to make it easier to add FAODEL's libs to a makefile.
-#  This pkg-config provides the list of FAODEL libs and includes. If you're
+#  Faodel uses cmake for all lib dependencies, not pkg-config. However, one
+#  can use the below to make it easier to add Faodel's libs to a makefile.
+#  This pkg-config provides the list of Faodel libs and includes. If you're
 #  rolling your own Makefile, you'll also need to append our dependencies
 #  to your build. Those dependencies are (at least):
 #

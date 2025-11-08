@@ -1,7 +1,7 @@
-FAODEL-Services: Simple Services for FAODEL
+Faodel-Services: Simple Services for Faodel
 ===========================================
 
-FAODEL provides a few optional services that can be launched during the
+Faodel provides a few optional services that can be launched during the
 bootstrap process:
 
 
@@ -41,7 +41,7 @@ BackBurner parses the Configuration object for the following settings:
 
 MPISyncStart
 ------------
-FAODEL applications often need a simple way to pass initial configuration 
+Faodel applications often need a simple way to pass initial configuration 
 information between nodes. The MPISyncStart service examines a configuration
 and updates certain properties (ending with "_mpi") with runtime information.
 

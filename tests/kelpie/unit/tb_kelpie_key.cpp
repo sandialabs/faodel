@@ -1,4 +1,4 @@
-// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// Copyright 2023 National Technology & Engineering Solutions of Sandia, LLC
 // (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
 // Government retains certain rights in this software.
 
@@ -28,8 +28,6 @@ protected:
     b2 = Key("Booya",  "Shizzam");
     c2 = Key("Booya",  "Shizzamduh");
     d2 = Key("Booya2", "Shizzam");
-
-
   }
 
   Key a1,b1,c1,a2,b2,c2,d2;
@@ -270,5 +268,33 @@ TEST_F(KeyTest, Wildcards) {
   EXPECT_FALSE(k[0].matchesPrefixString(false, "My",        false, "MyColName"));
   EXPECT_FALSE(k[0].matchesPrefixString(false, "MyRowName", false, "My"));
   EXPECT_FALSE(k[0].matchesPrefixString(false, "My",        false, "My"));
+
+}
+
+TEST_F(KeyTest, Tags) {
+
+  //The tag functions help a user embed an id into the key that the tag-folding table
+  //can extract to figure out which node in a pool can go to. It just adds a marker
+  //to the end of the string.
+  //
+  //note: this breaks wildcards
+
+  Key k[2];
+  uint32_t tag=9999;
+  rc_t rc;
+
+  //Create tag
+  k[0] = Key("MyRow", "MyCol");
+  k[1] = Key("", "Nothing");
+
+  //Try to get one when not there
+  rc = k[0].GetK1Tag(&tag); EXPECT_EQ(KELPIE_ENOENT, rc); EXPECT_EQ(0,tag);
+  rc = k[1].GetK1Tag(&tag); EXPECT_EQ(KELPIE_ENOENT, rc); EXPECT_EQ(0,tag);
+
+  //Add a tag and verify its what we expect
+  k[0].SetK1Tag(0x1492);  EXPECT_EQ("MyRow{0x1492}", k[0].K1()); EXPECT_EQ("MyCol", k[0].K2());
+  rc = k[0].GetK1Tag(&tag);       EXPECT_EQ(KELPIE_OK, rc); EXPECT_EQ(0x1492, tag);
+
+  k[1].SetK1Tag(31);  EXPECT_EQ("{0x1f}", k[1].K1()); EXPECT_EQ("Nothing", k[1].K2());
 
 }

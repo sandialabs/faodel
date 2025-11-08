@@ -1,4 +1,4 @@
-// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// Copyright 2023 National Technology & Engineering Solutions of Sandia, LLC
 // (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
 // Government retains certain rights in this software.
 
@@ -7,11 +7,7 @@
 #include <thread>
 #include <iostream>
 
-#include "faodelConfig.h"
-
-#ifdef Faodel_ENABLE_MPI_SUPPORT
 #include <mpi.h>
-#endif
 
 #include "whookie/client/Client.hh"
 #include "whookie/Server.hh"
@@ -67,23 +63,24 @@ int startAllInOne(const vector<string> &args) {
 
   faodel::Configuration config;
 
-#ifdef Faodel_ENABLE_MPI_SUPPORT
-  //Create the dirman info
-  int mpi_rank, mpi_size;
-  MPI_Init(0, nullptr);
-  MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank);
-  MPI_Comm_size(MPI_COMM_WORLD, &mpi_size);
+  #ifdef Faodel_ENABLE_MPI_SUPPORT
+    //Create the dirman info
+    int mpi_rank, mpi_size;
+    MPI_Init(0, nullptr);
+    MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &mpi_size);
 
-  faodel::mpisyncstart::bootstrap();
-  config.Append("mpisyncstart.enable", "true");
-  config.Append("dirman.root_node_mpi", "0");
-  for(auto v: args) {
-    config.Append("dirman.resources_mpi[]", v);
-  }
-#else
-  //No mpi.. just look busy
-  config.Append("dirman.host_root", "true");
-#endif
+    faodel::mpisyncstart::bootstrap();
+    config.Append("mpisyncstart.enable", "true");
+    config.Append("dirman.root_node_mpi", "0");
+    for(auto v: args) {
+      config.Append("dirman.resources_mpi[]", v);
+    }
+  #else
+    //No mpi.. just look busy
+    config.Append("dirman.host_root", "true");
+  #endif
+
 
   //Make sure we're using dirman
   string dirman_type;
@@ -124,9 +121,9 @@ int startAllInOne(const vector<string> &args) {
 
   faodel::bootstrap::Finish();
 
-#ifdef Faodel_ENABLE_MPI_SUPPORT
-  MPI_Finalize();
-#endif
+  #ifdef Faodel_ENABLE_MPI_SUPPORT
+     MPI_Finalize();
+  #endif
      
   return 0;
 }

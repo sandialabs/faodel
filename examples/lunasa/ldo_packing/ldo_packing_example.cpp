@@ -1,4 +1,4 @@
-// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// Copyright 2023 National Technology & Engineering Solutions of Sandia, LLC
 // (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
 // Government retains certain rights in this software.
 
@@ -58,7 +58,7 @@ node_role server
 )EOF";
 
 
-//Since we often mix different data objects in FAODEL, it's useful to define
+//Since we often mix different data objects in Faodel, it's useful to define
 //a unique id to each packed data object so we can check to make sure its
 //the thing we're looking for before we go and unpack it. This data
 const uint32_t myapp_data_id = faodel::const_hash32("my data app");

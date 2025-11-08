@@ -1,4 +1,4 @@
-// Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+// Copyright 2023 National Technology & Engineering Solutions of Sandia, LLC
 // (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
 // Government retains certain rights in this software.
 
@@ -19,7 +19,7 @@
 Globals G;
 
 
-//The FAODEL uses a plain-text configuration string to set
+//The Faodel uses a plain-text configuration string to set
 //different parameters in the stack. The below string defines what
 //port the whookie sever will listen on, the type of directory management
 //service to employ, and whether internal components should spew their
@@ -99,7 +99,7 @@ int main(int argc, char **argv){
   sleep(30);
 
   //Finally, do an mpi barrier to sync all nodes and then invoke shutdown procedures
-  //to stop the FAODEL. Global also does an mpi finalize to close out the test.
+  //to stop the Faodel. Global also does an mpi finalize to close out the test.
   G.StopAll();
 
   return 0;
