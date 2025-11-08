@@ -21,11 +21,9 @@ National Laboratories.
 
 - **Pronunciation**: We say *"Fay-oh-Dell"*.
  
-**Note**: Faodel development takes place in a private repository due to Sandia's
-      software release process. The Github repository is only updated when
-      there are minor bug fixes or new release snapshots. This message will
-      be updated if/when Faodel is no longer being developed.
-
+**Note**: Faodel development ended in 2023 after the goodwitch 1.2306.1
+      release. This repository is no longer being updated.
+      
 Components
 ----------
 Faodel is composed of multiple libraries:
